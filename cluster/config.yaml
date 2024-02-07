@@ -1,0 +1,36 @@
+cluster:
+  bsub
+    -o "{log}.out"
+    -e "{log}.err"
+    -J "{rule}-{wildcards}"
+    -R "select[mem>{resources.mem_mb}] rusage[mem={resources.mem_mb}] span[hosts=1]"
+    -n {threads}
+    -q "{resources.queue}" 
+    "{resources.gpu_opts}"
+
+default-resources:
+  - mem_mb=8
+  - queue="rna"
+  - gpu_opts=""
+
+jobs: 50 
+
+# the cluster only has 1 gpu node
+# setting this to 1 makes snakemake only schedule 1 gpu job at a time
+resources: 
+  - ngpu=1
+
+# set rule specific requirements
+set-resources:
+  - rebasecall:queue="gpu"
+  - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
+  - rebasecall:ngpu=1
+
+printshellcmds: True
+show-failed-logs: True
+latency-wait: 60
+cluster-cancel: "bkill"
+
+# not using singularity for now
+#use-singularity: False
+#singularity-args: "--bind /beevol/home/riemondy --bind /beevol/home/rbilab"

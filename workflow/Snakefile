@@ -1,0 +1,16 @@
+# Main entrypoint of the workflow. 
+
+configfile: "config/config.yml"
+#container: config["container"]
+
+include: "rules/common.smk"
+include: "rules/aatrnaseq.smk"
+
+if config["aligner"] == "bwa":
+    include: "rules/bwa.smk"
+else:
+    include: "rules/parasail.smk"
+
+rule all:
+	input:
+		pipeline_outputs(),

@@ -1,0 +1,16 @@
+name: aatrnaseq
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - pysam
+  - numpy
+  - pandas
+  - samtools
+  - bwa
+  - snakemake
+  - scikit-learn
+  - matplotlib

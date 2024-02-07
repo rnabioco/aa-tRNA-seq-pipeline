@@ -1,0 +1,35 @@
+# path to TSV file that lists samples to process
+# two columns: 
+#   sample_id: unique id for a samples
+#   run_directory: path to run folder, with either a pod5_pass or fast5_pass directory, depending on input_format 
+samples: config/samples.tsv
+
+# output directory for files produced by pipline
+output_directory: ".test/outputs"
+
+# path to basecalling model to use with dorado
+base_calling_model: ".test/rna004_130bps_sup@v3.0.1"
+
+# either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
+input_format: "POD5"
+
+# path to fasta file to use for bwa alignment.
+# a BWA index will be built if it does not exist for this fasta file
+fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
+
+# alignment method to use, either "bwa" or "parasail"
+aligner: "bwa"
+
+# path to directory with scripts for pipeline
+src: "workflow/scripts"
+
+# path to singularity image with dependencies  (Not set up yet)
+# or specify a docker image to pull (e.g. eventually will be something at docker://rnabioco/aatrnaseq)
+# only used if --use-singularity flag is provided when running snakemake
+#container: "/path/to/a/singularity_image.sif"
+
+# path to conda env file to use for dependencies  (Not set up yet)
+# or specify a named conda enviroment
+# only used if --use-conda flag is provided when running snakemake
+#conda: "aatrnaseq"
+
