@@ -42,7 +42,7 @@ rule filter_bwa:
   align reads to tRNA references with bwa mem
   """
   input:
-    reads = rules.bwa.output,
+    reads = rules.bwa.output.bam,
   output:
     bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
     bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bam.bai"),
@@ -52,8 +52,8 @@ rule filter_bwa:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
   shell:
     """
-    python {params.src}/filter_reads.py {input} {output} 
-    samtools index {output}
+    python {params.src}/filter_reads.py {input.reads} {output.bam} 
+    samtools index {output.bam}
     """
 
 
