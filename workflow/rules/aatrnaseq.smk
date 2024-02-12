@@ -119,7 +119,7 @@ rule extract_sb_tag:
     4
   shell:
     """
-    python {params.src}/process_sb.py \
+    python {params.src}/process_sb_with_insertions.py \
         --output {output} \
         --proc {threads} \
         {input} 
