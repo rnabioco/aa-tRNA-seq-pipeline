@@ -5,13 +5,15 @@ import sys
 def parse_samples(fl):
     samples = {}
     with open(fl) as f:
-        for line in f:
-            try:
-                sample, path = line.rstrip().split()
-            except:
-                sys.exit("samples file must have 2 columns, sample_id and data_path, separated by whitespace")
-            if sample.startswith("#"):
+        for l in f:
+            line = l.rstrip()
+            if not line or line.startswith("#"):
                 continue
+            try:
+                sample, path = line.split()
+            except:
+                print("samples file must have 2 columns, sample_id and data_path, separated by whitespace", file = sys.stderr)
+                sys.exit(f"found {line}")
 
             samples[sample] = {"path" : path}
     return samples
