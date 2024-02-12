@@ -10,6 +10,8 @@ def parse_samples(fl):
                 sample, path = line.rstrip().split()
             except:
                 sys.exit("samples file must have 2 columns, sample_id and data_path, separated by whitespace")
+            if sample.startswith("#"):
+                continue
 
             samples[sample] = {"path" : path}
     return samples
