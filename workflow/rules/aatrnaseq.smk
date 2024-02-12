@@ -126,24 +126,24 @@ rule extract_sb_tag:
     """
 
 
-rule sb_means:
+rule bcerror:
   """
-  extract metrics to tsv file
+  extract base calling error  metrics to tsv file
   """
   input:
-    rules.extract_sb_tag.output  
+    rules.calc_samples_per_base.output  
   output:
-    html = os.path.join(outdir, "tables", "summary.html"),
-    tsv = os.path.join(outdir, "tables", "sb_values_prepared.tsv"), 
+    tsv = os.path.join(outdir, "tables", "{sample}.bcerror.tsv"), 
   log:
-    os.path.join(outdir, "logs", "sb_means", "sb") 
+    os.path.join(outdir, "logs", "bcerror", "{sample}") 
   params:
-    rmd = os.path.join(config['src'], "parse_sb.Rmd")
-  threads:
-    4
+    src = config["src"],
+    fa  = config["fasta"]
   shell:
     """
-    Rscript -e \
-      "rmarkdown::render('{params.rmd}', params=list(input='{input}', output='{output.tsv}'))"
+    python {params.src}/get_bcerror_freqs.py \
+      {input} \
+      {params.fa} \
+      {output}
     """
 

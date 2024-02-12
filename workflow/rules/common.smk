@@ -51,9 +51,10 @@ samples = find_raw_inputs(samples)
 # Define target files for rule all:
 # As of now it is a linear pipeline so only need to provide final files here 
 def pipeline_outputs():  
-    outs = expand(os.path.join(outdir, "tables", "{sample}.sb.tsv"),
+    outs = expand(os.path.join(outdir, "tables", "{sample}.bcerror.tsv"),
         sample = samples.keys())
-    outs = [os.path.join(outdir, "tables", "sb_values.tsv")]
+    sb_outs = [os.path.join(outdir, "tables", "sb_values.tsv")]
+    outs.append(sb_outs)
     return outs
 
 # various additional helper functions
