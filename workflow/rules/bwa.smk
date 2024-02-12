@@ -19,8 +19,8 @@ rule bwa:
     reads = rules.ubam_to_fq.output,
     idx = rules.bwa_idx.output
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bam.bai"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.unfiltered.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.unfiltered.bam.bai"),
   params:
     index = config["fasta"],
     src = config["src"]
@@ -31,10 +31,29 @@ rule bwa:
     """
     bwa mem -t {threads} -W 13 -k 6 -T 20 -x ont2d {params.index} {input.reads} \
         | samtools view -F4 -hu - \
-        | python {params.src}/filter_reads.py "-" "-" \
         | samtools sort -o {output.bam}
 
     samtools index {output.bam}
+    """
+
+
+rule filter_bwa:
+  """
+  align reads to tRNA references with bwa mem
+  """
+  input:
+    reads = rules.bwa.output,
+  output:
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bam.bai"),
+  params:
+    src = config["src"]
+  log:
+    os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
+  shell:
+    """
+    python {params.src}/filter_reads.py {input} {output} 
+    samtools index {output}
     """
 
 
