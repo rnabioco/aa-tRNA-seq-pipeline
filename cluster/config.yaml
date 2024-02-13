@@ -8,6 +8,7 @@ cluster:
     -q "{resources.queue}" 
     "{resources.gpu_opts}"
 
+# note that GB values should be passed to mem_mb
 default-resources:
   - mem_mb=8
   - queue="rna"
@@ -25,6 +26,7 @@ set-resources:
   - rebasecall:queue="gpu"
   - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
   - rebasecall:ngpu=1
+  - rebasecall:mem_mb=24
 
 printshellcmds: True
 show-failed-logs: True
