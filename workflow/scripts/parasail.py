@@ -97,14 +97,15 @@ def threshold_alignments(og_bam, randomized_bam, out_prefix, p= 0.95):
     return cutoff 
 
 def run_parasail(fastq_fn, sam_out, fasta_ref, threads, mem_budget):
-
-    cmd  = ["parasail_aligner"]
+    
+    cmd = [f"gunzip -c {fastq_fn} | "]
+    cmd += ["parasail_aligner"]
     cmd += PARASAIL_OPTS
 
-    input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref} -g {sam_out} -q {fastq_fn}".split()
+    input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref} -g {sam_out}".split()
     cmd += input_opts
-
-    ps = subprocess.run(cmd, capture_output = True)
+    cmd = " ".join(cmd)
+    ps = subprocess.run(cmd, shell = True, capture_output = True)
     
     if ps.returncode != 0:
         print(" ".join(cmd))
