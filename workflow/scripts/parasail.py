@@ -96,14 +96,15 @@ def threshold_alignments(og_bam, randomized_bam, out_prefix, p= 0.95):
 
     return cutoff 
 
-def run_parasail(fastq_fn, sam_out, fasta_ref, threads, mem_budget):
+def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget):
     
     cmd = [f"gunzip -c {fastq_fn} | "]
     cmd += ["parasail_aligner"]
     cmd += PARASAIL_OPTS
 
-    input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref} -g {sam_out}".split()
+    input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref}".split()
     cmd += input_opts
+    cmd += f" | samtools view -bS > {bam_out}".split() 
     cmd = " ".join(cmd)
     ps = subprocess.run(cmd, shell = True, capture_output = True)
     
@@ -112,22 +113,21 @@ def run_parasail(fastq_fn, sam_out, fasta_ref, threads, mem_budget):
         print(ps)
         sys.exit("Error occured running parasail_aligner")
 
-def process_alignments(sam_fn, out_fn, min_align_score, max_align_score):
+def process_alignments(bam_fn, out_fn, min_align_score, max_align_score):
     """
     Post process alignments from parasail. Move alignment scores (AS tag) to MAPQ field, capping
     them at max_align_score. The set of alignments with the highest AS scores are retained for each read.
     """
-    sam_fh = pysam.AlignmentFile(str(sam_fn), 'r') 
+    bam_fh = pysam.AlignmentFile(str(bam_fn), 'r') 
 
-    out_fh = open(out_fn, 'w')
-    out_fh.write(str(sam_fh.header))
+    out_fh = pysam.AlignmentFile(out_fn, "wb", header=bam_fh.header)
     
     # Iterate through alignments
     read_grp = ""
     max_as = 0
     read_cache = []
     
-    for read in sam_fh.fetch(until_eof=True):
+    for read in bam_fh.fetch(until_eof=True):
 
         try:
             ascore = read.get_tag("AS")
@@ -144,7 +144,7 @@ def process_alignments(sam_fn, out_fn, min_align_score, max_align_score):
         if read.query_name != read_grp:
             read_grp = read.query_name 
             for rd in read_cache:
-                out_fh.write(read.to_string() + "\n")
+                out_fh.write(read)
             read_cache.clear()
             read_cache.append(read)
             max_as = read.mapping_quality
@@ -160,9 +160,9 @@ def process_alignments(sam_fn, out_fn, min_align_score, max_align_score):
                 continue 
 
     for rd in read_cache:
-        out_fh.write(read.to_string() + "\n") 
+        out_fh.write(read) 
 
-    sam_fh.close()
+    bam_fh.close()
     out_fh.close()
 
 
@@ -172,30 +172,30 @@ def align_reads(fastq_fn, fasta_ref, bam_out, threads = 1, min_align_score = 10,
     
     """
     bam_out = Path(bam_out)
-    sam_out = bam_out.with_suffix(".sam")
+    ps_bam_out = bam_out.with_suffix(".ps.bam")
 
-    run_parasail(fastq_fn, sam_out, fasta_ref, threads, mem_budget)
+    run_parasail(fastq_fn, ps_bam_out, fasta_ref, threads, mem_budget)
     
-    as_sam_out = bam_out.with_suffix(".as.sam")
-    process_alignments(sam_out, as_sam_out, min_align_score, max_align_score)
+    as_bam_out = bam_out.with_suffix(".as.bam")
+    process_alignments(ps_bam_out, as_bam_out, min_align_score, max_align_score)
 
     # add MD tag to bam, sort and index 
     calmd_bam_out = bam_out.with_suffix(".calmd.bam")
-    cm_fh = open(calmd_bam_out, 'w')
     
-    ## For some reason, unable to save to file via save_stdout, seems to be a bug in pysam
-    ## if save_stdout is used the file saved gets corrupted 
-    cmd_out = pysam.calmd(str(as_sam_out), fasta_ref, split_lines = True)
-    for line in cmd_out:
-        cm_fh.write(line + "\n")
-    cm_fh.close()
-
+    cmd = f"samtools calmd -b {as_bam_out} {fasta_ref} > {calmd_bam_out}"
+    ps = subprocess.run(cmd, shell = True, capture_output = True)
+    
+    if ps.returncode != 0:
+        print(cmd)
+        print(ps)
+        sys.exit("Error occured running samtools calmd")
+    
     pysam.sort("-o", str(bam_out), str(calmd_bam_out))
     pysam.index(str(bam_out))
     
     os.remove(calmd_bam_out)
-    os.remove(as_sam_out)
-    os.remove(sam_out)
+    os.remove(as_bam_out)
+    os.remove(ps_bam_out)
 
 
 def generate_test_seqs(fastq_fn, out_fn):
@@ -217,9 +217,14 @@ def cleanup(*args):
         except FileNotFoundError:
             continue
 
+def check_exe(exe):
+    if shutil.which(exe) is None:
+        sys.exit(f"Unable to find {exe} executable")
+
 def check_deps():
-    if shutil.which("parasail_aligner") is None:
-        sys.exit("Unable to find parasail_aligner executable")
+    deps = ["parasail_aligner", "samtools", "gunzip"]
+    for dep in deps:
+        check_exe(dep)
 
 def make_output_dir(filepath):
     dn = os.path.dirname(filepath)
