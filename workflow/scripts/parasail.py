@@ -92,11 +92,16 @@ def threshold_alignments(og_bam, randomized_bam, out_prefix, p= 0.95):
     try:
         cutoff = np.min(thresholds[precision[:-1] > p])
     except:
-        sys.exit("Unable to determine alignment score cutoff")
+        print("Unable to determine alignment score cutoff",
+              file = sys.stderr)
+        print("Setting to alignment score cutoff to 0",
+              file = sys.stderr)
+        cutoff = 0
 
     return cutoff 
 
-def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget):
+def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget,
+        min_align_score = 10):
     
     cmd = [f"gunzip -c {fastq_fn} | "]
     cmd += ["parasail_aligner"]
@@ -104,7 +109,11 @@ def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget):
 
     input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref}".split()
     cmd += input_opts
-    cmd += f" | samtools view -bS > {bam_out}".split() 
+
+    min_align_score = int(min_align_score)
+    filter_cmd = f"\"[AS]>={min_align_score}\""
+
+    cmd += f" | samtools view -e {filter_cmd} -bS > {bam_out}".split() 
     cmd = " ".join(cmd)
     ps = subprocess.run(cmd, shell = True, capture_output = True)
     
@@ -124,7 +133,7 @@ def process_alignments(bam_fn, out_fn, min_align_score, max_align_score):
     
     # Iterate through alignments
     read_grp = ""
-    max_as = 0
+    best_as = 0
     read_cache = []
     
     for read in bam_fh.fetch(until_eof=True):
@@ -133,7 +142,7 @@ def process_alignments(bam_fn, out_fn, min_align_score, max_align_score):
             ascore = read.get_tag("AS")
         except KeyError:
             continue
-
+        
         if ascore > max_align_score:
             ascore = max_align_score
         read.mapping_quality = ascore
@@ -143,24 +152,24 @@ def process_alignments(bam_fn, out_fn, min_align_score, max_align_score):
     
         if read.query_name != read_grp:
             read_grp = read.query_name 
-            for rd in read_cache:
-                out_fh.write(read)
+            for r in read_cache:
+                out_fh.write(r)
             read_cache.clear()
             read_cache.append(read)
-            max_as = read.mapping_quality
+            best_as = read.mapping_quality
         
         else:
-            if ascore > max_as:
+            if ascore > best_as:
                 read_cache.clear()
                 read_cache.append(read)
-                max_as = ascore
-            elif ascore == max_as:
+                best_as = ascore
+            elif ascore == best_as:
                 read_cache.append(read)
             else:
                 continue 
 
-    for rd in read_cache:
-        out_fh.write(read) 
+    for r in read_cache:
+        out_fh.write(r) 
 
     bam_fh.close()
     out_fh.close()
@@ -174,7 +183,7 @@ def align_reads(fastq_fn, fasta_ref, bam_out, threads = 1, min_align_score = 10,
     bam_out = Path(bam_out)
     ps_bam_out = bam_out.with_suffix(".ps.bam")
 
-    run_parasail(fastq_fn, ps_bam_out, fasta_ref, threads, mem_budget)
+    run_parasail(fastq_fn, ps_bam_out, fasta_ref, threads, mem_budget, min_align_score)
     
     as_bam_out = bam_out.with_suffix(".as.bam")
     process_alignments(ps_bam_out, as_bam_out, min_align_score, max_align_score)
@@ -242,6 +251,7 @@ def get_args():
                                      https://github.com/dieterich-lab/QutRNA
                                      """)
     parser.add_argument('-p', '--precision', help = "precision cutoff for alignment score", default = 0.95, type = float)
+    parser.add_argument('-s', '--align-score', help = "cutoff for alignment score, if set will override precision parameter", type = int)
     parser.add_argument('-o', '--output', required = True, help='output prefix (can include a directory)')
     parser.add_argument('-t', '--threads', help = "number of threads for alignment", default = 1, type = int)
     parser.add_argument('-m', '--memory', help = "Memory limit for parasail", default = "8GB")
@@ -256,7 +266,7 @@ def get_args():
     
     if args.threads < 1:
         sys.exit("-t must be > 0")
-
+    
     return args
 
 
@@ -267,28 +277,33 @@ def main():
     make_output_dir(args.output)
     
     out_prefix = args.output
-    rfq_out = out_prefix + ".rev.fastq.gz"
 
-    print("generating reversed input fastq")
-    generate_test_seqs(args.FASTQ, rfq_out)
-
-    print("running parasail on true alignments")
+    print("running parasail on input reads")
     og_bam = out_prefix + ".og.bam"
     align_reads(args.FASTQ, args.REF, og_bam, mem_budget = args.memory, threads = args.threads)
     
-    print("running parasail on rand/rev alignments")
-    rev_bam = out_prefix + ".rev.bam"
-    align_reads(rfq_out, args.REF, rev_bam, mem_budget = args.memory, threads = args.threads)
+    aln_score_cutoff = 0
+    if args.align_score:
+        aln_score_cutoff = args.align_score
+    else:
+        rfq_out = out_prefix + ".rev.fastq.gz"
+        print("generating reversed input fastq")
+        generate_test_seqs(args.FASTQ, rfq_out)
+        
+        print("running parasail on rand/rev sequences")
+        rev_bam = out_prefix + ".rev.bam"
+        align_reads(rfq_out, args.REF, rev_bam, mem_budget = args.memory, threads = args.threads)
 
-    aln_score_cutoff = threshold_alignments(og_bam, rev_bam, out_prefix, p = args.precision)
-    print(f"alignment score cutoff determined to be {aln_score_cutoff}") 
-    
-    print("filtering final bam")
+        aln_score_cutoff = threshold_alignments(og_bam, rev_bam, out_prefix, p = args.precision)
+        print(f"alignment score cutoff determined to be {aln_score_cutoff}") 
+        cleanup(rev_bam, rev_bam + "bai", rfq_out)
+
+    print(f"filtering final bam for alignment score of {aln_score_cutoff}")
     final_bam = out_prefix + ".bam"
     filter_bam(og_bam, final_bam, aln_score_cutoff)
 
     pysam.index(final_bam)
 
-    cleanup(og_bam, og_bam + ".bai", rev_bam, rev_bam + ".bai", rfq_out)
+    cleanup(og_bam, og_bam + ".bai")
 
 if __name__ == "__main__": main()

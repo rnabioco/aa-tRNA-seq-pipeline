@@ -9,4 +9,9 @@ mkdir -p logs
 snakemake \
   --configfile=config/config.yml \
   --profile cluster
-  
+
+# run with parasail instead (will overwrite output bams and summary tables)
+snakemake \
+  --configfile=config/config.yml \
+  --config aligner=parasail \
+  --profile cluster
