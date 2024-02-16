@@ -7,6 +7,9 @@ samples: config/samples.tsv
 # output directory for files produced by pipline
 output_directory: ".test/outputs"
 
+# directory for rebasecalled bam files
+rebasecalled_bam_directory: ".test/outputs/rbc_bams"
+
 # path to basecalling model to use with dorado
 base_calling_model: ".test/rna004_130bps_sup@v3.0.1"
 

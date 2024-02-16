@@ -19,8 +19,8 @@ rule bwa:
     reads = rules.ubam_to_fq.output,
     idx = rules.bwa_idx.output
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.unfiltered.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.unfiltered.bam.bai"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam.bai"),
   params:
     index = config["fasta"],
     src = config["src"]
@@ -44,8 +44,8 @@ rule filter_bwa:
   input:
     reads = rules.bwa.output.bam,
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bam.bai"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam.bai"),
   params:
     src = config["src"]
   log:
@@ -55,5 +55,3 @@ rule filter_bwa:
     python {params.src}/filter_reads.py {input.reads} {output.bam} 
     samtools index {output.bam}
     """
-
-

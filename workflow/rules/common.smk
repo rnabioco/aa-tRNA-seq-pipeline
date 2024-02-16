@@ -49,14 +49,16 @@ def find_raw_inputs(sample_dict):
 
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
+rbc_outdir = config["rebasecalled_bam_directory"]
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
 
 # Define target files for rule all:
 # As of now it is a linear pipeline so only need to provide final files here 
 def pipeline_outputs():  
-    outs = expand(os.path.join(outdir, "tables", "{sample}.bcerror.tsv"),
-        sample = samples.keys())
+    outs = expand(os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"),
+        sample = samples.keys(),
+        aligner = config["aligner"])
     sb_outs = [os.path.join(outdir, "tables", "sb_values.tsv")]
     outs.append(sb_outs)
     return outs
@@ -72,3 +74,6 @@ def get_rebasecalled_outputs(wildcards):
     partitions = samples[wildcards.sample]["raw_files"].keys()
     outputs = [os.path.join(outdir, "bams", wildcards.sample, p + ".bam") for p in partitions]
     return outputs
+
+def get_aligner_output(wildcards):
+    return os.path.join(outdir, "bams", wildcards.sample, wildcards.sample + "." + config["aligner"] + ".bam")

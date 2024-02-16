@@ -5,13 +5,11 @@ from pathlib import Path
 
 '''
 This script takes unmapped bams with mv tags and merges them to mapped bams without them.
-It uses pathlib to specify a root directory, so that you can
-then give it relative paths for the unmapped and mapped bam files, e.g.:
 
-python merge_bams.py --root "/path/to/root/directory/" \
-    --ubam "relpath/to/rbc.bam" \
-    --mbam "relpath/to/bwa.bam" \
-    --merged "relpath/to/merged.bam"
+python merge_bams.py  \
+    --ubam "path/to/rbc.bam" \
+    --mbam "path/to/bwa.bam" \
+    --merged "path/to/merged.bam"
 
 '''
 
@@ -42,18 +40,16 @@ def delete_file(file_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Merge BAM files.')
-    parser.add_argument('--root', help='Root directory of the project')
-    parser.add_argument('--ubam', help='Path to Unmapped BAM file relative to root')
-    parser.add_argument('--mbam', help='Path to Mapped BAM file relative to root')
-    parser.add_argument('--merged', help='Path to save Merged BAM file relative to root')
+    parser.add_argument('--ubam', help='Path to Unmapped BAM file')
+    parser.add_argument('--mbam', help='Path to Mapped BAM file')
+    parser.add_argument('--merged', help='Path to save Merged BAM file')
 
     args = parser.parse_args()
 
-    root = Path(args.root)
-    ubam = root / args.ubam
-    mbam = root / args.mbam
-    merged_bam = root / args.merged
-    sorted_merged_bam = merged_bam.with_suffix(".sorted.bam")
+    ubam = Path(args.ubam)
+    mbam = Path(args.mbam)
+    merged_bam = Path(args.merged).with_suffix(".merged.bam")
+    sorted_merged_bam = Path(args.merged)
 
     # Index the unmapped BAM
     index_bam(ubam)

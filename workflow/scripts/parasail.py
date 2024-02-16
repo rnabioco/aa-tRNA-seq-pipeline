@@ -23,7 +23,7 @@ This python code is a reimplementation of their pipeline provided here:
 https://github.com/dieterich-lab/QutRNA
 '''
 
-PARASAIL_OPTS =  "-a sw_trace_striped_sse41_128_16 -M 1 -X 1 -e 1 -o 1 -c 20 -x -d -O SAMH".split() 
+PARASAIL_OPTS =  "-a sw_trace_striped_16 -M 1 -X 1 -e 1 -o 1 -c 20 -x -d -O SAMH".split() 
   
 def gzwrite(f, compression = 6):
     if f.endswith(".gz"):
@@ -107,8 +107,10 @@ def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget,
     cmd += ["parasail_aligner"]
     cmd += PARASAIL_OPTS
 
-    input_opts = f"-r {mem_budget} -t {threads} -f {fasta_ref}".split()
+    input_opts = f"-r {mem_budget} -f {fasta_ref}".split()
     cmd += input_opts
+    if threads > 1:
+      cmd += "-t {threads}".split()
 
     min_align_score = int(min_align_score)
     filter_cmd = f"\"[AS]>={min_align_score}\""
@@ -118,7 +120,7 @@ def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget,
     ps = subprocess.run(cmd, shell = True, capture_output = True)
     
     if ps.returncode != 0:
-        print(" ".join(cmd))
+        print(cmd)
         print(ps)
         sys.exit("Error occured running parasail_aligner")
 

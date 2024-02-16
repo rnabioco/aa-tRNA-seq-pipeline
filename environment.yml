@@ -9,7 +9,7 @@ dependencies:
   - pysam
   - numpy
   - pandas
-  - samtools
+  - samtools >= 1.12
   - bwa
   - snakemake
   - scikit-learn

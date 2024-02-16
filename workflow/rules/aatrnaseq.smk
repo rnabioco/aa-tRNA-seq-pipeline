@@ -7,14 +7,14 @@ rule rebasecall:
   input:
     get_basecalling_inputs
   output:
-    os.path.join(outdir, "bams", "{sample}", "{sample}.unmapped.bam")
+    os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")
   log:
     os.path.join(outdir, "logs", "rebasecall", "{sample}")
   params:
     model = config["base_calling_model"],
     is_fast5 = config["input_format"],
     raw_data_dir = get_basecalling_dir,
-    temp_pod5 = os.path.join(outdir, "bams", "{sample}", "{sample}.pod5") 
+    temp_pod5 = os.path.join(rbc_outdir, "{sample}", "{sample}.pod5") 
   shell:
     """
     if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -58,25 +58,20 @@ rule merge_bams:
   the  output bam file listed in the "output" params
   """
   input:
-    unmapped = rules.ubam_to_fq.output,
-    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
+    unmapped = rules.rebasecall.output,
+    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam")
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.merged.sorted.bam"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam"),
   log:
-    os.path.join(outdir, "logs", "merge_bams", "{sample}") 
+    os.path.join(outdir, "logs", "merge_bams", "{sample}.{aligner}") 
   params:
-    root =  os.path.join(outdir, "bams", "{sample}"),
-    unmapped = "{sample}.unmapped.bam",
-    mapped = "{sample}.bam", 
-    output = "{sample}.merged.bam", 
     src = config["src"]
   shell:
     """
     python {params.src}/merge_bams.py \
-        --root {params.root} \
-        --ubam {params.unmapped} \
-        --mbam {params.mapped} \
-        --merged {params.output}
+        --ubam {input.unmapped} \
+        --mbam {input.mapped} \
+        --merged {output.bam}
     """
 
 rule calc_samples_per_base:
@@ -86,20 +81,19 @@ rule calc_samples_per_base:
   input:
     rules.merge_bams.output,
   output:
-    os.path.join(outdir, "bams", "{sample}", "{sample}.merged.sb.bam"),
+    os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
   log:
-    os.path.join(outdir, "logs", "calc_samples_per_base", "{sample}")  
+    os.path.join(outdir, "logs", "calc_samples_per_base", "{sample}.{aligner}")  
   params:
     root =  os.path.join(outdir, "bams", "{sample}"), 
-    input_bam = "{sample}.merged.sorted.bam",
-    output_bam = "{sample}.merged.sb.bam", 
+    input_bam = "{sample}.{aligner}.merged.sorted.bam",
+    output_bam = "{sample}.{aligner}.merged.sb.bam", 
     src = config["src"]
   shell:
     """
     python {params.src}/add_sb_tags.py \
-        --root {params.root} \
-        --input {params.input_bam} \
-        --output {params.output_bam}
+        --input {input} \
+        --output {output}
     """
 
 rule extract_sb_tag:
@@ -107,8 +101,9 @@ rule extract_sb_tag:
   extract metrics to tsv file
   """
   input:
-    expand(os.path.join(outdir, "bams", "{sample}", "{sample}.merged.sb.bam"),
-      sample = samples)  
+    expand(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
+      sample = samples,
+      aligner = config["aligner"])  
   output:
     os.path.join(outdir, "tables", "sb_values.tsv"),
   params:
@@ -133,9 +128,9 @@ rule bcerror:
   input:
     rules.calc_samples_per_base.output  
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.bcerror.tsv"), 
+    tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"), 
   log:
-    os.path.join(outdir, "logs", "bcerror", "{sample}") 
+    os.path.join(outdir, "logs", "bcerror", "{sample}.{aligner}") 
   params:
     src = config["src"],
     fa  = config["fasta"]

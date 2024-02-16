@@ -5,12 +5,12 @@ rule parasail:
   input:
     reads = rules.ubam_to_fq.output,
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bam.bai"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam.bai"),
   params:
     index = config["fasta"],
     src = config["src"],
-    outpre = os.path.join(outdir, "bams", "{sample}", "{sample}")
+    outpre = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"])
   log:
     os.path.join(outdir, "logs", "parasail", "{sample}") 
   threads: 4

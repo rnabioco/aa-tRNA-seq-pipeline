@@ -7,10 +7,7 @@ from pathlib import Path
 This script takes the output merged bams from merge_bams.py, which contain mv tags.
 It generates a new metric, samples per base, and adds it to the bam file as a new tag, 'sb'.
 
-It uses pathlib to specify a root directory, so that you can
-then give it relative paths for the unmapped and mapped bam files, e.g.:
-
-python add_sb_tags.py --root /path/to/root \
+python add_sb_tags.py  \
     --input /path/to/input.bam \
     --output /path/to/output.bam
 '''
@@ -42,15 +39,13 @@ def add_samples_per_base_tags(input_bam_path, output_bam_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Add samples per base tags to BAM file.')
-    parser.add_argument('--root', help='Root directory of the project')
     parser.add_argument('--input', help='Path to input (merged, sorted) BAM file relative to root')
     parser.add_argument('--output', help='Path to output BAM file for samples per base tags, relative to root')
     
     args = parser.parse_args()
     
-    root = Path(args.root)
-    input_bam = root / args.input
-    output_bam = root / args.output
+    input_bam = Path(args.input)
+    output_bam = Path(args.output)
     
     add_samples_per_base_tags(input_bam, output_bam)
     pysam.index(str(output_bam))
