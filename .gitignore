@@ -2,3 +2,4 @@
 .snakemake
 ext
 logs
+.DS_Store

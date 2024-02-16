@@ -53,14 +53,14 @@ rbc_outdir = config["rebasecalled_bam_directory"]
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
 
-# Define target files for rule all:
-# As of now it is a linear pipeline so only need to provide final files here 
+# Define target files for rule all
 def pipeline_outputs():  
     outs = expand(os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"),
         sample = samples.keys(),
         aligner = config["aligner"])
-    sb_outs = [os.path.join(outdir, "tables", "sb_values.tsv")]
-    outs.append(sb_outs)
+
+    outs += [os.path.join(outdir, "tables", "sb_values.tsv")]
+    outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs
 
 # various additional helper functions

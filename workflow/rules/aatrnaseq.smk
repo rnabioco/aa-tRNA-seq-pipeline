@@ -61,7 +61,7 @@ rule merge_bams:
     unmapped = rules.rebasecall.output,
     mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam")
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam"),
+    bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam")),
   log:
     os.path.join(outdir, "logs", "merge_bams", "{sample}.{aligner}") 
   params:
@@ -142,3 +142,42 @@ rule bcerror:
       {output}
     """
 
+rule sample_stats:
+  """
+  extract alignment stats
+  """
+  input:
+    unmapped = rules.rebasecall.output,
+    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam")
+  output:
+    tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
+  log:
+    os.path.join(outdir, "logs", "stats", "{sample}.{aligner}") 
+  params:
+    src = config["src"]
+  shell:
+    """
+    python {params.src}/get_align_stats.py \
+      -u {input.unmapped} \
+      -m {input.mapped} \
+      -o {output.tsv}
+    """
+
+rule combine_sample_stats:
+  """
+  extract alignment stats
+  """
+  input:
+    expand(os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
+        sample = samples.keys(),
+        aligner = config["aligner"])   
+  output:
+    os.path.join(outdir, "tables", "align_stats.tsv"),
+  log:
+    os.path.join(outdir, "logs", "combine_stats", "combine_stats") 
+  shell:
+    """
+    # don't combine the headers from every file
+    head -n 1 {input[0]} > {output}
+    tail -n +2 -q {input} >> {output}
+    """

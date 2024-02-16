@@ -52,6 +52,7 @@ autoreconf -fi
 make -j 4
 make install
 ```
+
 The pipeline will use the `parasail_aligner` executable in the `bin` directory.
 
 Also available here on bodhi:
