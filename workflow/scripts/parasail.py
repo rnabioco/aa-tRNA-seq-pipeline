@@ -110,7 +110,7 @@ def run_parasail(fastq_fn, bam_out, fasta_ref, threads, mem_budget,
     input_opts = f"-r {mem_budget} -f {fasta_ref}".split()
     cmd += input_opts
     if threads > 1:
-      cmd += "-t {threads}".split()
+      cmd += f"-t {threads}".split()
 
     min_align_score = int(min_align_score)
     filter_cmd = f"\"[AS]>={min_align_score}\""
