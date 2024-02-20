@@ -11,6 +11,8 @@ dependencies:
   - pandas
   - samtools >= 1.12
   - bwa
+  - deeptools
   - snakemake
   - scikit-learn
   - matplotlib
+

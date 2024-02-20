@@ -59,6 +59,11 @@ def pipeline_outputs():
         sample = samples.keys(),
         aligner = config["aligner"])
 
+    outs += expand(os.path.join(outdir, "tables", "{sample}.{aligner}.{values}.bg"),
+        sample = samples.keys(),
+        aligner = config["aligner"],
+        values = ["cpm","counts"])
+
     outs += [os.path.join(outdir, "tables", "sb_values.tsv")]
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs

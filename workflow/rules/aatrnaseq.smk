@@ -181,3 +181,35 @@ rule combine_sample_stats:
     head -n 1 {input[0]} > {output}
     tail -n +2 -q {input} >> {output}
     """
+
+rule bam_to_coverage:
+  input:
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
+  output:
+    counts = os.path.join(outdir, "tables", "{sample}.{aligner}.counts.bg"),
+    cpm = os.path.join(outdir, "tables", "{sample}.{aligner}.cpm.bg")
+  params:
+    bg_opts = config["opts"]["coverage"]
+  log:
+   os.path.join(outdir, "logs", "bg", "{sample}.{aligner}.txt")
+  threads: 4 
+  shell:
+    """
+    bamCoverage \
+      -b {input.bam} \
+      -o {output.cpm} \
+      --normalizeUsing CPM \
+      --outFileFormat bedgraph \
+      -bs 1 \
+      -p {threads} \
+      {params.bg_opts}
+
+    bamCoverage \
+      -b {input.bam} \
+      -o {output.counts} \
+      --outFileFormat bedgraph \
+      -bs 1 \
+      -p {threads} \
+      {params.bg_opts}
+
+    """
