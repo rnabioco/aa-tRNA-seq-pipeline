@@ -54,14 +54,13 @@ rule ubam_to_fq:
 rule merge_bams:
   """
   merge move table data from unmapped bam into mapped bam 
-  note that output bam will have .sorted.bam appended to 
-  the  output bam file listed in the "output" params
   """
   input:
     unmapped = rules.rebasecall.output,
-    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam")
+    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.unmerged.bam")
   output:
     bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam")),
+    bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam.bai")),
   log:
     os.path.join(outdir, "logs", "merge_bams", "{sample}.{aligner}") 
   params:
@@ -79,21 +78,19 @@ rule calc_samples_per_base:
   calculate samples per base metric for all mapped positions
   """
   input:
-    rules.merge_bams.output,
+    rules.merge_bams.output.bam,
   output:
-    os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam.bai"),
   log:
     os.path.join(outdir, "logs", "calc_samples_per_base", "{sample}.{aligner}")  
   params:
-    root =  os.path.join(outdir, "bams", "{sample}"), 
-    input_bam = "{sample}.{aligner}.merged.sorted.bam",
-    output_bam = "{sample}.{aligner}.merged.sb.bam", 
     src = config["src"]
   shell:
     """
     python {params.src}/add_sb_tags.py \
         --input {input} \
-        --output {output}
+        --output {output.bam}
     """
 
 rule extract_sb_tag:
@@ -101,7 +98,7 @@ rule extract_sb_tag:
   extract metrics to tsv file
   """
   input:
-    expand(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
+    expand(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam"),
       sample = samples,
       aligner = config["aligner"])  
   output:
@@ -126,7 +123,8 @@ rule bcerror:
   extract base calling error  metrics to tsv file
   """
   input:
-    rules.calc_samples_per_base.output  
+    bam = rules.calc_samples_per_base.output.bam, 
+    bai = rules.calc_samples_per_base.output.bai  
   output:
     tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"), 
   log:
@@ -137,7 +135,7 @@ rule bcerror:
   shell:
     """
     python {params.src}/get_bcerror_freqs.py \
-      {input} \
+      {input.bam} \
       {params.fa} \
       {output}
     """
@@ -148,7 +146,7 @@ rule sample_stats:
   """
   input:
     unmapped = rules.rebasecall.output,
-    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam")
+    mapped = rules.calc_samples_per_base.output.bam 
   output:
     tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
   log:
@@ -184,7 +182,8 @@ rule combine_sample_stats:
 
 rule bam_to_coverage:
   input:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sb.bam"),
+    bam = rules.calc_samples_per_base.output.bam,
+    bai = rules.calc_samples_per_base.output.bai,
   output:
     counts = os.path.join(outdir, "tables", "{sample}.{aligner}.counts.bg"),
     cpm = os.path.join(outdir, "tables", "{sample}.{aligner}.cpm.bg")

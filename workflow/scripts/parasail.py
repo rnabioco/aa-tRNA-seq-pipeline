@@ -298,7 +298,7 @@ def main():
 
         aln_score_cutoff = threshold_alignments(og_bam, rev_bam, out_prefix, p = args.precision)
         print(f"alignment score cutoff determined to be {aln_score_cutoff}") 
-        cleanup(rev_bam, rev_bam + "bai", rfq_out)
+        cleanup(rev_bam, rev_bam + ".bai", rfq_out)
 
     print(f"filtering final bam for alignment score of {aln_score_cutoff}")
     final_bam = out_prefix + ".bam"

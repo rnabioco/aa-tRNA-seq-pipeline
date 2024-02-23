@@ -68,6 +68,10 @@ def pipeline_outputs():
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs
 
+wildcard_constraints:
+    sample="|".join(samples.keys()),
+    aligner=config["aligner"],
+
 # various additional helper functions
 def get_basecalling_inputs(wildcards):
     return samples[wildcards.sample]["raw_files"].values()

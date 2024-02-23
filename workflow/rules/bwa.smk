@@ -44,8 +44,10 @@ rule filter_bwa:
   input:
     reads = rules.bwa.output.bam,
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".bam.bai"),
+    bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
+    config["aligner"] + ".unmerged.bam")),
+    bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
+    config["aligner"] + ".unmerged.bam.bai")),
   params:
     src = config["src"]
   log:
