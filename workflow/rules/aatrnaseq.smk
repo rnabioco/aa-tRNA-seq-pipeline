@@ -23,12 +23,12 @@ rule rebasecall:
     fi
 
     if [ "{params.is_fast5}" == "FAST5" ]; then
-      pod5 convert fast5 {params.raw_data_dir} --output {params.temp_pod5}
+      pod5 convert fast5 -r {params.raw_data_dir} --output {params.temp_pod5}
       od=$(dirname {params.temp_pod5})
       dorado basecaller --emit-moves -v {params.model} $od > {output} 
       rm {params.temp_pod5}
     else 
-      dorado basecaller --emit-moves -v {params.model} {params.raw_data_dir} > {output}
+      dorado basecaller --emit-moves -v -r {params.model} {params.raw_data_dir} > {output}
     fi
     """
 

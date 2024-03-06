@@ -23,27 +23,27 @@ def find_raw_inputs(sample_dict):
     parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
     store input files and uuid base file names in dictionary for each sample
     """
-    POD5_DIR = "pod5_pass"
-    FAST5_DIR = "fast5_pass"
+    POD5_DIRS = ["pod5_pass", "pod5_fail"]
+    FAST5_DIRS = ["fast5_pass", "fast5_fail"]
     fmt = config["input_format"]
-
+    
     if fmt == "POD5":
-        data_subdir = POD5_DIR
+        data_subdirs = POD5_DIRS
         ext = ".pod5"
     elif fmt == "FAST5":
-        data_subdir = FAST5_DIR
+        data_subdirs = FAST5_DIRS
         ext = ".fast5"
     else:
         sys.exit("input_format config option must be either FAST5 or POD5")
     
     for sample, info in sample_dict.items():
-        data_path = os.path.join(info["path"], data_subdir, "*" + ext)
-        sample_dict[sample]["raw_data_path"] = os.path.join(info["path"], data_subdir) 
-        fls = glob.glob(data_path)
-        sample_dict[sample]["raw_files"] = {}
-        for fl in fls:
-            fl_id = os.path.basename(fl.replace(ext, ""))
-            sample_dict[sample]["raw_files"][fl_id] = fl
+        raw_fls = []
+        for subdir in data_subdirs:
+            data_path = os.path.join(info["path"], subdir, "*" + ext)
+            fls = glob.glob(data_path)
+            raw_fls += fls
+
+        sample_dict[sample]["raw_files"] = raw_fls
 
     return sample_dict
 
@@ -74,15 +74,10 @@ wildcard_constraints:
 
 # various additional helper functions
 def get_basecalling_inputs(wildcards):
-    return samples[wildcards.sample]["raw_files"].values()
+    return samples[wildcards.sample]["raw_files"]
 
 def get_basecalling_dir(wildcards):
-    return samples[wildcards.sample]["raw_data_path"]
-
-def get_rebasecalled_outputs(wildcards):
-    partitions = samples[wildcards.sample]["raw_files"].keys()
-    outputs = [os.path.join(outdir, "bams", wildcards.sample, p + ".bam") for p in partitions]
-    return outputs
+    return samples[wildcards.sample]["path"]
 
 def get_aligner_output(wildcards):
     return os.path.join(outdir, "bams", wildcards.sample, wildcards.sample + "." + config["aligner"] + ".bam")

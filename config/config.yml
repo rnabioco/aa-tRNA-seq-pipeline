@@ -1,7 +1,12 @@
 # path to TSV file that lists samples to process
 # two columns: 
-#   sample_id: unique id for a samples
-#   run_directory: path to run folder, with either a pod5_pass or fast5_pass directory, depending on input_format 
+#   - sample_id
+#     a unique id for the sample
+#   - run_directory
+#     a path to the sequencing run folder. 
+#     the pipeline will recursively search for pod5 or fast5 files to process within this directory and subdirectories 
+#     to only process e.g. pod5_pass, set this path to the pod5_pass directory
+# 
 samples: config/samples.tsv
 
 # output directory for files produced by pipline
@@ -26,6 +31,7 @@ aligner: "bwa"
 # path to directory with scripts for pipeline
 src: "workflow/scripts"
 
+# options for particular tools
 opts:
     coverage: " --filterRNAstrand 'reverse' --samFlagExclude 256"
 
