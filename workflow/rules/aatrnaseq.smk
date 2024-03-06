@@ -1,11 +1,32 @@
 
+rule merge_pods:
+  """
+  merge all fast5/pod5s into a single pod5
+  """
+  input:
+    get_raw_inputs
+  output:
+    os.path.join(rbc_outdir, "{sample}", "{sample}.pod5")
+  log:
+    os.path.join(outdir, "logs", "merge_pods", "{sample}")
+  params:
+    is_fast5 = config["input_format"],
+  shell:
+    """
+    if [ "{params.is_fast5}" == "FAST5" ]; then
+      pod5 convert fast5 -f --output {output} {input}
+    else
+      pod5 merge -f -o {output} {input} 
+    fi
+    """
+
 rule rebasecall:
   """
   rebasecall using different accuracy model
   requires a GPU
   """
   input:
-    get_basecalling_inputs
+    rules.merge_pods.output
   output:
     os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")
   log:
@@ -22,14 +43,7 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES 
     fi
 
-    if [ "{params.is_fast5}" == "FAST5" ]; then
-      pod5 convert fast5 -r {params.raw_data_dir} --output {params.temp_pod5}
-      od=$(dirname {params.temp_pod5})
-      dorado basecaller --emit-moves -v {params.model} $od > {output} 
-      rm {params.temp_pod5}
-    else 
-      dorado basecaller --emit-moves -v -r {params.model} {params.raw_data_dir} > {output}
-    fi
+    dorado basecaller --emit-moves -v {params.model} {input} > {output}
     """
 
 

@@ -73,7 +73,7 @@ wildcard_constraints:
     aligner=config["aligner"],
 
 # various additional helper functions
-def get_basecalling_inputs(wildcards):
+def get_raw_inputs(wildcards):
     return samples[wildcards.sample]["raw_files"]
 
 def get_basecalling_dir(wildcards):
