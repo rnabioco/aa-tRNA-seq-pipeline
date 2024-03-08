@@ -59,32 +59,67 @@ rule ubam_to_fq:
     os.path.join(outdir, "logs", "ubam_to_fq", "{sample}") 
   shell:
     """
-    samtools fastq {input} | gzip > {output}
+    samtools fastq -T "*" {input} | gzip > {output}
     """
 
-# note that the mapped input for merge_bams is conditional on config["aligner"] settings
-# either parasail.smk or bwa.smk are used to generate the mapped bam file.
-
-rule merge_bams:
-  """
-  merge move table data from unmapped bam into mapped bam 
-  """
+rule bwa_idx:
   input:
-    unmapped = rules.rebasecall.output,
-    mapped = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.unmerged.bam")
+    config["fasta"]
   output:
-    bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam")),
-    bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.merged.sorted.bam.bai")),
+    multiext(config["fasta"], ".amb", ".ann", ".bwt", ".pac", ".sa")
   log:
-    os.path.join(outdir, "logs", "merge_bams", "{sample}.{aligner}") 
-  params:
-    src = config["src"]
+    os.path.join(outdir, "logs", "bwa_idx", "log") 
   shell:
     """
-    python {params.src}/merge_bams.py \
-        --ubam {input.unmapped} \
-        --mbam {input.mapped} \
-        --merged {output.bam}
+    bwa index {input}
+    """ 
+    
+rule bwa:
+  """
+  align reads to tRNA references with bwa mem
+  """
+  input:
+    reads = rules.ubam_to_fq.output,
+    idx = rules.bwa_idx.output
+  output:
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam.bai"),
+  params:
+    index = config["fasta"],
+    src = config["src"]
+  log:
+    os.path.join(outdir, "logs", "bwa", "{sample}") 
+  threads: 4
+  shell:
+    """
+    bwa mem -C -t {threads} -W 13 -k 6 -T 20 -x ont2d {params.index} {input.reads} \
+        | samtools view -F4 -hu - \
+        | samtools sort -o {output.bam}
+
+    samtools index {output.bam}
+    """
+
+
+rule filter_bwa:
+  """
+  filter bwa mem reads
+  """
+  input:
+    reads = rules.bwa.output.bam,
+  output:
+    bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
+    config["aligner"] + ".filtered.bam")),
+    bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
+    config["aligner"] + ".filtered.bam.bai")),
+  params:
+    src = config["src"]
+  log:
+    os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
+  shell:
+    """
+    python {params.src}/filter_reads.py {input.reads} - \
+      > {output.bam} 
+    samtools index {output.bam}
     """
 
 rule calc_samples_per_base:
@@ -92,7 +127,7 @@ rule calc_samples_per_base:
   calculate samples per base metric for all mapped positions
   """
   input:
-    rules.merge_bams.output.bam,
+    rules.filter_bwa.output.bam,
   output:
     bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam"),
     bai = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam.bai"),

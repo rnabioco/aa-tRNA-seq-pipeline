@@ -78,6 +78,3 @@ def get_raw_inputs(wildcards):
 
 def get_basecalling_dir(wildcards):
     return samples[wildcards.sample]["path"]
-
-def get_aligner_output(wildcards):
-    return os.path.join(outdir, "bams", wildcards.sample, wildcards.sample + "." + config["aligner"] + ".bam")

@@ -6,11 +6,6 @@ configfile: "config/config.yml"
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"
 
-if config["aligner"] == "bwa":
-    include: "rules/bwa.smk"
-else:
-    include: "rules/parasail.smk"
-
 rule all:
 	input:
 		pipeline_outputs(),
