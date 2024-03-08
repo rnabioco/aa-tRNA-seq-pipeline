@@ -28,7 +28,7 @@ rule rebasecall:
   input:
     rules.merge_pods.output
   output:
-    os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")
+    protected(os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam"))
   log:
     os.path.join(outdir, "logs", "rebasecall", "{sample}")
   params:
