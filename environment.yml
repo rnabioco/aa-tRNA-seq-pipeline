@@ -1,4 +1,4 @@
-name: aatrnaseq
+name: aatrnaseqpipe
 
 channels:
   - conda-forge
@@ -13,6 +13,8 @@ dependencies:
   - bwa
   - deeptools
   - snakemake
-  - scikit-learn
-  - matplotlib
+  - pulp >=2.0,<2.8.0 
+  - pip
+  - pip:
+    - pod5
 
