@@ -3,7 +3,6 @@ name: aatrnaseqpipe
 channels:
   - conda-forge
   - bioconda
-  - defaults
 
 dependencies:
   - pysam
