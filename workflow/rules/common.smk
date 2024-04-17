@@ -90,7 +90,6 @@ def pipeline_outputs():
 
     outs += [os.path.join(outdir, "tables", "sb_values.tsv")]
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
-    outs += []
     return outs
 
 wildcard_constraints:
