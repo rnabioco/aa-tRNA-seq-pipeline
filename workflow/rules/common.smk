@@ -1,6 +1,7 @@
 import os
 import glob
 import sys
+import pysam
 
 def parse_samples(fl):
     samples = {}
@@ -18,6 +19,15 @@ def parse_samples(fl):
             samples[sample] = {"path" : path}
     return samples
 
+def is_bam_file(fl):
+    try:
+        fo = pysam.AlignmentFile(fl, 'rb', check_sq = False)
+        fo.close()
+        return True
+    except:
+        return False
+
+    
 def find_raw_inputs(sample_dict):
     """
     parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
@@ -26,19 +36,31 @@ def find_raw_inputs(sample_dict):
     POD5_DIRS = ["pod5_pass", "pod5_fail"]
     FAST5_DIRS = ["fast5_pass", "fast5_fail"]
     fmt = config["input_format"]
-    
+
+    data_subdirs = [] 
     if fmt == "POD5":
         data_subdirs = POD5_DIRS
         ext = ".pod5"
     elif fmt == "FAST5":
         data_subdirs = FAST5_DIRS
         ext = ".fast5"
+    elif fmt == "BAM":
+        data_subdirs = []
+        ext = ".bam"
     else:
-        sys.exit("input_format config option must be either FAST5 or POD5")
+        sys.exit("input_format config option must be either FAST5, POD5")
     
     for sample, info in sample_dict.items():
         raw_fls = []
+        if fmt == "BAM":
+            bam_fl = info["path"]
+            if is_bam_file(bam_fl):
+                raw_fls = [bam_fl]
+            else:
+                sys.exit(f"{bam_fl} is not a valid BAM file, check format")
+
         for subdir in data_subdirs:
+ 
             data_path = os.path.join(info["path"], subdir, "*" + ext)
             fls = glob.glob(data_path)
             raw_fls += fls
@@ -46,6 +68,7 @@ def find_raw_inputs(sample_dict):
         sample_dict[sample]["raw_files"] = raw_fls
 
     return sample_dict
+
 
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
@@ -66,6 +89,7 @@ def pipeline_outputs():
 
     outs += [os.path.join(outdir, "tables", "sb_values.tsv")]
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
+    outs += []
     return outs
 
 wildcard_constraints:

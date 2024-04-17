@@ -59,6 +59,9 @@ od=sample2/fast5_fail
 mkdir -p $od
 pod5 convert to_fast5 -f -o $od sample2/pod5_fail/*.pod5
 
+dorado basecaller --emit-moves -v rna004_130bps_sup@v3.0.1 sample1/pod5_pass/*.pod5 > sample1/sample1.unmapped.bam
+dorado basecaller --emit-moves -v rna004_130bps_sup@v3.0.1 sample2/pod5_pass/*.pod5 > sample2/sample2.unmapped.bam
+
 rm ex1*.txt ex2*.txt
 
 tar -czf test_data.tar.gz rna004_130bps_sup@v3.0.1 sample* yeast.tRNAnanoref.wsplicing.fa
