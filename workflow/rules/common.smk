@@ -48,7 +48,7 @@ def find_raw_inputs(sample_dict):
         data_subdirs = []
         ext = ".bam"
     else:
-        sys.exit("input_format config option must be either FAST5, POD5")
+        sys.exit("input_format config option must be either FAST5, POD5, or BAM")
     
     for sample, info in sample_dict.items():
         raw_fls = []
