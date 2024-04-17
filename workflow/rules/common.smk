@@ -59,11 +59,12 @@ def find_raw_inputs(sample_dict):
             else:
                 sys.exit(f"{bam_fl} is not a valid BAM file, check format")
 
-        for subdir in data_subdirs:
+        else:
+            for subdir in data_subdirs:
  
-            data_path = os.path.join(info["path"], subdir, "*" + ext)
-            fls = glob.glob(data_path)
-            raw_fls += fls
+                data_path = os.path.join(info["path"], subdir, "*" + ext)
+                fls = glob.glob(data_path)
+                raw_fls += fls
 
         sample_dict[sample]["raw_files"] = raw_fls
 
