@@ -46,13 +46,20 @@ rule rebasecall:
     dorado basecaller --emit-moves -v {params.model} {input} > {output}
     """
 
+def get_optional_bam_inputs(wildcards):
+  sample = wildcards.sample
+
+  if config["input_format"] == "BAM":
+    return samples[sample]["raw_files"]
+  else:
+    return os.path.join(rbc_outdir, sample, sample + ".unmapped.bam") 
 
 rule ubam_to_fq:
   """
   extract reads from bam into FASTQ format for alignment
   """
   input:
-    rules.rebasecall.output
+    get_optional_bam_inputs
   output:
     os.path.join(outdir, "fastqs", "{sample}.fastq.gz")
   log:
@@ -194,7 +201,7 @@ rule sample_stats:
   extract alignment stats
   """
   input:
-    unmapped = rules.rebasecall.output,
+    unmapped = get_optional_bam_inputs,
     mapped = rules.calc_samples_per_base.output.bam 
   output:
     tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
