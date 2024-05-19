@@ -15,8 +15,10 @@ def parse_samples(fl):
             except:
                 print("samples file must have 2 columns, sample_id and data_path, separated by whitespace", file = sys.stderr)
                 sys.exit(f"found {line}")
-
-            samples[sample] = {"path" : path}
+            if sample in samples:
+                samples[sample]["path"].add(path)
+            else: 
+                samples[sample] = {"path" : {path}}
     return samples
 
 def is_bam_file(fl):
@@ -54,17 +56,20 @@ def find_raw_inputs(sample_dict):
         raw_fls = []
         if fmt == "BAM":
             bam_fl = info["path"]
+            if len(bam_fl) > 1:
+                sys.exit("BAM input format only accepts one file per sample")
+
             if is_bam_file(bam_fl):
                 raw_fls = [bam_fl]
             else:
                 sys.exit(f"{bam_fl} is not a valid BAM file, check format")
 
         else:
-            for subdir in data_subdirs:
- 
-                data_path = os.path.join(info["path"], subdir, "*" + ext)
-                fls = glob.glob(data_path)
-                raw_fls += fls
+            for path in info["path"]:
+                for subdir in data_subdirs:
+                    data_path = os.path.join(path, subdir, "*" + ext)
+                    fls = glob.glob(data_path)
+                    raw_fls += fls
 
         sample_dict[sample]["raw_files"] = raw_fls
 
