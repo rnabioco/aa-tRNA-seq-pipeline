@@ -1,25 +1,148 @@
 
 import argparse
 import pysam
-import os
-from pathlib import Path
+import sys
+from collections import OrderedDict
 
-# tracking unique reads will use alot a memory 
-# consider using a bloom filter if this becomes an issue 
-def get_read_stats(fn, unmapped_bam = False):
+MAX_ARRAY_LENGTH = 100000
+
+class CountArray:
+    """
+    A class to represent integer count frequencies. Memory efficent approach
+    to store various integer metrics (read lengths, quality scores, etc.)
+
+    Attributes:
+        counts (list): A list of counts.
+        total (int): The total count.
+
+    Methods:
+        push(index): Increment the count at the given index.
+        nth(n): Get the nth element from count distribution.
+        mean(): Calculate the mean value of count distribution.
+        quantile(p): Calculate the quantile value at the given percentile.
+    """
+
+    def __init__(self, max = MAX_ARRAY_LENGTH):
+        self.counts = [0] * max
+        self.total = 0
+        self.len = len(self.counts) 
+
+    def push(self, index):
+        if index >= self.len:
+            return 
+        self.counts[index] += 1
+        self.total += 1
+    
+    def nth(self, n):
+        """
+        Get the nth value from array frequency distribution
+        Args:
+            n (int): The index of the element to retrieve.
+
+        Returns:
+            int or None: The value at the nth index, or None if index is out of range.
+        """
+        start_idx = 0
+        uniq_pos = [i for i,v in enumerate(self.counts) if v > 0]
+        for pos in uniq_pos:
+            freq = self.counts[pos]
+            end_idx = start_idx + freq
+            if n < end_idx:
+                return pos
+            else:
+                start_idx = end_idx 
+        return None
+    
+    def mean(self):
+        if self.total == 0:
+            return 0   
+        
+        value_total = 0
+        for i,v in enumerate(self.counts):
+            value_total += i * v
+        return value_total / self.total
+    
+    def quantile(self, p):
+        if self.total == 0:
+            return 0   
+        
+        if p < 0 or p > 1:
+            raise ValueError("p must be between 0 and 1")
+        
+        idx = self.total * p
+        if idx % 1 == 0:
+            i = int(idx)
+            val = (self.nth(i - 1) + self.nth(i)) / 2
+        else: 
+            val = self.nth(int(idx))
+        return val
+
+class ReadStats:
+    """
+    Class to calculate statistics for a set of reads.
+
+    Attributes:
+        read_type (str): The type of reads (one of "mapped" or "unmapped").
+        n_reads (int): The total number of reads.
+        n_pos_reads (int): The number of positive strand reads.
+        qlens (CountArray): An instance of CountArray to store read lengths.
+        qquals (CountArray): An instance of CountArray to store base qualities.
+        mapq (CountArray): An instance of CountArray to store MAPQ scores.
+
+    Methods:
+        summary(q=0.5, digits=3): Returns a summary dictionary of read statistics.
+    """
+
+    def __init__(self, read_type="mapped", max_qlen=MAX_ARRAY_LENGTH, max_qqual=60, max_mapq=255):
+        """
+        Initializes a ReadStats object.
+
+        Args:
+            read_type (str, optional): The type of reads. Defaults to "mapped".
+            max_qlen (int, optional): The maximum read length. Defaults to MAX_ARRAY_LENGTH.
+            max_qqual (int, optional): The maximum base quality score. Defaults to 60.
+            max_mapq (int, optional): The maximum MAPQ score. Defaults to 255.
+        """
+        self.read_type = read_type
+        self.n_reads = 0
+        self.n_pos_reads = 0
+        self.qlens = CountArray(max=max_qlen)
+        self.qquals = CountArray(max=max_qqual)
+        self.mapq = CountArray(max=max_mapq)
+
+    def summary(self, q=0.5, digits=3):
+        d = {
+            "reads": self.n_reads,
+            "pos_reads": self.n_pos_reads,
+            "mean_length": round(self.qlens.mean(), digits),
+            "median_length": self.qlens.quantile(q),
+            "mean_base_quality": round(self.qquals.mean(), digits),
+            "median_base_quality": self.qquals.quantile(q),
+            "mean_MAPQ": round(self.mapq.mean(), digits),
+            "median_MAPQ": self.mapq.quantile(q)
+        }
+        if self.read_type == "unmapped":
+            d.pop("pos_reads")
+            d.pop("mean_MAPQ")
+            d.pop("median_MAPQ")
+        return {f'{self.read_type}_{k}': v for k, v in d.items()}
+
+
+def get_read_stats(fn, flag = None):
     n_uniq_reads = 0
-    n_pos_reads = 0
     seen_qnames = set()
-    mean_qlen = 0
-    if unmapped_bam:
-        fo = pysam.AlignmentFile(fn, "rb", check_sq=False)
-    else:
-        fo = pysam.AlignmentFile(fn, "rb") 
+
+    m_stats = ReadStats(read_type = "mapped")
+    um_stats = ReadStats(read_type = "unmapped")
+
+    fo = pysam.AlignmentFile(fn, check_sq=False)
     
     for read in fo:
-        if not unmapped_bam and read.is_unmapped:
-            continue
-
+        if flag is not None:
+            if read.flag & flag != flag:
+                continue
+        # tracking unique reads will use alot a memory 
+        # consider using a bloom filter if this becomes an issue 
         qname = read.query_name        
         if qname in seen_qnames:
             continue
@@ -27,35 +150,62 @@ def get_read_stats(fn, unmapped_bam = False):
         n_uniq_reads += 1
         seen_qnames.add(qname)
         
-        if not unmapped_bam and not read.is_reverse:
-            n_pos_reads += 1
-
         qlen = read.query_length
-        mean_qlen = mean_qlen + (qlen - mean_qlen) / n_uniq_reads
+        mean_qual = round(sum(read.query_alignment_qualities) / len(read.query_alignment_qualities))
 
+        if read.is_unmapped:
+            um_stats.n_reads += 1
+            um_stats.qlens.push(qlen)
+            um_stats.qquals.push(mean_qual)
+        else:
+            m_stats.n_reads += 1
+            m_stats.qlens.push(qlen)
+            m_stats.qquals.push(mean_qual)
+            m_stats.mapq.push(read.mapping_quality)
+            if not read.is_reverse:
+                m_stats.n_pos_reads += 1
+
+    um_summary = um_stats.summary()
+    m_summary = m_stats.summary()
+    read_summary = {**um_summary , **m_summary}
+    
+    read_summary["n_reads"] = n_uniq_reads
+    pct_mapped = 0
+    if n_uniq_reads > 0:
+        pct_mapped = round(100 * (read_summary["mapped_reads"] / read_summary["n_reads"]), 3)
+    read_summary["pct_mapped"] = pct_mapped 
+
+    read_summary["bam_file"] = "stdin" if fn == "-" else fn
+
+    first_col_order = ["bam_file", "n_reads", "pct_mapped"] +  list(m_summary.keys()) + list(um_summary.keys())
+    read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
-    return n_uniq_reads, round(mean_qlen, 6), n_pos_reads 
+    return read_summary
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Merge BAM files.')
-    parser.add_argument('-u', '--ubam', help='Path to Unmapped BAM file', required = True)
-    parser.add_argument('-m', '--mbam', help='Path to Mapped BAM file', required = True)
-    parser.add_argument('-o', '--out', help='Path to output tsv file', required = True)
+
+    parser = argparse.ArgumentParser(description='Collect alignment statistics from BAM file.')
+    parser.add_argument('BAM', help='Path to one or more BAM file(s)', nargs='+')
+    parser.add_argument('-f', '--flag', help='Require that mapped reads have the indicated BAM flag set', required = False, type = int)
+    parser.add_argument('-o', '--out', help='Path to output tsv file', required = False)
     args = parser.parse_args()
+    
+    bam_fls = args.BAM
+    flag = args.flag
+    if args.out:
+        fout = open(args.out, 'w')
+    else: 
+        fout = sys.stdout
 
-    ubam = Path(args.ubam)
-    mbam = Path(args.mbam)
-    total_reads, um_read_length, _ = get_read_stats(ubam, unmapped_bam=True)
-    m_reads, m_read_length, m_pos_strand = get_read_stats(mbam, unmapped_bam=False)
+    for i, bam in enumerate(bam_fls):
+        read_summaries = get_read_stats(bam, flag)
+        if i == 0:
+            cols = list(read_summaries.keys())
+            fout.write("\t".join(cols) + "\n")
 
-    stats = [ubam, total_reads, um_read_length, mbam, m_reads, m_read_length, 100 * m_reads / total_reads, 100 * m_pos_strand / m_pos_strand]
-    cols = ["unmapped_bam", "total_reads", "mean_read_length", "mapped_bam", "mapped_reads", "mean_mapped_read_length", "pct_aligned", "pct_pos_strand"]
+        out = "\t".join([str(x) for x in read_summaries.values()])
+        fout.write(out + "\n")
 
-    fout = open(Path(args.out), 'w')
-    fout.write("\t".join(cols) + "\n")
-
-    out = "\t".join([str(x) for x in stats])
-    fout.write(out + "\n")
     fout.close()
