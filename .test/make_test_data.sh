@@ -12,7 +12,7 @@ cp /beevol/home/riemondy/Projects/AAtRNAseq/ref/yeast.tRNAnanoref.wsplicing.fa .
 dorado download --model rna004_130bps_sup@v3.0.1
 
 # extract a subset of reads and make small pod5 and fast5s for testing
-rm -rf sample1 sample2
+rm -rf sample1 sample2 sample2_1
 ex1=/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/20240126_S288C_3AT/20240126_1602_P2S-01618-B_PAS98845_337afbe4
 ex2=/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/20231211_S288C_ctrl_chemligonly/20231211_1443_MN35252_FAX71838_5dd8ff5a
 
@@ -24,7 +24,6 @@ samtools view -q 30 -F 20 $ex2/20231211_S288C_ctrl_chemligonly.bwa.bam | cut -f 
 samtools view -q 30 -F 20 $ex2/20231211_S288C_ctrl_chemligonly.bwa.bam | cut -f 1 | tail -n 100  > ex2_read_ids_2.txt
 samtools view -q 30 -F 20 $ex2/20231211_S288C_ctrl_chemligonly.bwa.bam | cut -f 1 | head -n 200 | tail -n 10   > ex2_read_ids_3.txt
 
-rm -rf sample1/ sample2/ sample2_1/
 od=sample1/pod5_pass
 rm -rf $od
 mkdir -p $od
