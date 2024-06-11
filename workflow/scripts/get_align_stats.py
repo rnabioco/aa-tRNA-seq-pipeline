@@ -170,26 +170,20 @@ def get_read_stats(fn, flag = None):
     read_summary = {**um_summary , **m_summary}
     
     read_summary["n_reads"] = n_uniq_reads
-    pct_mapped = 0
-    if n_uniq_reads > 0:
-        pct_mapped = round(100 * (read_summary["mapped_reads"] / read_summary["n_reads"]), 3)
-    read_summary["pct_mapped"] = pct_mapped 
-
     read_summary["bam_file"] = "stdin" if fn == "-" else fn
 
-    first_col_order = ["bam_file", "n_reads", "pct_mapped"] +  list(m_summary.keys()) + list(um_summary.keys())
+    first_col_order = ["bam_file", "n_reads"] +  list(m_summary.keys()) + list(um_summary.keys())
     read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
     return read_summary
 
-
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Collect alignment statistics from BAM file.')
-    parser.add_argument('BAM', help='Path to one or more BAM file(s)', nargs='+')
+    parser = argparse.ArgumentParser(description='Collect read and alignment statistics from BAM files.')
     parser.add_argument('-f', '--flag', help='Require that mapped reads have the indicated BAM flag set', required = False, type = int)
     parser.add_argument('-o', '--out', help='Path to output tsv file', required = False)
+    parser.add_argument('BAM', help='Path to one or more BAM file(s)', nargs='+')
     args = parser.parse_args()
     
     bam_fls = args.BAM

@@ -31,8 +31,11 @@ aligner: "bwa"
 # path to directory with scripts for pipeline
 src: "workflow/scripts"
 
-# options for particular tools
+# options for particular commands
 opts:
+    #requires positive strand alignment with 15bp on 5' end, 18bp on 3' end, and a minimum MAPQ of 1
+    bam_filter: "-5 15 -3 18 -q 1 -s "
+    #requires positive strand alignment and excludes non-primary alignments 
     coverage: " --filterRNAstrand 'reverse' --samFlagExclude 256"
 
 # path to singularity image with dependencies  (Not set up yet)

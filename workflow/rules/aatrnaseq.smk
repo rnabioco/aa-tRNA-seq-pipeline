@@ -119,13 +119,17 @@ rule filter_bwa:
     bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
     config["aligner"] + ".filtered.bam.bai")),
   params:
-    src = config["src"]
+    src = config["src"],
+    bf_opts = config["opts"]["bam_filter"] 
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
   shell:
     """
-    python {params.src}/filter_reads.py {input.reads} - \
-      > {output.bam} 
+    python {params.src}/filter_reads.py \
+      {params.bf_opts} \
+      -i {input.reads} \
+      -o {output.bam} 
+      
     samtools index {output.bam}
     """
 
@@ -176,7 +180,7 @@ rule extract_sb_tag:
 
 rule bcerror:
   """
-  extract base calling error  metrics to tsv file
+  extract base calling error metrics to tsv file
   """
   input:
     bam = rules.calc_samples_per_base.output.bam, 
@@ -202,6 +206,7 @@ rule sample_stats:
   """
   input:
     unmapped = get_optional_bam_inputs,
+    unfiltered = rules.bwa.output.bam,
     mapped = rules.calc_samples_per_base.output.bam 
   output:
     tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
@@ -212,9 +217,10 @@ rule sample_stats:
   shell:
     """
     python {params.src}/get_align_stats.py \
-      -u {input.unmapped} \
-      -m {input.mapped} \
-      -o {output.tsv}
+      -o {output.tsv} \
+      {input.unmapped} \
+      {input.unfiltered} \
+      {input.mapped} 
     """
 
 rule combine_sample_stats:
