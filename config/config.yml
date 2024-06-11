@@ -16,7 +16,7 @@ output_directory: ".test/outputs"
 rebasecalled_bam_directory: ".test/outputs/rbc_bams"
 
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
-base_calling_model: "sup@v3.0.1"
+base_calling_model: "sup@v5.0.0"
 
 # either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
 input_format: "POD5"
@@ -34,8 +34,7 @@ src: "workflow/scripts"
 # options for particular commands
 opts:
     # additional options for dorado basecalling e.g
-    #dorado: " --emit-moves --modified-bases m6A pseU "
-    dorado: "--emit-moves"
+    dorado: " --emit-moves --modified-bases m6A pseU "
     
     # additional options for bwa alignment
     bwa: " -W 13 -k 6 -T 20 -x ont2d "
