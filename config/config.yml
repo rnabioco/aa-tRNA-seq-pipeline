@@ -15,8 +15,8 @@ output_directory: ".test/outputs"
 # directory for rebasecalled bam files
 rebasecalled_bam_directory: ".test/outputs/rbc_bams"
 
-# path to basecalling model to use with dorado
-base_calling_model: ".test/rna004_130bps_sup@v3.0.1"
+# either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
+base_calling_model: "sup@v3.0.1"
 
 # either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
 input_format: "POD5"
@@ -33,10 +33,18 @@ src: "workflow/scripts"
 
 # options for particular commands
 opts:
+    # additional options for dorado basecalling e.g
+    #dorado: " --emit-moves --modified-bases m6A pseU "
+    dorado: "--emit-moves"
+    
+    # additional options for bwa alignment
+    bwa: " -W 13 -k 6 -T 20 -x ont2d "
+
     #requires positive strand alignment with 15bp on 5' end, 18bp on 3' end, and a minimum MAPQ of 1
-    bam_filter: "-5 15 -3 18 -q 1 -s "
+    bam_filter: "-5 15 -3 18 -q 1 -s"
+
     #requires positive strand alignment and excludes non-primary alignments 
-    coverage: " --filterRNAstrand 'reverse' --samFlagExclude 256"
+    coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
 
 # path to singularity image with dependencies  (Not set up yet)
 # or specify a docker image to pull (e.g. eventually will be something at docker://rnabioco/aatrnaseq)

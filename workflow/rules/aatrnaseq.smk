@@ -35,7 +35,8 @@ rule rebasecall:
     model = config["base_calling_model"],
     is_fast5 = config["input_format"],
     raw_data_dir = get_basecalling_dir,
-    temp_pod5 = os.path.join(rbc_outdir, "{sample}", "{sample}.pod5") 
+    temp_pod5 = os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
+    dorado_opts = config["opts"]["dorado"], 
   shell:
     """
     if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -43,7 +44,7 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES 
     fi
 
-    dorado basecaller --emit-moves -v {params.model} {input} > {output}
+    dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
     """
 
 def get_optional_bam_inputs(wildcards):
@@ -93,13 +94,14 @@ rule bwa:
     bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam.bai"),
   params:
     index = config["fasta"],
-    src = config["src"]
+    src = config["src"],
+    bwa_opts = config["opts"]["bwa"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}") 
   threads: 4
   shell:
     """
-    bwa mem -C -t {threads} -W 13 -k 6 -T 20 -x ont2d {params.index} {input.reads} \
+    bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
         | samtools view -F4 -hu - \
         | samtools sort -o {output.bam}
 
