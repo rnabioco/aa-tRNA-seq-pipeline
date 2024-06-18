@@ -98,7 +98,7 @@ rule bwa:
     bwa_opts = config["opts"]["bwa"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}") 
-  threads: 4
+  threads: 12 
   shell:
     """
     bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
