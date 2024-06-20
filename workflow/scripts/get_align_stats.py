@@ -92,18 +92,16 @@ class ReadStats:
         summary(q=0.5, digits=3): Returns a summary dictionary of read statistics.
     """
 
-    def __init__(self, read_type="mapped", max_qlen=MAX_ARRAY_LENGTH, max_qqual=60, max_mapq=255):
+    def __init__(self, max_qlen=MAX_ARRAY_LENGTH, max_qqual=60, max_mapq=255):
         """
         Initializes a ReadStats object.
 
         Args:
-            read_type (str, optional): The type of reads. Defaults to "mapped".
             max_qlen (int, optional): The maximum read length. Defaults to MAX_ARRAY_LENGTH.
             max_qqual (int, optional): The maximum base quality score. Defaults to 60.
             max_mapq (int, optional): The maximum MAPQ score. Defaults to 255.
         """
-        self.read_type = read_type
-        self.n_reads = 0
+        self.mapped_reads = 0
         self.n_pos_reads = 0
         self.qlens = CountArray(max=max_qlen)
         self.qquals = CountArray(max=max_qqual)
@@ -111,7 +109,7 @@ class ReadStats:
 
     def summary(self, q=0.5, digits=3):
         d = {
-            "reads": self.n_reads,
+            "mapped_reads": self.mapped_reads,
             "pos_reads": self.n_pos_reads,
             "mean_length": round(self.qlens.mean(), digits),
             "median_length": self.qlens.quantile(q),
@@ -120,19 +118,15 @@ class ReadStats:
             "mean_MAPQ": round(self.mapq.mean(), digits),
             "median_MAPQ": self.mapq.quantile(q)
         }
-        if self.read_type == "unmapped":
-            d.pop("pos_reads")
-            d.pop("mean_MAPQ")
-            d.pop("median_MAPQ")
-        return {f'{self.read_type}_{k}': v for k, v in d.items()}
+
+        return d
 
 
-def get_read_stats(fn, flag = None, id = None):
+def get_read_stats(fn, flag = None, sample_id = None, sample_info = None):
     n_uniq_reads = 0
     seen_qnames = set()
 
-    m_stats = ReadStats(read_type = "mapped")
-    um_stats = ReadStats(read_type = "unmapped")
+    stats = ReadStats()
 
     fo = pysam.AlignmentFile(fn, check_sq=False)
     
@@ -151,28 +145,28 @@ def get_read_stats(fn, flag = None, id = None):
         
         qlen = read.query_length
         mean_qual = round(sum(read.query_alignment_qualities) / len(read.query_alignment_qualities))
-
-        if read.is_unmapped:
-            um_stats.n_reads += 1
-            um_stats.qlens.push(qlen)
-            um_stats.qquals.push(mean_qual)
-        else:
-            m_stats.n_reads += 1
-            m_stats.qlens.push(qlen)
-            m_stats.qquals.push(mean_qual)
-            m_stats.mapq.push(read.mapping_quality)
+        
+        
+        stats.qlens.push(qlen)
+        stats.qquals.push(mean_qual)
+        
+        if not read.is_unmapped:
+            stats.mapped_reads += 1
+            stats.mapq.push(read.mapping_quality)
             if not read.is_reverse:
-                m_stats.n_pos_reads += 1
-
-    um_summary = um_stats.summary()
-    m_summary = m_stats.summary()
-    read_summary = {**um_summary , **m_summary}
+                stats.n_pos_reads += 1
     
-    read_summary["id"] = id if id is not None else ""
+    
+    read_summary = stats.summary()
+    read_stat_keys = read_summary.keys()
+
+    read_summary["id"] = sample_id if sample_id is not None else ""
+    read_summary["info"] = sample_info if sample_info is not None else ""
     read_summary["n_reads"] = n_uniq_reads
     read_summary["bam_file"] = "stdin" if fn == "-" else fn
+    read_summary["pct_mapped"] = 0 # to fill in later
 
-    first_col_order = ["bam_file", "id", "n_reads"] +  list(m_summary.keys()) + list(um_summary.keys())
+    first_col_order = ["bam_file", "id", "info", "n_reads", "pct_mapped"] +  list(read_stat_keys)
     read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
@@ -181,7 +175,10 @@ def get_read_stats(fn, flag = None, id = None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="Collect read and alignment statistics from BAM files."
+        description="""
+        Collect read and alignment statistics from unmapped, mapped, and further processed BAM files.
+        This tool is designed to summarize read counts across BAM files from a single sample."
+        """
     )
     parser.add_argument(
         "-f",
@@ -190,12 +187,21 @@ if __name__ == "__main__":
         required=False,
         type=int,
     )
+
     parser.add_argument("-o", "--out", help="Path to output tsv file", required=False)
+    
+    parser.add_argument(
+        "-i",
+        "--id",
+        help="Sample identifier to append to output",
+        required=False,
+        default="sample"
+    )
 
     parser.add_argument(
-        "-n",
-        "--id",
-        help="Additional id information to append to output, supplied for each input BAM",
+        "-a",
+        "--info",
+        help="Additional information to append to output, supplied for each input BAM",
         required=False,
         nargs="+"
     )
@@ -203,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-b", 
         "--bam", 
-        help="Path to one or more BAM file(s)",
+        help="Path to one or more BAM file(s), the first BAM file is assumed to be a uBAM containing only unmapped reads.",
         nargs="+"
     )
 
@@ -216,18 +222,25 @@ if __name__ == "__main__":
     else: 
         fout = sys.stdout
     
-    if args.id and len(args.id) != len(bam_fls):
-        sys.exit("Number of IDs must match number of BAM files")
+    if args.info and len(args.info) != len(bam_fls):
+        sys.exit("Number of info fields must match number of BAM files")
+    
+    total_reads = 0
 
     for i, bam in enumerate(bam_fls):
-        id = None
-        if args.id:
-            id = args.id[i]
+        sample_info = None
+        if args.info:
+            sample_info = args.info[i]
 
-        read_summaries = get_read_stats(bam, flag, id)
+        read_summaries = get_read_stats(bam, flag, args.id, sample_info)
+        
         if i == 0:
+            total_reads = read_summaries["n_reads"]
             cols = list(read_summaries.keys())
             fout.write("\t".join(cols) + "\n")
+
+        if read_summaries["mapped_reads"] > 0:
+            read_summaries["pct_mapped"] = round(read_summaries["mapped_reads"] / total_reads * 100, 2)
 
         out = "\t".join([str(x) for x in read_summaries.values()])
         fout.write(out + "\n")
