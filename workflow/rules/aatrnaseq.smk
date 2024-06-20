@@ -220,9 +220,8 @@ rule align_stats:
     """
     python {params.src}/get_align_stats.py \
       -o {output.tsv} \
-      -n {wildcards.sample}_unmapped \
-         {wildcards.sample}_unfiltered \
-         {wildcards.sample}_filtered \
+      -a unmapped unfiltered filtered \
+      -i {wildcards.sample} \
       -b {input.unmapped} \
          {input.unfiltered} \
          {input.mapped} 
