@@ -1,4 +1,3 @@
-
 import argparse
 import pysam
 import sys
@@ -128,7 +127,7 @@ class ReadStats:
         return {f'{self.read_type}_{k}': v for k, v in d.items()}
 
 
-def get_read_stats(fn, flag = None):
+def get_read_stats(fn, flag = None, id = None):
     n_uniq_reads = 0
     seen_qnames = set()
 
@@ -169,10 +168,11 @@ def get_read_stats(fn, flag = None):
     m_summary = m_stats.summary()
     read_summary = {**um_summary , **m_summary}
     
+    read_summary["id"] = id if id is not None else ""
     read_summary["n_reads"] = n_uniq_reads
     read_summary["bam_file"] = "stdin" if fn == "-" else fn
 
-    first_col_order = ["bam_file", "n_reads"] +  list(m_summary.keys()) + list(um_summary.keys())
+    first_col_order = ["bam_file", "id", "n_reads"] +  list(m_summary.keys()) + list(um_summary.keys())
     read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
@@ -180,21 +180,51 @@ def get_read_stats(fn, flag = None):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Collect read and alignment statistics from BAM files.')
-    parser.add_argument('-f', '--flag', help='Require that mapped reads have the indicated BAM flag set', required = False, type = int)
-    parser.add_argument('-o', '--out', help='Path to output tsv file', required = False)
-    parser.add_argument('BAM', help='Path to one or more BAM file(s)', nargs='+')
+    parser = argparse.ArgumentParser(
+        description="Collect read and alignment statistics from BAM files."
+    )
+    parser.add_argument(
+        "-f",
+        "--flag",
+        help="Require that mapped reads have the indicated BAM flag set",
+        required=False,
+        type=int,
+    )
+    parser.add_argument("-o", "--out", help="Path to output tsv file", required=False)
+
+    parser.add_argument(
+        "-n",
+        "--id",
+        help="Additional id information to append to output, supplied for each input BAM",
+        required=False,
+        nargs="+"
+    )
+
+    parser.add_argument(
+        "-b", 
+        "--bam", 
+        help="Path to one or more BAM file(s)",
+        nargs="+"
+    )
+
     args = parser.parse_args()
-    
-    bam_fls = args.BAM
+
+    bam_fls = args.bam
     flag = args.flag
     if args.out:
         fout = open(args.out, 'w')
     else: 
         fout = sys.stdout
+    
+    if args.id and len(args.id) != len(bam_fls):
+        sys.exit("Number of IDs must match number of BAM files")
 
     for i, bam in enumerate(bam_fls):
-        read_summaries = get_read_stats(bam, flag)
+        id = None
+        if args.id:
+            id = args.id[i]
+
+        read_summaries = get_read_stats(bam, flag, id)
         if i == 0:
             cols = list(read_summaries.keys())
             fout.write("\t".join(cols) + "\n")

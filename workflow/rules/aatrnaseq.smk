@@ -202,7 +202,7 @@ rule bcerror:
       {output}
     """
 
-rule sample_stats:
+rule align_stats:
   """
   extract alignment stats
   """
@@ -220,9 +220,12 @@ rule sample_stats:
     """
     python {params.src}/get_align_stats.py \
       -o {output.tsv} \
-      {input.unmapped} \
-      {input.unfiltered} \
-      {input.mapped} 
+      -n {wildcards.sample}_unmapped \
+         {wildcards.sample}_unfiltered \
+         {wildcards.sample}_filtered \
+      -b {input.unmapped} \
+         {input.unfiltered} \
+         {input.mapped} 
     """
 
 rule combine_sample_stats:
