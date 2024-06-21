@@ -94,7 +94,6 @@ rule bwa:
     bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam.bai"),
   params:
     index = config["fasta"],
-    src = config["src"],
     bwa_opts = config["opts"]["bwa"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}") 
@@ -121,7 +120,7 @@ rule filter_bwa:
     bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
     config["aligner"] + ".filtered.bam.bai")),
   params:
-    src = config["src"],
+    src = SCRIPT_DIR,
     bf_opts = config["opts"]["bam_filter"] 
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
@@ -147,7 +146,7 @@ rule calc_samples_per_base:
   log:
     os.path.join(outdir, "logs", "calc_samples_per_base", "{sample}.{aligner}")  
   params:
-    src = config["src"]
+    src = SCRIPT_DIR
   shell:
     """
     python {params.src}/add_sb_tags.py \
@@ -166,7 +165,7 @@ rule extract_sb_tag:
   output:
     os.path.join(outdir, "tables", "sb_values.tsv"),
   params:
-    src = config["src"],
+    src = SCRIPT_DIR,
   log:
     os.path.join(outdir, "logs", "extract_sb_tag", "sb") 
   threads:
@@ -192,7 +191,7 @@ rule bcerror:
   log:
     os.path.join(outdir, "logs", "bcerror", "{sample}.{aligner}") 
   params:
-    src = config["src"],
+    src = SCRIPT_DIR,
     fa  = config["fasta"]
   shell:
     """
@@ -215,7 +214,7 @@ rule align_stats:
   log:
     os.path.join(outdir, "logs", "stats", "{sample}.{aligner}") 
   params:
-    src = config["src"]
+    src = SCRIPT_DIR
   shell:
     """
     python {params.src}/get_align_stats.py \

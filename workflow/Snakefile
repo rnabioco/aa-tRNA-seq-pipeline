@@ -1,7 +1,8 @@
 # Main entrypoint of the workflow. 
 
 configfile: "config/config.yml"
-#container: config["container"]
+
+SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
 
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"

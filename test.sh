@@ -11,6 +11,14 @@ cd .test
 bash  dl_test_data.sh
 cd -
 
+
+snakemake \
+  -c 1 \
+  -p \
+  --configfile=config/config.yml \
+  --config \
+        base_calling_model=sup@v3.0.1 
+
 snakemake \
   -c 1 \
   -p \

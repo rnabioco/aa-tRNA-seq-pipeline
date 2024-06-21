@@ -28,9 +28,6 @@ fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
 # alignment method to use, only bwa supported at this time 
 aligner: "bwa"
 
-# path to directory with scripts for pipeline
-src: "workflow/scripts"
-
 # options for particular commands
 opts:
     # additional options for dorado basecalling e.g
