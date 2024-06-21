@@ -37,14 +37,23 @@ def get_pipeline_commit():
     repo = Repo(PIPELINE_DIR)
     return repo.head.commit
 
-def print_config():
-    print("Config settings:")
+def format_config_values():
+    x = []
+    x.append("Config settings:")
     for k,v in config.items():
         if k == "opts":
-            print(f"\t{k}:")
-            [print(f"\t\t{cmd}: {opts}")  for cmd,opts in v.items()]
+            x.append(f"\t{k}:")
+            for cmd,opts in v.items():
+                x.append(f"\t\t{cmd}: {opts}")
         else:
-            print(f"\t{k}: {v}")  
+            x.append(f"\t{k}: {v}")
+    return "\n".join(x) 
+
+def report_metadata():
+    from snakemake.logging import logger
+    cid = get_pipeline_commit()
+    logger.info(f"Pipeline commit: {cid}")
+    logger.info(format_config_values())
 
 def find_raw_inputs(sample_dict):
     """
