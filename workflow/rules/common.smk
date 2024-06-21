@@ -3,6 +3,8 @@ import glob
 import sys
 import pysam
 
+SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
+
 def parse_samples(fl):
     samples = {}
     with open(fl) as f:
@@ -22,6 +24,7 @@ def parse_samples(fl):
     return samples
 
 def is_bam_file(fl):
+    
     try:
         fo = pysam.AlignmentFile(fl, 'rb', check_sq = False)
         fo.close()
@@ -58,6 +61,8 @@ def find_raw_inputs(sample_dict):
             bam_fl = info["path"]
             if len(bam_fl) > 1:
                 sys.exit("BAM input format only accepts one file per sample")
+            
+            bam_fl = next(iter(bam_fl))
 
             if is_bam_file(bam_fl):
                 raw_fls = [bam_fl]
@@ -79,6 +84,7 @@ def find_raw_inputs(sample_dict):
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
 rbc_outdir = config["rebasecalled_bam_directory"]
+
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
 
