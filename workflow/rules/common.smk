@@ -32,7 +32,20 @@ def is_bam_file(fl):
     except:
         return False
 
-    
+def get_pipeline_commit():
+    from git import Repo
+    repo = Repo(PIPELINE_DIR)
+    return repo.head.commit
+
+def print_config():
+    print("Config settings:")
+    for k,v in config.items():
+        if k == "opts":
+            print(f"\t{k}:")
+            [print(f"\t\t{cmd}: {opts}")  for cmd,opts in v.items()]
+        else:
+            print(f"\t{k}: {v}")  
+
 def find_raw_inputs(sample_dict):
     """
     parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
