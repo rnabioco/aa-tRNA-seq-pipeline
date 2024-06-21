@@ -1,11 +1,14 @@
 # Main entrypoint of the workflow. 
-
 configfile: "config/config.yml"
 
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
+PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"
+
+print("Pipeline commit: ", get_pipeline_commit())
+print_config()
 
 rule all:
 	input:

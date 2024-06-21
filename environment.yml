@@ -13,6 +13,7 @@ dependencies:
   - deeptools
   - snakemake
   - pulp >=2.0,<2.8.0 
+  - gitpython 
   - pip
   - pip:
     - pod5
