@@ -90,8 +90,8 @@ rule bwa:
     reads = rules.ubam_to_fq.output,
     idx = rules.bwa_idx.output
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}." + config["aligner"] + ".unfiltered.bam.bai"),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam.bai"),
   params:
     index = config["fasta"],
     bwa_opts = config["opts"]["bwa"],
@@ -115,10 +115,8 @@ rule filter_bwa:
   input:
     reads = rules.bwa.output.bam,
   output:
-    bam = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
-    config["aligner"] + ".filtered.bam")),
-    bai = temp(os.path.join(outdir, "bams", "{sample}", "{sample}." +
-    config["aligner"] + ".filtered.bam.bai")),
+    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam"),
+    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam.bai"),
   params:
     src = SCRIPT_DIR,
     bf_opts = config["opts"]["bam_filter"] 
@@ -134,62 +132,17 @@ rule filter_bwa:
     samtools index {output.bam}
     """
 
-rule calc_samples_per_base:
-  """
-  calculate samples per base metric for all mapped positions
-  """
-  input:
-    rules.filter_bwa.output.bam,
-  output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam.bai"),
-  log:
-    os.path.join(outdir, "logs", "calc_samples_per_base", "{sample}.{aligner}")  
-  params:
-    src = SCRIPT_DIR
-  shell:
-    """
-    python {params.src}/add_sb_tags.py \
-        --input {input} \
-        --output {output.bam}
-    """
-
-rule extract_sb_tag:
-  """
-  extract metrics to tsv file
-  """
-  input:
-    expand(os.path.join(outdir, "bams", "{sample}", "{sample}.{aligner}.bam"),
-      sample = samples,
-      aligner = config["aligner"])  
-  output:
-    os.path.join(outdir, "tables", "sb_values.tsv"),
-  params:
-    src = SCRIPT_DIR,
-  log:
-    os.path.join(outdir, "logs", "extract_sb_tag", "sb") 
-  threads:
-    4
-  shell:
-    """
-    python {params.src}/process_sb_with_insertions.py \
-        --output {output} \
-        --proc {threads} \
-        {input} 
-    """
-
-
 rule bcerror:
   """
   extract base calling error metrics to tsv file
   """
   input:
-    bam = rules.calc_samples_per_base.output.bam, 
-    bai = rules.calc_samples_per_base.output.bai  
+    bam = rules.filter_bwa.output.bam, 
+    bai = rules.filter_bwa.output.bai  
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"), 
+    tsv = os.path.join(outdir, "tables", "{sample}.bwa.bcerror.tsv"), 
   log:
-    os.path.join(outdir, "logs", "bcerror", "{sample}.{aligner}") 
+    os.path.join(outdir, "logs", "bcerror", "{sample}.bwa") 
   params:
     src = SCRIPT_DIR,
     fa  = config["fasta"]
@@ -208,11 +161,11 @@ rule align_stats:
   input:
     unmapped = get_optional_bam_inputs,
     unfiltered = rules.bwa.output.bam,
-    mapped = rules.calc_samples_per_base.output.bam 
+    mapped = rules.filter_bwa.output.bam 
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
+    tsv = os.path.join(outdir, "tables", "{sample}.bwa.align_stats.tsv"),
   log:
-    os.path.join(outdir, "logs", "stats", "{sample}.{aligner}") 
+    os.path.join(outdir, "logs", "stats", "{sample}.bwa") 
   params:
     src = SCRIPT_DIR
   shell:
@@ -231,9 +184,8 @@ rule combine_sample_stats:
   extract alignment stats
   """
   input:
-    expand(os.path.join(outdir, "tables", "{sample}.{aligner}.align_stats.tsv"),
-        sample = samples.keys(),
-        aligner = config["aligner"])   
+    expand(os.path.join(outdir, "tables", "{sample}.bwa.align_stats.tsv"),
+        sample = samples.keys())   
   output:
     os.path.join(outdir, "tables", "align_stats.tsv"),
   log:
@@ -247,15 +199,15 @@ rule combine_sample_stats:
 
 rule bam_to_coverage:
   input:
-    bam = rules.calc_samples_per_base.output.bam,
-    bai = rules.calc_samples_per_base.output.bai,
+    bam = rules.filter_bwa.output.bam,
+    bai = rules.filter_bwa.output.bai,
   output:
-    counts = os.path.join(outdir, "tables", "{sample}.{aligner}.counts.bg"),
-    cpm = os.path.join(outdir, "tables", "{sample}.{aligner}.cpm.bg")
+    counts = os.path.join(outdir, "tables", "{sample}.bwa.counts.bg"),
+    cpm = os.path.join(outdir, "tables", "{sample}.bwa.cpm.bg")
   params:
     bg_opts = config["opts"]["coverage"]
   log:
-   os.path.join(outdir, "logs", "bg", "{sample}.{aligner}.txt")
+   os.path.join(outdir, "logs", "bg", "{sample}.bwa.txt")
   threads: 4 
   shell:
     """
