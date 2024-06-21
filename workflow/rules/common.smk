@@ -90,22 +90,18 @@ samples = find_raw_inputs(samples)
 
 # Define target files for rule all
 def pipeline_outputs():  
-    outs = expand(os.path.join(outdir, "tables", "{sample}.{aligner}.bcerror.tsv"),
-        sample = samples.keys(),
-        aligner = config["aligner"])
+    outs = expand(os.path.join(outdir, "tables", "{sample}.bwa.bcerror.tsv"),
+        sample = samples.keys())
 
-    outs += expand(os.path.join(outdir, "tables", "{sample}.{aligner}.{values}.bg"),
+    outs += expand(os.path.join(outdir, "tables", "{sample}.bwa.{values}.bg"),
         sample = samples.keys(),
-        aligner = config["aligner"],
         values = ["cpm","counts"])
 
-    outs += [os.path.join(outdir, "tables", "sb_values.tsv")]
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs
 
 wildcard_constraints:
     sample="|".join(samples.keys()),
-    aligner=config["aligner"],
 
 # various additional helper functions
 def get_raw_inputs(wildcards):

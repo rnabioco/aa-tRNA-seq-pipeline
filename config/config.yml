@@ -25,9 +25,6 @@ input_format: "POD5"
 # a BWA index will be built if it does not exist for this fasta file
 fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
 
-# alignment method to use, only bwa supported at this time 
-aligner: "bwa"
-
 # options for particular commands
 opts:
     # additional options for dorado basecalling e.g
