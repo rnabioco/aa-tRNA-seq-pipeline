@@ -229,3 +229,30 @@ rule bam_to_coverage:
       {params.bg_opts}
 
     """
+
+rule remora:
+  """
+  run remora to get signal stats
+  """
+  input:
+    bam = rules.filter_bwa.output.bam,
+    bai = rules.filter_bwa.output.bai,
+    pod5 = rules.merge_pods.output
+  output:
+    tsv = os.path.join(outdir, "tables", "{sample}.bwa.remora.tsv.gz"),
+  log:
+    os.path.join(outdir, "logs", "remora", "{sample}") 
+  params:
+    src = SCRIPT_DIR,
+    kmer = config["remora_kmer_table"],
+    opts = config["opts"]["remora"],
+  shell:
+    """
+    python {params.src}/extract_signal_metrics.py \
+      --pod5_dir {input.pod5} \
+      --bam {input.bam} \
+      --kmer {params.kmer} \
+      --sample_name {wildcards.sample} \
+      {params.opts} \
+      | gzip > {output}
+    """

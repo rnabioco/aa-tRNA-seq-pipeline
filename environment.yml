@@ -17,4 +17,4 @@ dependencies:
   - pip
   - pip:
     - pod5
-
+    - git+https://github.com/rnabioco/remora.git@metrics_missing_ok

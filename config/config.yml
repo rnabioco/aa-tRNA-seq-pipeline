@@ -25,6 +25,9 @@ input_format: "POD5"
 # a BWA index will be built if it does not exist for this fasta file
 fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
 
+# If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
+remora_kmer_table: ".test/9mer_levels_v1.txt"
+
 # options for particular commands
 opts:
     # additional options for dorado basecalling e.g
@@ -38,6 +41,9 @@ opts:
 
     #requires positive strand alignment and excludes non-primary alignments 
     coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
+
+    # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
+    remora: ""
 
 # path to singularity image with dependencies  (Not set up yet)
 # or specify a docker image to pull (e.g. eventually will be something at docker://rnabioco/aatrnaseq)
