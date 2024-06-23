@@ -70,4 +70,12 @@ cp -r sample1 sample2_1
 
 rm ex1*.txt ex2*.txt
 
-tar -czf test_data.tar.gz rna004_130bps_sup@v3.0.1 sample* yeast.tRNAnanoref.wsplicing.fa
+# get kmer levels for remora  
+wget https://raw.githubusercontent.com/nanoporetech/kmer_models/master/rna004/9mer_levels_v1.txt
+
+# tarball the test data
+tar -czf test_data.tar.gz \
+  9mer_levels_v1.txt \
+  rna004_130bps_sup@v3.0.1 \
+  sample* \
+  yeast.tRNAnanoref.wsplicing.fa
