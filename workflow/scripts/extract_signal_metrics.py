@@ -31,8 +31,8 @@ def get_metric_data(bam_fh, pod5_obj, level_table, metric, sample_name, chrom,
     s_name = sample_name
     ref_chr = chrom
     ref_strand = strand
-    ref_start = start
-    ref_end = end+1
+    ref_start = start # start is 0-based
+    ref_end = end # end is half-open
     ref_reg = io.RefRegion(
         ctg=ref_chr, strand=ref_strand, start=ref_start, end=ref_end
     )
@@ -60,61 +60,81 @@ def get_metric_data(bam_fh, pod5_obj, level_table, metric, sample_name, chrom,
 
     return samples_metrics,  all_bam_reads, ref_reg
 
-def iter_metrics(samples_metrics, all_bam_reads, ref_reg):
+def iter_metrics(sample_name, samples_metrics, all_bam_reads, ref_reg):
 
-    for samp_metrics, samp_bam_reads in zip(
-        samples_metrics, all_bam_reads
-    ):
-        for metric, reads_metrics in samp_metrics.items():
-            for bam_read, read_metrics in zip(samp_bam_reads, reads_metrics):
-                for reg_pos, metric_value in enumerate(read_metrics):
-                    if np.isnan(metric_value):
-                        print(ref_reg.ctg,"\t",reg_pos + ref_reg.start,"\t", bam_read.query_name,"\t",metric,"\t",'NA')
+    for metrics,reads in zip(samples_metrics, all_bam_reads):
+        n_reads, n_pos = next(iter(metrics.values())).shape
+
+        for i in range(n_reads):
+            read_name = reads[i].query_name
+            for reg_pos in range(n_pos):
+                row = (sample_name, ref_reg.ctg, reg_pos + ref_reg.start + 1, read_name) 
+                for metric in metrics.values():
+                    val = metric[i, reg_pos]
+                    if np.isnan(val):
+                        row += ('NA',)
                         continue
-                    yield ref_reg.ctg, reg_pos + ref_reg.start, bam_read.query_name, metric, metric_value
+                    row += (val, )
+                yield row
 
+def get_regions_to_query(bam_fh, bed_file = None, region = None):
+    regions = []
+    if region:
+        strand = "+"
+        if region.endswith("+") or region.endswith("-"):
+            strand = region[-1]
+            region = region[:-2]
+        _, tid, start, end = bam_fh.parse_region(region = region)
+        chrom = bam_fh.get_reference_name(tid)
+        regions.append((chrom, start, end, strand))
+
+    elif bed_file:
+        with open(bed_file) as f:
+            for line in f:
+                fields = line.strip().split("\t")
+                chrom, start, end = fields[:3]
+                
+                if len(fields) >= 6:
+                    strand = fields[5]
+                else:
+                    strand = "+"
+
+                regions.append((chrom, int(start), int(end), strand))
+    else:
+        for chrom in bam_fh.references:
+            regions.append((chrom, 0, bam_fh.get_reference_length(chrom), "+"))
+
+    return regions
 
 def main(args):
     pod5_dir = os.path.abspath(args.pod5_dir)
     bam = os.path.abspath(args.bam)
-    level_tab = os.path.abspath(args.level_tab)
+    level_tab = os.path.abspath(args.kmer)
     
     metric = args.metric
     sample_name = args.sample_name
     
-    strand = args.strand
+    strand = "+"
 
     b = pysam.AlignmentFile(bam, "rb")
 
-    if args.chrom:
-        chromosomes = [args.chrom]
-    else:
-        chromosomes = b.references
-
-    start = 0
-    if args.start:
-        start = args.start
-    
-    end = None
-    if args.end:
-        end = args.end
+    regions = get_regions_to_query(b, args.bed, args.region)
 
     bam_obj = io.ReadIndexedBam(bam)
     pod5_obj = pod5.DatasetReader(pod5_dir)  
 
-    print("Sample\tRead_id\tReference_Position\tMetric\tValue")
+    print("Sample\tContig\tReference_Position\tRead_id\t", "\t".join(metric.split("_")))
 
-    for chrom in chromosomes:
+    for region in regions:
+        chrom, start, end, strand = region
 
-        if end is None:
-            end = b.get_reference_length(chrom)
-        
         n_mapped_reads = b.count(contig = chrom, start=start, stop=end)
 
         if n_mapped_reads == 0:
             continue
     
-        samples_metrics, all_bam_reads, ref_reg = get_metric_data(bam_obj,
+        try:
+            samples_metrics, all_bam_reads, ref_reg = get_metric_data(bam_obj,
                 pod5_obj,
                 level_tab,
                 metric,
@@ -126,28 +146,32 @@ def main(args):
                 args.skip_refine_signal,
                 args.signal_norm,
                 args.scale_iters)
+            
+        except Exception as e:
+            print(f"Unable to process region {region}: {e}", file = sys.stderr)
+            continue
         
-        for metrics,reads in zip(samples_metrics, all_bam_reads):
-
-            for i in range(len(reads)):
-                read_name = reads[i].query_name,
-                for metric in metrics:
-                    vals = metric.values()[i, ]
-                    for j in vals:
-                        print(read_name,)
-
-        sys.exit()
         for metric_row in iter_metrics(
-            (sample_name,), samples_metrics, all_bam_reads, ref_reg
+            sample_name, samples_metrics, all_bam_reads, ref_reg
         ):
             print("\t".join(map(str, metric_row)))
-
+        
     b.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Get dwell time and signal mean for all reads (printed to stdout)"
+        description="""
+        Extract signal metrics using the Remora API. Output will be generated
+        across all regions with read coverage, restricting to reads mapped on 
+        the positive strand, as it is expected that the reads are aligned 
+        against transcripts rather than a genome reference. Output can be restricted
+        to a specific region using the --region option, or to a set of regions
+        using the --bed option. 
+        The output is TSV text with the following columns:
+        Sample\tContig\tReference_Position\tRead_id\tMetric1\tMetric2\tMetric3\t...
+        The Reference_Position is 1-based.
+        """
     )
     parser.add_argument(
         "--pod5_dir",
@@ -159,14 +183,14 @@ if __name__ == "__main__":
         "--bam", type=str, help="Path to mapped bam file", required=True
     )
     parser.add_argument(
-        "--level_tab", type=str, help="Path to k-mers level table", required=True
+        "--kmer", type=str, help="Path to k-mers level table", required=True
     )
     parser.add_argument(
         "--metric",
         type=str,
-        help="Metric that will be calculated. Possible choices:\ndwell\ndwell_mean\ndwell_mean_sd\ndwell_trimmean\ndwell_trimmean_trimsd\nDefault: dwell_mean",
+        help="Metric that will be calculated. Possible choices:\ndwell\ndwell_mean\ndwell_mean_sd\ndwell_trimmean\ndwell_trimmean_trimsd\nDefault: dwell_trimmean_trimsd",
         required=False,
-        default="dwell_mean"
+        default="dwell_trimmean_trimsd"
     )
     parser.add_argument(
         "--signal_norm",
@@ -192,17 +216,23 @@ if __name__ == "__main__":
         default="sample"
     )
     parser.add_argument(
-        "--chrom", type=str, help="Chromosome, default: run on all chromosomes", required=False
-    )
-    parser.add_argument(
-        "--strand", type=str, help="Strand, default: +", required=False, default="+"
+        "--region", 
+        type=str, 
+        help="""
+        If supplied, operate only on the specified region. Uses samtools style region string (e.g. tRNA:1-20)
+        A strand can be provided using the format tRNA:1-20:+ or tRNA:1-20:-, and will be "+" if not supplied.
+        """,
+          required=False
     )
 
     parser.add_argument(
-        "--start", type=int, help="Start position, default: 0", required=False, default=0
+        "--bed",
+        help="""
+        If supplied, produce output from the regions specified in supplied bed file
+        A strand can specified by including the strand in the 6th column.
+        """,
+        required=False
     )
-    parser.add_argument(
-        "--end", type=int, help="End position, default: end of chromosome", required=False
-    )
+
     args = parser.parse_args()
     main(args)

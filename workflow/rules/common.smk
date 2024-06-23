@@ -2,6 +2,7 @@ import os
 import glob
 import sys
 import pysam
+from git import Repo
 
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
@@ -33,7 +34,7 @@ def is_bam_file(fl):
         return False
 
 def get_pipeline_commit():
-    from git import Repo
+
     repo = Repo(PIPELINE_DIR)
     return repo.head.commit
 
@@ -118,6 +119,10 @@ def pipeline_outputs():
     outs += expand(os.path.join(outdir, "tables", "{sample}.bwa.{values}.bg"),
         sample = samples.keys(),
         values = ["cpm","counts"])
+
+    if "remora_kmer_table" in config and config["remora_kmer_table"] != "":
+        outs += expand(os.path.join(outdir, "tables", "{sample}.bwa.remora.tsv.gz"),
+            sample = samples.keys())
 
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs
