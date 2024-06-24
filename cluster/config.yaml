@@ -27,7 +27,7 @@ set-resources:
   - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-  - parasail:mem_mb=24
+  - remora:mem_mb=24
     
 
 printshellcmds: True
