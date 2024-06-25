@@ -111,6 +111,8 @@ class ReadStats:
         d = {
             "mapped_reads": self.mapped_reads,
             "pos_reads": self.n_pos_reads,
+            "mapq0_reads": self.mapq.counts[0],
+            "mapq_pass_reads": self.mapq.total - self.mapq.counts[0],
             "mean_length": round(self.qlens.mean(), digits),
             "median_length": self.qlens.quantile(q),
             "mean_base_quality": round(self.qquals.mean(), digits),
@@ -134,6 +136,9 @@ def get_read_stats(fn, flag = None, sample_id = None, sample_info = None):
         if flag is not None:
             if read.flag & flag != flag:
                 continue
+            if read.is_secondary or read.is_supplementary:
+                continue
+        
         # tracking unique reads will use alot a memory 
         # consider using a bloom filter if this becomes an issue 
         qname = read.query_name        
@@ -145,8 +150,7 @@ def get_read_stats(fn, flag = None, sample_id = None, sample_info = None):
         
         qlen = read.query_length
         mean_qual = round(sum(read.query_alignment_qualities) / len(read.query_alignment_qualities))
-        
-        
+         
         stats.qlens.push(qlen)
         stats.qquals.push(mean_qual)
         
