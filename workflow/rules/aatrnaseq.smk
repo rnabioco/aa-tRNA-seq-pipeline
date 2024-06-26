@@ -107,7 +107,6 @@ rule bwa:
     samtools index {output.bam}
     """
 
-
 rule filter_bwa:
   """
   filter bwa mem reads
@@ -117,9 +116,10 @@ rule filter_bwa:
   output:
     bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam"),
     bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam.bai"),
+    failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
   params:
     src = SCRIPT_DIR,
-    bf_opts = config["opts"]["bam_filter"] 
+    bf_opts = config["opts"]["bam_filter"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
   shell:
@@ -127,9 +127,11 @@ rule filter_bwa:
     python {params.src}/filter_reads.py \
       {params.bf_opts} \
       -i {input.reads} \
-      -o {output.bam} 
+      -o {output.bam} \
+      -f {output.failed_bam}
       
     samtools index {output.bam}
+    samtools index {output.failed_bam}
     """
 
 rule bcerror:

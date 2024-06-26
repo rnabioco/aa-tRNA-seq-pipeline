@@ -28,7 +28,7 @@ fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 remora_kmer_table: ".test/9mer_levels_v1.txt"
 
-# options for particular commands
+# additional options for particular commands
 opts:
     # additional options for dorado basecalling e.g
     dorado: " --emit-moves "
