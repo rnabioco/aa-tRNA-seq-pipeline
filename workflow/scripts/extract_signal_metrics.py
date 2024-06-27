@@ -2,8 +2,6 @@ import os
 import sys
 import argparse
 import logging
-from multiprocessing import Pool
-from functools import partial
 
 import pod5
 import pysam
@@ -77,7 +75,14 @@ def iter_metrics(sample_name, samples_metrics, all_bam_reads, ref_reg):
                     row += (val, )
                 yield row
 
-def get_regions_to_query(bam_fh, bed_file = None, region = None):
+def window_regions(regions, window_length):
+    win_regions = [] 
+    for chrom, start, end, strand in regions:
+        for i in range(start, end, window_length):
+            win_regions.append((chrom, i, min(i + window_length, end), strand))
+    return win_regions
+
+def get_regions_to_query(bam_fh, bed_file = None, region = None, window_length = 100):
     regions = []
     if region:
         strand = "+"
@@ -103,6 +108,8 @@ def get_regions_to_query(bam_fh, bed_file = None, region = None):
     else:
         for chrom in bam_fh.references:
             regions.append((chrom, 0, bam_fh.get_reference_length(chrom), "+"))
+    if window_length > 0:
+        regions = window_regions(regions, window_length)
 
     return regions
 
@@ -118,7 +125,7 @@ def main(args):
 
     b = pysam.AlignmentFile(bam, "rb")
 
-    regions = get_regions_to_query(b, args.bed, args.region)
+    regions = get_regions_to_query(b, args.bed, args.region, args.window)
 
     bam_obj = io.ReadIndexedBam(bam)
     pod5_obj = pod5.DatasetReader(pod5_dir)  
@@ -184,6 +191,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--kmer", type=str, help="Path to k-mers level table", required=True
+    )
+    parser.add_argument(
+        "-w",
+        "--window",
+        type=int,
+        default = 0,
+        help="""
+        Window size used for signal extraction. Regions will be chunked into windows of this length prior
+        to processing. Use this option if you want to extract data from large regions (e.g. regions >> than the read length).
+        Without this option the entire region will be processed at once, which for e.g. chromosomes or long RNAs 
+        would use excessive memory. Set this to the median of the read lengths in the dataset. Setting to 0 disables this
+        option, which is the default. Default: 0
+        """
     )
     parser.add_argument(
         "--metric",
