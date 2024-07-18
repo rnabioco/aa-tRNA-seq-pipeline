@@ -80,7 +80,12 @@ def filter_bam(args):
             tag = 0
             if read.is_unmapped:
                 tag |= FILTER_CODES["unmapped"]
-
+                read.set_tag(FILTER_TAG, tag, "i")
+                stats.log(tag)
+                if args.failed_bam:
+                    failed_bam.write(read)
+                continue
+            
             if read.is_secondary or read.is_supplementary:
                 tag |= FILTER_CODES["supplemental_secondary"]
 
