@@ -101,7 +101,6 @@ rule bwa:
   shell:
     """
     bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-        | samtools view -F4 -hu - \
         | samtools sort -o {output.bam}
 
     samtools index {output.bam}
