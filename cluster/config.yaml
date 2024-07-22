@@ -1,4 +1,5 @@
-cluster:
+executor: cluster-generic
+cluster-generic-submit-cmd:
   bsub
     -o "{log}.out"
     -e "{log}.err"
@@ -33,8 +34,4 @@ set-resources:
 printshellcmds: True
 show-failed-logs: True
 latency-wait: 60
-cluster-cancel: "bkill"
-
-# not using singularity for now
-#use-singularity: False
-#singularity-args: "--bind /beevol/home/riemondy --bind /beevol/home/rbilab"
+cluster-generic-cancel-cmd: "bkill"

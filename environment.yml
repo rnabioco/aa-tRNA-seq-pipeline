@@ -8,13 +8,16 @@ dependencies:
   - pysam
   - numpy
   - pandas
-  - samtools >= 1.12
+  - samtools
   - bwa
   - deeptools
-  - snakemake
-  - pulp >=2.0,<2.8.0 
+  - snakemake >= 8.0
   - gitpython 
   - pip
   - pip:
     - pod5
-    - git+https://github.com/rnabioco/remora.git@metrics_missing_ok
+    - ont-remora >= 3.2
+    - snakemake-executor-plugin-lsf
+    - snakemake-executor-plugin-slurm
+    - snakemake-executor-plugin-cluster-generic
+

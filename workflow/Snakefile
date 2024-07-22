@@ -1,5 +1,8 @@
 # Main entrypoint of the workflow. 
 
+from snakemake.utils import min_version
+min_version("8.0")
+
 
 configfile: "config/config.yml"
 
