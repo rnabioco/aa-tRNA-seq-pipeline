@@ -17,10 +17,10 @@ default-resources:
 
 jobs: 50 
 
-# the cluster only has 1 gpu node
+# the cluster only has 4 gpus
 # setting this to 1 makes snakemake only schedule 1 gpu job at a time
 resources: 
-  - ngpu=1
+  - ngpu=3
 
 # set rule specific requirements
 set-resources:
