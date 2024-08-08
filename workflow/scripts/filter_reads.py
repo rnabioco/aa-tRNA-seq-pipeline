@@ -16,6 +16,7 @@ FILTER_CODES = {
     "low_mapq": 1 << 4,
     "negative_strand": 1 << 5,
     "supplemental_secondary": 1 << 6,
+    "invalid_multimapping": 1 << 7,
 }
 FILTER_TAG = "zf"
 
@@ -63,17 +64,57 @@ class FilterStats:
     def __str__(self):
         return str(self.filter_counts)
     
+def compatible_secondary_alignments(aln, trna_ref_dict):
+
+    # doesn't have multiple alignments (at least not in the XA tag)
+    # could possibly be due to larger number of secondary alignments than -h setting in bwa mem
+
+    if not aln.has_tag("XA"):
+        return True
+    
+    xa_list = aln.get_tag("XA")
+    xa_list = xa_list.split(";")
+    inv_charge_ref = trna_ref_dict[aln.reference_name]["key_charge_inverse"]
+    og_isodecoder = trna_ref_dict[aln.reference_name]["isodecoder"]
+
+    for xa in xa_list:
+        xa_ref = xa.split(",")[0]
+        if xa_ref == inv_charge_ref:
+            return False
+        if trna_ref_dict[xa_ref]["isodecoder"] != og_isodecoder:
+            return False
+        
+    return True
+
+
+
 def filter_bam(args):
 
     five_p_truncation = args.five_p_truncation
     p3_truncation_max = args.three_p_truncation
     min_mapq = args.min_mapq
     only_positive = args.only_positive
+    rescue_multi_mappers = args.rescue_multi_mappers
 
     bamfile = pysam.AlignmentFile(args.input_bam, "rb")
     if args.failed_bam:
         failed_bam = pysam.AlignmentFile(args.failed_bam, "wb", template=bamfile)
 
+    if rescue_multi_mappers:
+        trna_ref_dict = {}
+        with open(args.trna_table, "r") as f:
+            for line in f:
+                uncharged, charged, isodecoder = line.strip().split()
+                trna_ref_dict[uncharged] = {"isodecoder" : isodecoder,
+                                            "charged": charged,
+                                            "uncharged": uncharged,
+                                            "key_charge_inverse": charged}
+                
+                trna_ref_dict[charged] = {"isodecoder" : isodecoder,
+                                            "charged": charged,
+                                            "uncharged": uncharged,
+                                            "key_charge_inverse": charged}
+            
     stats = FilterStats() 
     with pysam.AlignmentFile(args.output_bam, "wb", template=bamfile) as outfile:
         for read in bamfile:
@@ -90,7 +131,12 @@ def filter_bam(args):
                 tag |= FILTER_CODES["supplemental_secondary"]
 
             if read.mapping_quality < min_mapq:
-                tag |= FILTER_CODES["low_mapq"]
+                if not rescue_multi_mappers: 
+                    tag |= FILTER_CODES["low_mapq"]
+                else:
+                    if not compatible_secondary_alignments(read, trna_ref_dict):
+                        tag |= FILTER_CODES["low_mapq"]
+                        tag |= FILTER_CODES["invalid_multimapping"]
             
             if only_positive and read.is_reverse:
                 tag |= FILTER_CODES["negative_strand"]
@@ -106,6 +152,9 @@ def filter_bam(args):
                     tag |= FILTER_CODES["both_trunc"] 
                     tag &= ~FILTER_CODES["5p_trunc"]
                     tag &= ~FILTER_CODES["3p_trunc"]
+            
+            if args.max_edit_dist:
+                pass
             
             read.set_tag(FILTER_TAG, tag, "i")
             stats.log(tag)
@@ -135,6 +184,7 @@ if __name__ == "__main__":
         16: low MAPQ
         32: negative strand
         64: supplemental or secondary alignment
+        128: read has one or more equivalent alignments to charged and uncharged tRNA, or multiple isodecoder families
         """
     )
 
@@ -167,7 +217,7 @@ if __name__ == "__main__":
         "--min_mapq",
         help="Required MAPQ score for reads to be retained",
         type=int,
-        default=1,
+        default=0,
     )
     parser.add_argument(
         "-s",
@@ -175,6 +225,41 @@ if __name__ == "__main__":
         help="if set, only return reads on positive strand",
         action="store_true",
     )
+    parser.add_argument(
+        "-r",
+        "--rescue_multi_mappers",
+        help="""
+        if set, parse secondary alignments to rescue reads that map to same tRNA isodecoder family, 
+        requires -t --trna-table input
+        """,
+        action="store_true",
+    )
+    parser.add_argument(
+        "-t",
+        "--trna-table",
+        help="""
+        text file with three whitespace deliminated columns, no header:
+          - sequence name of uncharged tRNA: Name of the uncharged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-uncharged)
+          - sequence name of charged tRNA: Name of the charged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-charged)
+          - isodecoder: The isodecoder family of the tRNA sequence (e.g. Ala-AGC)
+        """,
+        required=False
+    )
+
+    parser.add_argument(
+        "-e",
+        "--max-edit-dist",
+        help="""
+        Exclude reads with higher than max-edit-dist within the adapter region. 
+        Supplied as:
+        4:30-11 
+        [maximum edit distance]:[5' position (1-based) of 3' adapter offset from end of reference]-[5' position (1-based) of 3' adapter offset from end of reference] ]  
+        e.g. 
+        4:30-11 means exclude reads with more than 4 mismatches in the 3' adapter region from reference length - 30 to reference length - 11.
+        """,
+        required=False
+    )
+
     parser.add_argument(
         "-f",
         "--failed_bam",

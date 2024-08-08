@@ -1,3 +1,5 @@
+# config version v.0.1.0
+#
 # path to TSV file that lists samples to process
 # two columns: 
 #   - sample_id
@@ -16,14 +18,21 @@ output_directory: ".test/outputs"
 rebasecalled_bam_directory: ".test/outputs/rbc_bams"
 
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
-base_calling_model: "sup@v5.0.0"
+base_calling_model: ".test/rna004_130bps_sup@v5.0.0"
 
 # either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
 input_format: "POD5"
 
 # path to fasta file to use for bwa alignment.
 # a BWA index will be built if it does not exist for this fasta file
-fasta: ".test/yeast.tRNAnanoref.wsplicing.fa"
+fasta: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
+
+# path to table with trna isodecoder and charging status information.
+# three whitespace deliminated columns, no header: 
+#   - sequence name of uncharged tRNA: Name of the uncharged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-uncharged)
+#   - sequence name of charged tRNA: Name of the charged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-charged)
+#   - isodecoder: The isodecoder family of the tRNA sequence (e.g. Ala-AGC)
+trna_table: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.table"
 
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 remora_kmer_table: ".test/9mer_levels_v1.txt"
@@ -34,7 +43,7 @@ opts:
     dorado: " --emit-moves "
     
     # additional options for bwa alignment
-    bwa: " -W 13 -k 6 -T 20 -x ont2d "
+    bwa: " -W 13 -k 6 -T 20 -x ont2d -h 20"
 
     #requires positive strand alignment with 15bp on 5' end, 18bp on 3' end, and a minimum MAPQ of 1
     bam_filter: "-5 15 -3 18 -q 1 -s"

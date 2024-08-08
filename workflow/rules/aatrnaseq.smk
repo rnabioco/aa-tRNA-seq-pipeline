@@ -118,6 +118,7 @@ rule filter_bwa:
     failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
   params:
     src = SCRIPT_DIR,
+    trna_table = f"-r -t {config["trna_table"]}",
     bf_opts = config["opts"]["bam_filter"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
@@ -127,7 +128,9 @@ rule filter_bwa:
       {params.bf_opts} \
       -i {input.reads} \
       -o {output.bam} \
-      -f {output.failed_bam}
+      -f {output.failed_bam} \
+      {params.trna_table} 
+
       
     samtools index {output.bam}
     samtools index {output.failed_bam}
