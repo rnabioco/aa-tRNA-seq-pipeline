@@ -106,6 +106,14 @@ rule bwa:
     samtools index {output.bam}
     """
 
+def trna_filter_opts():
+  trna_table = config["trna_table"]
+  if trna_table is not None and trna_table != "":
+    opts = f" -r -t {config['trna_table']}"
+  else:
+    opts = ""
+  return opts
+
 rule filter_bwa:
   """
   filter bwa mem reads
@@ -118,7 +126,7 @@ rule filter_bwa:
     failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
   params:
     src = SCRIPT_DIR,
-    trna_table = f"-r -t {config["trna_table"]}",
+    trna_table = trna_filter_opts(),
     bf_opts = config["opts"]["bam_filter"],
   log:
     os.path.join(outdir, "logs", "bwa", "{sample}_filter") 

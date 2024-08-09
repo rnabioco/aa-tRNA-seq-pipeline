@@ -17,7 +17,6 @@ dependencies:
   - pip:
     - pod5
     - ont-remora >= 3.2
-    - parasail 
     - snakemake-executor-plugin-lsf
     - snakemake-executor-plugin-slurm
     - snakemake-executor-plugin-cluster-generic
