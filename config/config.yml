@@ -32,6 +32,9 @@ fasta: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 #   - sequence name of uncharged tRNA: Name of the uncharged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-uncharged)
 #   - sequence name of charged tRNA: Name of the charged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-charged)
 #   - isodecoder: The isodecoder family of the tRNA sequence (e.g. Ala-AGC)
+
+# only required if wanting to filter by excluding reads mapped equivalently to charged and uncharged tRNAs or different isodecoders
+# to disable set to ""
 trna_table: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.table"
 
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
