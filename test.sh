@@ -15,15 +15,5 @@ cd -
 snakemake \
   -c 1 \
   -p \
-  --configfile=config/config.yml \
-  --config \
-        base_calling_model=sup@v3.0.1 
-
-snakemake \
-  -c 1 \
-  -p \
-  --configfile=config/config.yml  \
-  --config \
-    samples=config/samples_bam.tsv \
-    input_format=BAM
+  --configfile=config/config.yml 
 

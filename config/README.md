@@ -27,5 +27,9 @@ A string, either "FAST5" or "POD5", if FAST5 then these files will be converted 
 ## fasta
 A path to the reference fasta file to use for bwa alignment. A BWA index will be built if it does not exist for this fasta file
 
+## remora_kmer_table
+A path to a table of expected normalized signal intensites for each kmer, provided by ONT at XXXX  
+
+
 ## opts 
 Customized options for some commands. Note that the bam_filter option controls full-length read filtering options. 

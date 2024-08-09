@@ -36,21 +36,6 @@ The following tools are required and are expected to be present in your PATH.
 
 The dorado basecaller can be installed using pre-built binaries available from [github](https://github.com/nanoporetech/dorado?tab=readme-ov-file#installation)
 
-```bash
-# for macOS arm64
-wget https://cdn.oxfordnanoportal.com/software/analysis/dorado-0.6.0-osx-arm64.zip
-unzip dorado-0.6.0-osx-arm64.zip
-
-# for linux x86
-wget https://cdn.oxfordnanoportal.com/software/analysis/dorado-0.5.3-linux-x64.tar.gz
-tar -zxvf dorado-0.5.3-linux-x64.tar.gz 
-```
-
-The pipeline will use the `dorado` executable in the `bin` directory.
-
-Also available via modules on bodhi:
-`module load dorado`
-
 ## Other tools
 
 Other CLI tools and python dependencies can be installed using conda/mamba, or manually installed. 
@@ -60,7 +45,7 @@ mamba env create -f environment.yml
 conda activate aatrnaseqpipe 
 ```
 
-If using a macOS arm64 CPU (e.g. M3) many bioinformatics dependencies are not yet available via conda for arm64.
+If using a macOS arm64 CPU (e.g. M1-3) many bioinformatics dependencies are not yet available via conda for arm64.
 
 To install these you'll need to use the x86 versions. Perform the following to set up the x86 conda enviroment 
 and install the dependencies.

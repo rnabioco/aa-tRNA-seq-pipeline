@@ -24,15 +24,6 @@ def parse_samples(fl):
                 samples[sample] = {"path" : {path}}
     return samples
 
-def is_bam_file(fl):
-    
-    try:
-        fo = pysam.AlignmentFile(fl, 'rb', check_sq = False)
-        fo.close()
-        return True
-    except:
-        return False
-
 def get_pipeline_commit():
 
     repo = Repo(PIPELINE_DIR)
@@ -72,28 +63,12 @@ def find_raw_inputs(sample_dict):
     elif fmt == "FAST5":
         data_subdirs = FAST5_DIRS
         ext = ".fast5"
-    elif fmt == "BAM":
-        data_subdirs = []
-        ext = ".bam"
     else:
-        sys.exit("input_format config option must be either FAST5, POD5, or BAM")
+        sys.exit("input_format config option must be either FAST5, or POD5")
     
     for sample, info in sample_dict.items():
         raw_fls = []
-        if fmt == "BAM":
-            bam_fl = info["path"]
-            if len(bam_fl) > 1:
-                sys.exit("BAM input format only accepts one file per sample")
-            
-            bam_fl = next(iter(bam_fl))
-
-            if is_bam_file(bam_fl):
-                raw_fls = [bam_fl]
-            else:
-                sys.exit(f"{bam_fl} is not a valid BAM file, check format")
-
-        else:
-            for path in info["path"]:
+        for path in info["path"]:
                 for subdir in data_subdirs:
                     data_path = os.path.join(path, subdir, "*" + ext)
                     fls = glob.glob(data_path)
