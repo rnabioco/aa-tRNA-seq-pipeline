@@ -125,6 +125,8 @@ def compatible_secondary_alignments(aln, trna_ref_dict):
     
     xa_list = aln.get_tag("XA")
     xa_list = xa_list.split(";")
+    xa_list = [xa for xa in xa_list if xa != ""]
+    
     inv_charge_ref = trna_ref_dict[aln.reference_name]["key_charge_inverse"]
     og_isodecoder = trna_ref_dict[aln.reference_name]["isodecoder"]
 
@@ -165,6 +167,7 @@ def filter_bam(args):
                                             "charged": charged,
                                             "uncharged": uncharged,
                                             "key_charge_inverse": charged}
+
     if args.max_edit_dist:
         max_edit_dist, adapter_region = args.max_edit_dist.split(":")
         max_edit_dist = int(max_edit_dist)
@@ -187,11 +190,11 @@ def filter_bam(args):
                 tag |= FILTER_CODES["supplemental_secondary"]
 
             if read.mapping_quality < min_mapq:
-                if not rescue_multi_mappers: 
-                    tag |= FILTER_CODES["low_mapq"]
-                else:
+                tag |= FILTER_CODES["low_mapq"]
+
+            if min_mapq == 0 or (tag & FILTER_CODES["low_mapq"]):    
+                if rescue_multi_mappers: 
                     if not compatible_secondary_alignments(read, trna_ref_dict):
-                        tag |= FILTER_CODES["low_mapq"]
                         tag |= FILTER_CODES["invalid_multimapping"]
             
             if only_positive and read.is_reverse:
