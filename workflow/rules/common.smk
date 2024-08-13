@@ -98,6 +98,10 @@ def pipeline_outputs():
     if "remora_kmer_table" in config and config["remora_kmer_table"] != "":
         outs += expand(os.path.join(outdir, "tables", "{sample}.bwa.remora.tsv.gz"),
             sample = samples.keys())
+    
+    if "trna_table" in config and config["trna_table"] != "":
+        outs += expand(os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
+            sample = samples.keys())
 
     outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
     return outs

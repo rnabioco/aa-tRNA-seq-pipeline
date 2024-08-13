@@ -1,5 +1,6 @@
 import argparse
 import pysam
+import sys 
 
 # Adapter lengths
 ADAPTER_5P_LEN = 24  # Total length of the 5' tRNA adapter
@@ -115,29 +116,32 @@ def count_adapter_edits(aln, ref_start, ref_end):
 
     return insertions + deletions + mismatches
 
-def compatible_secondary_alignments(aln, trna_ref_dict):
+def compatible_secondary_alignments(aln, trna_ref_dict, isodecoder_ref_dict):
 
-    # doesn't have multiple alignments (at least not in the XA tag)
-    # could possibly be due to larger number of secondary alignments than -h setting in bwa mem
-
+    # read doesn't have multiple alignments (at least not in the XA tag)
+    # likely due to a larger number of secondary alignments than -h setting in bwa mem
     if not aln.has_tag("XA"):
-        return True
+        return False
     
     xa_list = aln.get_tag("XA")
     xa_list = xa_list.split(";")
     xa_list = [xa for xa in xa_list if xa != ""]
     
-    inv_charge_ref = trna_ref_dict[aln.reference_name]["key_charge_inverse"]
-    og_isodecoder = trna_ref_dict[aln.reference_name]["isodecoder"]
-
+    primary_aln_charge = trna_ref_dict[aln.reference_name]["charge_status"]
+    primary_aln_isodecoder = trna_ref_dict[aln.reference_name]["isodecoder"]
+    isodecoder_genes = isodecoder_ref_dict[primary_aln_isodecoder][primary_aln_charge]
+    
+    res = True
     for xa in xa_list:
         xa_ref = xa.split(",")[0]
-        if xa_ref == inv_charge_ref:
-            return False
-        if trna_ref_dict[xa_ref]["isodecoder"] != og_isodecoder:
-            return False
+
+        if trna_ref_dict[xa_ref]["isodecoder"] != primary_aln_isodecoder:
+            res = False
         
-    return True
+        if xa_ref not in isodecoder_genes:
+            res = False
+        
+    return res
 
 
 
@@ -154,19 +158,34 @@ def filter_bam(args):
         failed_bam = pysam.AlignmentFile(args.failed_bam, "wb", template=bamfile)
 
     if rescue_multi_mappers:
+        # store two dictionaries:
+        # isodecoder_ref contains the charged and uncharged tRNAs for each isodecoder
+        # trna_ref_dict contains the individual tRNAs and their charging status
+        isodecoder_ref = {}
         trna_ref_dict = {}
+        if not args.trna_table:
+            sys.exit("Rescue multi-mappers (-r) requires a tRNA table (-t)")
+
         with open(args.trna_table, "r") as f:
             for line in f:
-                uncharged, charged, isodecoder = line.strip().split()
+                try:
+                    uncharged, charged, isodecoder, _ = line.strip().split()
+                except ValueError:
+                    sys.exit("tRNA table must have 4 columns (no header): uncharged, charged, isodecoder, gene")
+
+                if isodecoder not in isodecoder_ref:
+                    isodecoder_ref[isodecoder] = {"charged": set(),
+                                                  "uncharged": set()}
+                isodecoder_ref[isodecoder]["charged"].add(charged)
+                isodecoder_ref[isodecoder]["uncharged"].add(uncharged)
+
                 trna_ref_dict[uncharged] = {"isodecoder" : isodecoder,
-                                            "charged": charged,
-                                            "uncharged": uncharged,
+                                            "charge_status": "uncharged",
                                             "key_charge_inverse": charged}
                 
                 trna_ref_dict[charged] = {"isodecoder" : isodecoder,
-                                            "charged": charged,
-                                            "uncharged": uncharged,
-                                            "key_charge_inverse": charged}
+                                          "charge_status": "charged",
+                                          "key_charge_inverse": uncharged}
 
     if args.max_edit_dist:
         max_edit_dist, adapter_region = args.max_edit_dist.split(":")
@@ -188,13 +207,13 @@ def filter_bam(args):
             
             if read.is_secondary or read.is_supplementary:
                 tag |= FILTER_CODES["supplemental_secondary"]
-
+            
             if read.mapping_quality < min_mapq:
                 tag |= FILTER_CODES["low_mapq"]
-
-            if min_mapq == 0 or (tag & FILTER_CODES["low_mapq"]):    
+            
+            if (min_mapq == 0 and read.mapping_quality == 0 ) or (tag & FILTER_CODES["low_mapq"]):    
                 if rescue_multi_mappers: 
-                    if not compatible_secondary_alignments(read, trna_ref_dict):
+                    if not compatible_secondary_alignments(read, trna_ref_dict, isodecoder_ref):
                         tag |= FILTER_CODES["invalid_multimapping"]
             
             if only_positive and read.is_reverse:
@@ -203,9 +222,10 @@ def filter_bam(args):
             ref_length = bamfile.get_reference_length(read.reference_name)
             expected_min_end = ref_length - p3_truncation_max
 
-            if read.reference_start > five_p_truncation:
+            if five_p_truncation >= 0 and read.reference_start > five_p_truncation:
                 tag |= FILTER_CODES["5p_trunc"]
-            if read.reference_end < expected_min_end:
+
+            if p3_truncation_max >= 0 and read.reference_end < expected_min_end:
                 tag |= FILTER_CODES["3p_trunc"]
                 if tag & FILTER_CODES["5p_trunc"]:
                     tag |= FILTER_CODES["both_trunc"] 
@@ -264,14 +284,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "-5",
         "--five_p_truncation",
-        help="maximum 5' truncation allowed",
+        help="maximum 5' truncation allowed, to -1 to disable",
         type=int,
         default=FIVE_P_TRUNCATION,
     )
     parser.add_argument(
         "-3",
         "--three_p_truncation",
-        help="maximum 3' truncation allowed",
+        help="maximum 3' truncation allowed, to -1 to disable",
         type=int,
         default=THREE_P_TRUNCATION,
     )
