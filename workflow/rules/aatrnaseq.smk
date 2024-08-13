@@ -268,3 +268,25 @@ rule remora:
       {params.opts} \
       | gzip > {output}
     """
+
+rule charging_table:
+  """
+  run remora to get signal stats
+  """
+  input:
+    bam = rules.filter_bwa.output.bam,
+    bai = rules.filter_bwa.output.bai
+  output:
+    tsv = os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
+  log:
+    os.path.join(outdir, "logs", "charging", "{sample}") 
+  params:
+    src = SCRIPT_DIR,
+    trna_table = config["trna_table"],
+  shell:
+    """
+    python {params.src}/get_charging_summary.py \
+      -b {input.bam} \
+      -t {params.trna_table} \
+      > {output.tsv}
+    """

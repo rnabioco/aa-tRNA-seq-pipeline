@@ -53,8 +53,7 @@ opts:
     # requires positive strand alignment 
     # requires at least 1 5' adapter base 
     # requires 1 3' adapter base in the discriminating adapter region between charged and uncharged (v2 adapters).
-    # requires that a read has at most 4 errors in the discriminating adapter region 
-    bam_filter: "-5 24 -3 23 -s -e 4:22-10"
+    bam_filter: "-5 24 -3 23 -s" 
 
     #requires positive strand alignment and excludes non-primary alignments 
     coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
