@@ -15,7 +15,7 @@ dorado download --model rna004_130bps_sup@v5.0.0
 
 # extract a subset of reads and make small pod5 and fast5s for testing
 rm -rf sample1 sample2 sample2_1
-ex=/beevol/home/riemondy/Projects/AAtRNAseq/data/2024-07-26_Phizicky_newadapters
+ex=/beevol/home/riemondy/Projects/AAtRNAseq/data/2024-07-25_Sami_Phizickystrains
 
 samtools view -F 20 $ex/bams/JMW_510_28C/JMW_510_28C.bwa.bam "Ala-AGC" | grep -v "pi:Z:" | cut -f 1 | head -n 100  > ex1_read_ids_1.txt
 samtools view -F 20 $ex/bams/JMW_510_28C/JMW_510_28C.bwa.bam "Ala-AGC-uncharged" | grep -v "pi:Z:" | cut -f 1 | tail -n 100  > ex1_read_ids_2.txt
