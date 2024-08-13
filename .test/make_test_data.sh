@@ -17,33 +17,33 @@ dorado download --model rna004_130bps_sup@v5.0.0
 rm -rf sample1 sample2 sample2_1
 ex=/beevol/home/riemondy/Projects/AAtRNAseq/data/2024-07-26_Phizicky_newadapters
 
-samtools view -q 10 -F 20 $ex/bams/JMW009_28C/JMW009_28C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 100  > ex1_read_ids_1.txt
-samtools view -q 10 -F 20 $ex/bams/JMW009_28C/JMW009_28C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | tail -n 100  > ex1_read_ids_2.txt
-samtools view -q 10 -F 20 $ex/bams/JMW009_28C/JMW009_28C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 200 | tail -n 10   > ex1_read_ids_3.txt
+samtools view -F 20 $ex/bams/JMW_510_28C/JMW_510_28C.bwa.bam "Ala-AGC" | grep -v "pi:Z:" | cut -f 1 | head -n 100  > ex1_read_ids_1.txt
+samtools view -F 20 $ex/bams/JMW_510_28C/JMW_510_28C.bwa.bam "Ala-AGC-uncharged" | grep -v "pi:Z:" | cut -f 1 | tail -n 100  > ex1_read_ids_2.txt
+samtools view -s 42.005 -F 20 $ex/bams/JMW_510_28C/JMW_510_28C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 200 | tail -n 10   > ex1_read_ids_3.txt
 
-samtools view -q 10 -F 20 $ex/bams/JMW009_37C/JMW009_37C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 100  > ex2_read_ids_1.txt
-samtools view -q 10 -F 20 $ex/bams/JMW009_37C/JMW009_37C.bwa.bam | grep -v "pi:Z:" |cut -f 1 | tail -n 100  > ex2_read_ids_2.txt
-samtools view -q 10 -F 20 $ex/bams/JMW009_37C/JMW009_37C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 200 | tail -n 10   > ex2_read_ids_3.txt
+samtools view -F 20 $ex/bams/JMW_510_37C/JMW_510_37C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 100  > ex2_read_ids_1.txt
+samtools view -F 20 $ex/bams/JMW_510_37C/JMW_510_37C.bwa.bam | grep -v "pi:Z:" |cut -f 1 | tail -n 100  > ex2_read_ids_2.txt
+samtools view -s 42.005 -F 20 $ex/bams/JMW_510_37C/JMW_510_37C.bwa.bam | grep -v "pi:Z:" | cut -f 1 | head -n 200 | tail -n 10   > ex2_read_ids_3.txt
 
 od=sample1/pod5_pass
 rm -rf $od
 mkdir -p $od
-pod5 filter $ex/rbc/JMW009_28C/JMW009_28C.pod5 --ids ex1_read_ids_1.txt --force-overwrite -o $od/1.pod5
-pod5 filter $ex/rbc/JMW009_28C/JMW009_28C.pod5 --ids ex1_read_ids_2.txt --force-overwrite -o $od/2.pod5
+pod5 filter $ex/rbc/JMW_510_28C/JMW_510_28C.pod5 --ids ex1_read_ids_1.txt --force-overwrite -o $od/1.pod5
+pod5 filter $ex/rbc/JMW_510_28C/JMW_510_28C.pod5 --ids ex1_read_ids_2.txt --force-overwrite -o $od/2.pod5
 
 od=sample1/pod5_fail
 rm -rf $od
 mkdir -p $od
-pod5 filter $ex/rbc/JMW009_28C/JMW009_28C.pod5 --ids ex1_read_ids_3.txt --force-overwrite -o $od/1.pod5
+pod5 filter $ex/rbc/JMW_510_28C/JMW_510_28C.pod5 --ids ex1_read_ids_3.txt --force-overwrite -o $od/1.pod5
 
 od=sample2/pod5_pass
 mkdir -p $od
-pod5 filter $ex/rbc/JMW009_37C/JMW009_37C.pod5 --ids ex2_read_ids_1.txt --force-overwrite -o $od/1.pod5
-pod5 filter $ex/rbc/JMW009_37C/JMW009_37C.pod5 --ids ex2_read_ids_2.txt --force-overwrite -o $od/2.pod5
+pod5 filter $ex/rbc/JMW_510_37C/JMW_510_37C.pod5 --ids ex2_read_ids_1.txt --force-overwrite -o $od/1.pod5
+pod5 filter $ex/rbc/JMW_510_37C/JMW_510_37C.pod5 --ids ex2_read_ids_2.txt --force-overwrite -o $od/2.pod5
 
 od=sample2/pod5_fail
 mkdir -p $od
-pod5 filter $ex/rbc/JMW009_37C/JMW009_37C.pod5 --ids ex2_read_ids_3.txt --force-overwrite -o $od/1.pod5
+pod5 filter $ex/rbc/JMW_510_37C/JMW_510_37C.pod5 --ids ex2_read_ids_3.txt --force-overwrite -o $od/1.pod5
 
 od=sample1/fast5_pass
 mkdir -p $od
