@@ -38,7 +38,8 @@ The dorado basecaller can be installed using pre-built binaries available from [
 
 ## Other tools
 
-Other CLI tools and python dependencies can be installed using conda/mamba, or manually installed. 
+Other CLI tools and python dependencies can be installed using conda/mamba, or manually installed. Make sure to activate
+the conda environment before running the pipeline.  
 
 ```bash
 mamba env create -f environment.yml

@@ -268,17 +268,20 @@ if __name__ == "__main__":
         32: negative strand
         64: supplemental or secondary alignment
         128: read has one or more equivalent alignments to charged and uncharged tRNA, or multiple isodecoder families
+        256: too many edits in adapter region
         """
     )
 
     parser.add_argument(
         "-i",
         "--input_bam",
+        required=True,
         help="Input BAM file")
     
     parser.add_argument(
         "-o",
         "--output_bam",
+        required=True,
         help="Output BAM file")
     
     parser.add_argument(
