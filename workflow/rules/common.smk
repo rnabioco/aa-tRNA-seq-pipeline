@@ -103,7 +103,8 @@ def pipeline_outputs():
         outs += expand(os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
             sample = samples.keys())
 
-    outs += [os.path.join(outdir, "tables", "align_stats.tsv")]
+    outs += expand(os.path.join(outdir, "tables", "{sample}.bwa.align_stats.tsv"),
+            sample = samples.keys())
     return outs
 
 wildcard_constraints:
