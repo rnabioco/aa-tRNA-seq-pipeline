@@ -191,24 +191,6 @@ rule align_stats:
          {input.mapped} 
     """
 
-rule combine_sample_stats:
-  """
-  extract alignment stats
-  """
-  input:
-    expand(os.path.join(outdir, "tables", "{sample}.bwa.align_stats.tsv"),
-        sample = samples.keys())   
-  output:
-    os.path.join(outdir, "tables", "align_stats.tsv"),
-  log:
-    os.path.join(outdir, "logs", "combine_stats", "combine_stats") 
-  shell:
-    """
-    # don't combine the headers from every file
-    head -n 1 {input[0]} > {output}
-    tail -n +2 -q {input} >> {output}
-    """
-
 rule bam_to_coverage:
   input:
     bam = rules.filter_bwa.output.bam,
