@@ -52,7 +52,7 @@ def find_raw_inputs(sample_dict):
     parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
     store input files and uuid base file names in dictionary for each sample
     """
-    POD5_DIRS = ["pod5_pass", "pod5_fail"]
+    POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
     FAST5_DIRS = ["fast5_pass", "fast5_fail"]
     fmt = config["input_format"]
 
