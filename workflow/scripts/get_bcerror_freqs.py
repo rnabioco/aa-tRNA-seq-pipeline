@@ -54,6 +54,10 @@ def calculate_error_frequencies(bam_file, fasta_file):
             read_seq = read.query_sequence
             read_qual = read.query_qualities
 
+            # track last insertion pos
+            # to avoid double counting insertions 
+            # followed immediately by a mismatch
+            ins_pos = -1 
             for cigar_op, cigar_len in read.cigartuples:
                 if cigar_op in [0, 7, 8]:  # Matches and mismatches
                     for i in range(cigar_len):
@@ -69,13 +73,16 @@ def calculate_error_frequencies(bam_file, fasta_file):
                             base_counts[read_base][ref_pos + i] += 1
 
                         if read_base != ref_base or cigar_op == 8:
-                            mismatches[ref_pos + i] += 1
+                            if ins_pos != (ref_pos + i):
+                                mismatches[ref_pos + i] += 1
 
                     ref_pos += cigar_len
                     read_pos += cigar_len
                 elif cigar_op == 1:  # Insertions should not increment coverage
                     insertions[ref_pos] += 1
                     read_pos += cigar_len
+                    # track last insertion pos
+                    ins_pos = ref_pos 
                 elif cigar_op == 2:  # Deletions
                     for i in range(cigar_len):
                         coverage[ref_pos + i] += 1
