@@ -73,9 +73,11 @@ def find_raw_inputs(sample_dict):
                     data_path = os.path.join(path, subdir, "*" + ext)
                     fls = glob.glob(data_path)
                     raw_fls += fls
-
+        if(len(raw_fls) == 0):
+            sys.exit(f"No input files found for sample: {sample}. Please check the path in the samples.tsv file")
         sample_dict[sample]["raw_files"] = raw_fls
-
+    
+   
     return sample_dict
 
 
