@@ -6,9 +6,8 @@
 #     a unique id for the sample
 #   - run_directory
 #     a path to the sequencing run folder. 
-#     the pipeline will recursively search for pod5 or fast5 files to process within this directory and subdirectories 
-#     to only process e.g. pod5_pass, set this path to the pod5_pass directory
-# 
+#   
+# If multiple runs are provided for the same sample_id the reads will be merged before processing.
 samples: config/samples.tsv
 
 # output directory for files produced by pipline
@@ -27,13 +26,16 @@ input_format: "POD5"
 # a BWA index will be built if it does not exist for this fasta file
 fasta: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
-# path to table with trna isodecoder and charging status information.
-# three whitespace deliminated columns, no header: 
-#   - sequence name of uncharged tRNA: Name of the uncharged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-uncharged)
-#   - sequence name of charged tRNA: Name of the charged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-charged)
-#   - isodecoder: The isodecoder family of the tRNA sequence (e.g. Ala-AGC)
+# tRNA gene information table
+# 
+# The format is four whitespace deliminated columns, no header: 
+#  -  sequence name of uncharged tRNA: Name of the uncharged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-uncharged)
+#  - sequence name of charged tRNA: Name of the charged tRNA sequence, must match the fasta entry (e.g. tRNA-Ala-AGC-1-1-charged)
+#  - isodecoder: The isodecoder family of the tRNA sequence (e.g. Ala-AGC)
+#  - tRNA gene name: tRNA gene name that is used to represent the tRNA, can be any string, and
+#  doesn't have to match a sequence name in the fasta file.
 
-# only required if wanting to filter by excluding reads mapped equivalently to charged and uncharged tRNAs or different isodecoders
+# This is only required if wanting to filter by excluding reads mapped equivalently to charged and uncharged tRNAs or different isodecoders and desiring a table of charging status per tRNA gene name.
 # to disable set to ""
 trna_table: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.table"
 
@@ -60,14 +62,3 @@ opts:
 
     # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
     remora: ""
-
-# path to singularity image with dependencies  (Not set up yet)
-# or specify a docker image to pull (e.g. eventually will be something at docker://rnabioco/aatrnaseq)
-# only used if --use-singularity flag is provided when running snakemake
-#container: "/path/to/a/singularity_image.sif"
-
-# path to conda env file to use for dependencies  (Not set up yet)
-# or specify a named conda enviroment
-# only used if --use-conda flag is provided when running snakemake
-#conda: "aatrnaseq"
-
