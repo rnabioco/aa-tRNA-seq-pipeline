@@ -1,6 +1,6 @@
 # AAtRNAseqPipe
 
-A pipeline to process ONT tRNA-seq data built using snakemake.
+A pipeline to process ONT AA-tRNA-seq data built using snakemake.
 
 # Usage
 
