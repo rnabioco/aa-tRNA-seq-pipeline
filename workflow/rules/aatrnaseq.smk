@@ -101,58 +101,140 @@ rule bwa:
   shell:
     """
     bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
+        | samtools view -F 4 -h \
+        | awk '($1 ~ /^@/ || $4 <= 25)' \
+        | samtools view -Sb - \
         | samtools sort -o {output.bam}
 
     samtools index {output.bam}
     """
 
-def trna_filter_opts():
-  trna_table = config["trna_table"]
-  if trna_table is not None and trna_table != "":
-    opts = f" -r -t {config['trna_table']}"
-  else:
-    opts = ""
-  return opts
+#def trna_filter_opts():
+#  trna_table = config["trna_table"]
+#  if trna_table is not None and trna_table != "":
+#    opts = f" -r -t {config['trna_table']}"
+#  else:
+#    opts = ""
+#  return opts
 
-rule filter_bwa:
+#rule filter_bwa:
+#  """
+#  filter bwa mem reads
+#  """
+#  input:
+#    reads = rules.bwa.output.bam,
+#  output:
+#    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam"),
+#    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam.bai"),
+#    failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
+#  params:
+#    src = SCRIPT_DIR,
+#    trna_table = trna_filter_opts(),
+#    bf_opts = config["opts"]["bam_filter"],
+#  log:
+#    os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
+#  shell:
+#    """
+#    python {params.src}/filter_reads.py \
+#      {params.bf_opts} \
+#      -i {input.reads} \
+#      -o {output.bam} \
+#      -f {output.failed_bam} \
+#      {params.trna_table} 
+#
+#      
+#    samtools index {output.bam}
+#    samtools index {output.failed_bam}
+#    """
+
+#rule charging_table:
+#  """
+#  run remora to get signal stats
+#  """
+#  input:
+#    bam = rules.filter_bwa.output.bam,
+#    bai = rules.filter_bwa.output.bai
+#  output:
+#    tsv = os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
+#  log:
+#    os.path.join(outdir, "logs", "charging", "{sample}") 
+# params:
+#    src = SCRIPT_DIR,
+#    trna_table = config["trna_table"],
+#  shell:
+#    """
+#    python {params.src}/get_charging_summary.py \
+#     -b {input.bam} \
+#     -t {params.trna_table} \
+#      > {output.tsv}
+#    """
+    
+rule classify_reads:
   """
-  filter bwa mem reads
+  run remora trained model to classify charged and uncharged reads
   """
   input:
-    reads = rules.bwa.output.bam,
+    pod5 = rules.merge_pods.output,
+    bam = rules.bwa.output.bam
   output:
-    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam"),
-    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam.bai"),
-    failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
-  params:
-    src = SCRIPT_DIR,
-    trna_table = trna_filter_opts(),
-    bf_opts = config["opts"]["bam_filter"],
+    mod_bam = os.path.join(outdir, "mod_bams", "{sample}_mod.bam"),
+    mod_bam_bai = os.path.join(outdir, "mod_bams", "{sample}_mod.bam.bai"),
+    txt = os.path.join(outdir, "mod_bams", "{sample}.txt")
   log:
-    os.path.join(outdir, "logs", "bwa", "{sample}_filter") 
+    os.path.join(outdir, "logs", "charging_prediction_remora", "{sample}") 
+  params:
+    model = config["remora_classifier"]
   shell:
     """
-    python {params.src}/filter_reads.py \
-      {params.bf_opts} \
-      -i {input.reads} \
-      -o {output.bam} \
-      -f {output.failed_bam} \
-      {params.trna_table} 
-
+    remora infer from_pod5_and_bam {input.pod5} {input.bam} \
+      --model {params.model} \
+      --out-bam {output.mod_bam} \
+      --log-filename {output.txt} \
+      --reference-anchored
       
-    samtools index {output.bam}
-    samtools index {output.failed_bam}
+    samtools index {output.mod_bam}
+    """    
+    
+rule get_final_bam_and_charg_prob:
+  """
+  creates final bam with classified reads MM and ML tags and table with charging probability per read
+  """
+  input:
+    source_bam = rules.classify_reads.output.mod_bam,
+    target_bam = rules.bwa.output.bam
+  output:
+    classified_bam = os.path.join(outdir, "classified_bams", "{sample}.bam"),
+    classified_bam_bai = os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
+    charging_tab = os.path.join(outdir, "tables", "{sample}_charging_prob_from_remora_model.tsv")
+  log:
+    os.path.join(outdir, "logs", "final_bams_and_tabs", "{sample}") 
+  params:
+    src = SCRIPT_DIR
+  shell:
     """
-
+    python {params.src}/transfer_tags.py \
+      -s {input.source_bam} \
+      -t {input.target_bam} \
+      -o {output.classified_bam}
+    
+    samtools index {output.classified_bam}
+    
+    (echo -e "read_id\ttRNA\tcharging_likelihood"; \
+      samtools view {output.classified_bam} \
+      | awk '{ml=""; for(i=1;i<=NF;i++) {if($i ~ /^ML:/) ml=$i}; if(ml!="") print $1 "\t" $3 "\t" ml}' \
+      | sed 's/ML:B:C,//g') \
+      > {output.charging_tab} 
+    """
+    
 rule bcerror:
   """
   extract base calling error metrics to tsv file
   """
   input:
-    bam = rules.filter_bwa.output.bam, 
-    bai = rules.filter_bwa.output.bai  
+    bam = rules.get_final_bam_and_charg_prob.output.classified_bam, 
+    bai = rules.get_final_bam_and_charg_prob.output.classified_bam_bai  
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.bwa.bcerror.tsv"), 
+    tsv = os.path.join(outdir, "tables", "{sample}_bcerror.tsv"), 
   log:
     os.path.join(outdir, "logs", "bcerror", "{sample}.bwa") 
   params:
@@ -165,43 +247,43 @@ rule bcerror:
       {params.fa} \
       {output}
     """
-
+    
 rule align_stats:
   """
   extract alignment stats
   """
   input:
     unmapped = get_optional_bam_inputs,
-    unfiltered = rules.bwa.output.bam,
-    mapped = rules.filter_bwa.output.bam 
+    aligned = rules.bwa.output.bam,
+    classified = rules.get_final_bam_and_charg_prob.output.classified_bam
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.bwa.align_stats.tsv"),
+    tsv = os.path.join(outdir, "tables", "{sample}_align_stats.tsv"),
   log:
-    os.path.join(outdir, "logs", "stats", "{sample}.bwa") 
+    os.path.join(outdir, "logs", "stats", "{sample}_align_stats") 
   params:
     src = SCRIPT_DIR
   shell:
     """
     python {params.src}/get_align_stats.py \
       -o {output.tsv} \
-      -a unmapped unfiltered filtered \
+      -a unmapped aligned classified \
       -i {wildcards.sample} \
       -b {input.unmapped} \
-         {input.unfiltered} \
-         {input.mapped} 
+         {input.aligned} \
+         {input.classified} 
     """
 
 rule bam_to_coverage:
   input:
-    bam = rules.filter_bwa.output.bam,
-    bai = rules.filter_bwa.output.bai,
+    bam = rules.get_final_bam_and_charg_prob.output.classified_bam,
+    bai = rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
   output:
-    counts = os.path.join(outdir, "tables", "{sample}.bwa.counts.bg"),
-    cpm = os.path.join(outdir, "tables", "{sample}.bwa.cpm.bg")
+    counts = os.path.join(outdir, "tables", "{sample}_counts.bg"),
+    cpm = os.path.join(outdir, "tables", "{sample}_cpm.bg")
   params:
     bg_opts = config["opts"]["coverage"]
   log:
-   os.path.join(outdir, "logs", "bg", "{sample}.bwa.txt")
+    os.path.join(outdir, "logs", "bg", "{sample}.txt")
   threads: 4 
   shell:
     """
@@ -223,17 +305,17 @@ rule bam_to_coverage:
       {params.bg_opts}
 
     """
-
+    
 rule remora:
   """
   run remora to get signal stats
   """
   input:
-    bam = rules.filter_bwa.output.bam,
-    bai = rules.filter_bwa.output.bai,
+    bam = rules.get_final_bam_and_charg_prob.output.classified_bam,
+    bai = rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
     pod5 = rules.merge_pods.output
   output:
-    tsv = os.path.join(outdir, "tables", "{sample}.bwa.remora.tsv.gz"),
+    tsv = os.path.join(outdir, "tables", "{sample}_remora.tsv.gz"),
   log:
     os.path.join(outdir, "logs", "remora", "{sample}") 
   params:
@@ -250,25 +332,5 @@ rule remora:
       {params.opts} \
       | gzip > {output}
     """
+    
 
-rule charging_table:
-  """
-  run remora to get signal stats
-  """
-  input:
-    bam = rules.filter_bwa.output.bam,
-    bai = rules.filter_bwa.output.bai
-  output:
-    tsv = os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
-  log:
-    os.path.join(outdir, "logs", "charging", "{sample}") 
-  params:
-    src = SCRIPT_DIR,
-    trna_table = config["trna_table"],
-  shell:
-    """
-    python {params.src}/get_charging_summary.py \
-      -b {input.bam} \
-      -t {params.trna_table} \
-      > {output.tsv}
-    """
