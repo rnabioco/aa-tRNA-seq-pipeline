@@ -3,6 +3,7 @@ name: aatrnaseqpipe
 channels:
   - conda-forge
   - bioconda
+  - hcc
 
 dependencies:
   - pysam
@@ -14,6 +15,7 @@ dependencies:
   - snakemake >= 8.0
   - gitpython 
   - pip
+  - dorado >= 0.7.2
   - pip:
     - pod5
     - ont-remora >= 3.2
