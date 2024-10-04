@@ -37,10 +37,13 @@ fasta: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
 # This is only required if wanting to filter by excluding reads mapped equivalently to charged and uncharged tRNAs or different isodecoders and desiring a table of charging status per tRNA gene name.
 # to disable set to ""
-trna_table: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.table"
+#trna_table: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.table"
 
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 remora_kmer_table: ".test/9mer_levels_v1.txt"
+
+#read classification model - remora trained model to classify charged vs uncharged reads
+remora_classifier: "models/cca_classifier.pt"
 
 # additional options for particular commands
 opts:
@@ -50,7 +53,7 @@ opts:
     # additional options for bwa alignment
     # based on Novoa lab optimising bwa for tRNA alignment
     # the -h 20 option is used to increase the number of secondary alignments reported in the XA tag
-    bwa: " -W 13 -k 6 -T 20 -x ont2d -h 20"
+    bwa: " -W 13 -k 6 -T 20 -x ont2d"
 
     # requires positive strand alignment 
     # requires at least 1 5' adapter base 
