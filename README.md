@@ -1,11 +1,12 @@
-# AAtRNAseqPipe
+# aa-tRNA-seq-pipeline
 
-A pipeline to process ONT AA-tRNA-seq data built using snakemake.
+A pipeline to process ONT aa-tRNA-seq data built using snakemake.
 
-# Usage
+## Usage
 
 The pipeline can be configued by editing the `config/config.yml` file. The config file specifications will
 run a small example dataset through the pipeline. To download these data files:
+
 ```
 git clone https://github.com/rnabioco/AAtRNAseqPipe.git
 cd .test
@@ -19,24 +20,24 @@ cd ../
 snakemake -c 1 -p
 ```
 
-# Configuration
+## Configuration
 
 To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory. 
 See README.md in the config directory for additional details.
 
-# Cluster execution
+## Cluster execution
 
 To use on `bodhi`, see the `run.sh` script and the `cluster/config.yaml` for configuration details.
 
-# Software requirements
+## Software requirements
 
 The following tools are required and are expected to be present in your PATH. 
 
-## Dorado
+### Dorado
 
 The dorado basecaller can be installed using pre-built binaries available from [github](https://github.com/nanoporetech/dorado?tab=readme-ov-file#installation)
 
-## Other tools
+### Other tools
 
 Other CLI tools and python dependencies can be installed using conda/mamba, or manually installed. Make sure to activate
 the conda environment before running the pipeline.  
@@ -45,6 +46,8 @@ the conda environment before running the pipeline.
 mamba env create -f environment.yml
 conda activate aatrnaseqpipe 
 ```
+
+## Notes
 
 If using a macOS arm64 CPU (e.g. M1-3) many bioinformatics dependencies are not yet available via conda for arm64.
 
