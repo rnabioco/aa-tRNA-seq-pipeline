@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 MAX_ARRAY_LENGTH = 100000
 
+
 class CountArray:
     """
     A class to represent integer count frequencies. Memory efficent approach
@@ -21,17 +22,17 @@ class CountArray:
         quantile(p): Calculate the quantile value at the given percentile.
     """
 
-    def __init__(self, max = MAX_ARRAY_LENGTH):
+    def __init__(self, max=MAX_ARRAY_LENGTH):
         self.counts = [0] * max
         self.total = 0
-        self.len = len(self.counts) 
+        self.len = len(self.counts)
 
     def push(self, index):
         if index >= self.len:
-            return 
+            return
         self.counts[index] += 1
         self.total += 1
-    
+
     def nth(self, n):
         """
         Get the nth value from array frequency distribution
@@ -42,39 +43,40 @@ class CountArray:
             int or None: The value at the nth index, or None if index is out of range.
         """
         start_idx = 0
-        uniq_pos = [i for i,v in enumerate(self.counts) if v > 0]
+        uniq_pos = [i for i, v in enumerate(self.counts) if v > 0]
         for pos in uniq_pos:
             freq = self.counts[pos]
             end_idx = start_idx + freq
             if n < end_idx:
                 return pos
             else:
-                start_idx = end_idx 
+                start_idx = end_idx
         return None
-    
+
     def mean(self):
         if self.total == 0:
-            return 0   
-        
+            return 0
+
         value_total = 0
-        for i,v in enumerate(self.counts):
+        for i, v in enumerate(self.counts):
             value_total += i * v
         return value_total / self.total
-    
+
     def quantile(self, p):
         if self.total == 0:
-            return 0   
-        
+            return 0
+
         if p < 0 or p > 1:
             raise ValueError("p must be between 0 and 1")
-        
+
         idx = self.total * p
         if idx % 1 == 0:
             i = int(idx)
             val = (self.nth(i - 1) + self.nth(i)) / 2
-        else: 
+        else:
             val = self.nth(int(idx))
         return val
+
 
 class ReadStats:
     """
@@ -118,49 +120,50 @@ class ReadStats:
             "mean_base_quality": round(self.qquals.mean(), digits),
             "median_base_quality": self.qquals.quantile(q),
             "mean_MAPQ": round(self.mapq.mean(), digits),
-            "median_MAPQ": self.mapq.quantile(q)
+            "median_MAPQ": self.mapq.quantile(q),
         }
 
         return d
 
 
-def get_read_stats(fn, flag = None, sample_id = None, sample_info = None):
+def get_read_stats(fn, flag=None, sample_id=None, sample_info=None):
     n_uniq_reads = 0
     seen_qnames = set()
 
     stats = ReadStats()
 
     fo = pysam.AlignmentFile(fn, check_sq=False)
-    
+
     for read in fo:
         if flag is not None:
             if read.flag & flag != flag:
                 continue
             if read.is_secondary or read.is_supplementary:
                 continue
-        
-        # tracking unique reads will use alot a memory 
-        # consider using a bloom filter if this becomes an issue 
-        qname = read.query_name        
+
+        # tracking unique reads will use alot a memory
+        # consider using a bloom filter if this becomes an issue
+        qname = read.query_name
         if qname in seen_qnames:
             continue
 
         n_uniq_reads += 1
         seen_qnames.add(qname)
-        
+
         qlen = read.query_length
-        mean_qual = round(sum(read.query_alignment_qualities) / len(read.query_alignment_qualities))
-         
+        mean_qual = round(
+            sum(read.query_alignment_qualities) / len(read.query_alignment_qualities)
+        )
+
         stats.qlens.push(qlen)
         stats.qquals.push(mean_qual)
-        
+
         if not read.is_unmapped:
             stats.mapped_reads += 1
             stats.mapq.push(read.mapping_quality)
             if not read.is_reverse:
                 stats.n_pos_reads += 1
-    
-    
+
     read_summary = stats.summary()
     read_stat_keys = read_summary.keys()
 
@@ -168,13 +171,16 @@ def get_read_stats(fn, flag = None, sample_id = None, sample_info = None):
     read_summary["info"] = sample_info if sample_info is not None else ""
     read_summary["n_reads"] = n_uniq_reads
     read_summary["bam_file"] = "stdin" if fn == "-" else fn
-    read_summary["pct_mapped"] = 0 # to fill in later
+    read_summary["pct_mapped"] = 0  # to fill in later
 
-    first_col_order = ["bam_file", "id", "info", "n_reads", "pct_mapped"] +  list(read_stat_keys)
+    first_col_order = ["bam_file", "id", "info", "n_reads", "pct_mapped"] + list(
+        read_stat_keys
+    )
     read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
     return read_summary
+
 
 if __name__ == "__main__":
 
@@ -193,13 +199,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-o", "--out", help="Path to output tsv file", required=False)
-    
+
     parser.add_argument(
         "-i",
         "--id",
         help="Sample identifier to append to output",
         required=False,
-        default="sample"
+        default="sample",
     )
 
     parser.add_argument(
@@ -207,14 +213,14 @@ if __name__ == "__main__":
         "--info",
         help="Additional information to append to output, supplied for each input BAM",
         required=False,
-        nargs="+"
+        nargs="+",
     )
 
     parser.add_argument(
-        "-b", 
-        "--bam", 
+        "-b",
+        "--bam",
         help="Path to one or more BAM file(s), the first BAM file is assumed to be a uBAM containing only unmapped reads.",
-        nargs="+"
+        nargs="+",
     )
 
     args = parser.parse_args()
@@ -222,13 +228,13 @@ if __name__ == "__main__":
     bam_fls = args.bam
     flag = args.flag
     if args.out:
-        fout = open(args.out, 'w')
-    else: 
+        fout = open(args.out, "w")
+    else:
         fout = sys.stdout
-    
+
     if args.info and len(args.info) != len(bam_fls):
         sys.exit("Number of info fields must match number of BAM files")
-    
+
     total_reads = 0
 
     for i, bam in enumerate(bam_fls):
@@ -237,14 +243,16 @@ if __name__ == "__main__":
             sample_info = args.info[i]
 
         read_summaries = get_read_stats(bam, flag, args.id, sample_info)
-        
+
         if i == 0:
             total_reads = read_summaries["n_reads"]
             cols = list(read_summaries.keys())
             fout.write("\t".join(cols) + "\n")
 
         if read_summaries["mapped_reads"] > 0:
-            read_summaries["pct_mapped"] = round(read_summaries["mapped_reads"] / total_reads * 100, 2)
+            read_summaries["pct_mapped"] = round(
+                read_summaries["mapped_reads"] / total_reads * 100, 2
+            )
 
         out = "\t".join([str(x) for x in read_summaries.values()])
         fout.write(out + "\n")
