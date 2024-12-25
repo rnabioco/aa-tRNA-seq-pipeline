@@ -1,19 +1,24 @@
-# Main entrypoint of the workflow. 
+# Main entrypoint of the workflow.
 
 from snakemake.utils import min_version
+
 min_version("8.0")
 
 
 configfile: "config/config.yml"
 
+
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
 PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
+
 
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"
 
+
 report_metadata()
 
+
 rule all:
-	input:
-		pipeline_outputs(),
+    input:
+        pipeline_outputs(),

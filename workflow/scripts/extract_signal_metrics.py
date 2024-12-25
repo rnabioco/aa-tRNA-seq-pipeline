@@ -22,28 +22,37 @@ from remora import io, refine_signal_map, util
 # logging.getLogger("Remora").setLevel(logging.DEBUG)
 
 
-def get_metric_data(bam_fh, pod5_obj, level_table, metric, sample_name, chrom,
-        strand, start, end, skip_refine_signal = False, signal_norm_method = "norm",
-        scale_iters_opt = 0):
-    
+def get_metric_data(
+    bam_fh,
+    pod5_obj,
+    level_table,
+    metric,
+    sample_name,
+    chrom,
+    strand,
+    start,
+    end,
+    skip_refine_signal=False,
+    signal_norm_method="norm",
+    scale_iters_opt=0,
+):
+
     s_name = sample_name
     ref_chr = chrom
     ref_strand = strand
-    ref_start = start # start is 0-based
-    ref_end = end # end is half-open
-    ref_reg = io.RefRegion(
-        ctg=ref_chr, strand=ref_strand, start=ref_start, end=ref_end
-    )
+    ref_start = start  # start is 0-based
+    ref_end = end  # end is half-open
+    ref_reg = io.RefRegion(ctg=ref_chr, strand=ref_strand, start=ref_start, end=ref_end)
 
     if skip_refine_signal:
         sig_map_refiner = None
     else:
         sig_map_refiner = refine_signal_map.SigMapRefiner(
-          kmer_model_filename=level_table,
-          do_rough_rescale=True,
-          scale_iters=scale_iters_opt,
-          do_fix_guage=True,
-      )
+            kmer_model_filename=level_table,
+            do_rough_rescale=True,
+            scale_iters=scale_iters_opt,
+            do_fix_guage=True,
+        )
 
     samples_metrics, all_bam_reads = io.get_ref_reg_samples_metrics(
         ref_reg,
@@ -53,43 +62,46 @@ def get_metric_data(bam_fh, pod5_obj, level_table, metric, sample_name, chrom,
         sig_map_refiner=sig_map_refiner,
         reverse_signal=True,
         missing_ok=True,
-        signal_type=signal_norm_method
+        signal_type=signal_norm_method,
     )
 
-    return samples_metrics,  all_bam_reads, ref_reg
+    return samples_metrics, all_bam_reads, ref_reg
+
 
 def iter_metrics(sample_name, samples_metrics, all_bam_reads, ref_reg):
 
-    for metrics,reads in zip(samples_metrics, all_bam_reads):
+    for metrics, reads in zip(samples_metrics, all_bam_reads):
         n_reads, n_pos = next(iter(metrics.values())).shape
 
         for i in range(n_reads):
             read_name = reads[i].query_name
             for reg_pos in range(n_pos):
-                row = (sample_name, ref_reg.ctg, reg_pos + ref_reg.start + 1, read_name) 
+                row = (sample_name, ref_reg.ctg, reg_pos + ref_reg.start + 1, read_name)
                 for metric in metrics.values():
                     val = metric[i, reg_pos]
                     if np.isnan(val):
-                        row += ('NA',)
+                        row += ("NA",)
                         continue
-                    row += (val, )
+                    row += (val,)
                 yield row
 
+
 def window_regions(regions, window_length):
-    win_regions = [] 
+    win_regions = []
     for chrom, start, end, strand in regions:
         for i in range(start, end, window_length):
             win_regions.append((chrom, i, min(i + window_length, end), strand))
     return win_regions
 
-def get_regions_to_query(bam_fh, bed_file = None, region = None, window_length = 100):
+
+def get_regions_to_query(bam_fh, bed_file=None, region=None, window_length=100):
     regions = []
     if region:
         strand = "+"
         if region.endswith("+") or region.endswith("-"):
             strand = region[-1]
             region = region[:-2]
-        _, tid, start, end = bam_fh.parse_region(region = region)
+        _, tid, start, end = bam_fh.parse_region(region=region)
         chrom = bam_fh.get_reference_name(tid)
         regions.append((chrom, start, end, strand))
 
@@ -98,7 +110,7 @@ def get_regions_to_query(bam_fh, bed_file = None, region = None, window_length =
             for line in f:
                 fields = line.strip().split("\t")
                 chrom, start, end = fields[:3]
-                
+
                 if len(fields) >= 6:
                     strand = fields[5]
                 else:
@@ -113,14 +125,15 @@ def get_regions_to_query(bam_fh, bed_file = None, region = None, window_length =
 
     return regions
 
+
 def main(args):
     pod5_dir = os.path.abspath(args.pod5_dir)
     bam = os.path.abspath(args.bam)
     level_tab = os.path.abspath(args.kmer)
-    
+
     metric = args.metric
     sample_name = args.sample_name
-    
+
     strand = "+"
 
     b = pysam.AlignmentFile(bam, "rb")
@@ -128,20 +141,21 @@ def main(args):
     regions = get_regions_to_query(b, args.bed, args.region, args.window)
 
     bam_obj = io.ReadIndexedBam(bam)
-    pod5_obj = pod5.DatasetReader(pod5_dir)  
+    pod5_obj = pod5.DatasetReader(pod5_dir)
 
     print("Sample\tContig\tReference_Position\tRead_id\t", "\t".join(metric.split("_")))
 
     for region in regions:
         chrom, start, end, strand = region
 
-        n_mapped_reads = b.count(contig = chrom, start=start, stop=end)
+        n_mapped_reads = b.count(contig=chrom, start=start, stop=end)
 
         if n_mapped_reads == 0:
             continue
-    
+
         try:
-            samples_metrics, all_bam_reads, ref_reg = get_metric_data(bam_obj,
+            samples_metrics, all_bam_reads, ref_reg = get_metric_data(
+                bam_obj,
                 pod5_obj,
                 level_tab,
                 metric,
@@ -152,17 +166,18 @@ def main(args):
                 end,
                 args.skip_refine_signal,
                 args.signal_norm,
-                args.scale_iters)
-            
+                args.scale_iters,
+            )
+
         except Exception as e:
-            print(f"Unable to process region {region}: {e}", file = sys.stderr)
+            print(f"Unable to process region {region}: {e}", file=sys.stderr)
             continue
-        
+
         for metric_row in iter_metrics(
             sample_name, samples_metrics, all_bam_reads, ref_reg
         ):
             print("\t".join(map(str, metric_row)))
-        
+
     b.close()
 
 
@@ -196,21 +211,21 @@ if __name__ == "__main__":
         "-w",
         "--window",
         type=int,
-        default = 0,
+        default=0,
         help="""
         Window size used for signal extraction. Regions will be chunked into windows of this length prior
         to processing. Use this option if you want to extract data from large regions (e.g. regions >> than the read length).
         Without this option the entire region will be processed at once, which for e.g. chromosomes or long RNAs 
         would use excessive memory. Set this to the median of the read lengths in the dataset. Setting to 0 disables this
         option, which is the default. Default: 0
-        """
+        """,
     )
     parser.add_argument(
         "--metric",
         type=str,
         help="Metric that will be calculated. Possible choices:\ndwell\ndwell_mean\ndwell_mean_sd\ndwell_trimmean\ndwell_trimmean_trimsd\nDefault: dwell_trimmean_trimsd",
         required=False,
-        default="dwell_trimmean_trimsd"
+        default="dwell_trimmean_trimsd",
     )
     parser.add_argument(
         "--signal_norm",
@@ -232,17 +247,20 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
-        "--sample_name", type=str, help="Sample name, default: sample", required=False,
-        default="sample"
+        "--sample_name",
+        type=str,
+        help="Sample name, default: sample",
+        required=False,
+        default="sample",
     )
     parser.add_argument(
-        "--region", 
-        type=str, 
+        "--region",
+        type=str,
         help="""
         If supplied, operate only on the specified region. Uses samtools style region string (e.g. tRNA:1-20)
         A strand can be provided using the format tRNA:1-20:+ or tRNA:1-20:-, and will be "+" if not supplied.
         """,
-          required=False
+        required=False,
     )
 
     parser.add_argument(
@@ -251,7 +269,7 @@ if __name__ == "__main__":
         If supplied, produce output from the regions specified in supplied bed file
         A strand can specified by including the strand in the 6th column.
         """,
-        required=False
+        required=False,
     )
 
     args = parser.parse_args()

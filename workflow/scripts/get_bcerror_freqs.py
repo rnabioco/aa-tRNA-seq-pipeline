@@ -28,6 +28,7 @@ Example:
     python get_bcerror_freqs.py sample.bam reference.fasta output.tsv
 """
 
+
 def calculate_error_frequencies(bam_file, fasta_file):
     samfile = pysam.AlignmentFile(bam_file, "rb")
     faidx = pysam.FastaFile(fasta_file)
@@ -37,13 +38,18 @@ def calculate_error_frequencies(bam_file, fasta_file):
     for ref in faidx.references:
         ref_len = faidx.get_reference_length(ref)
         coverage = [0] * ref_len
-        base_counts = {'A': [0] * ref_len, 'T': [0] * ref_len, 
-                       'G': [0] * ref_len, 'C': [0] * ref_len, 'N': [0] * ref_len}
+        base_counts = {
+            "A": [0] * ref_len,
+            "T": [0] * ref_len,
+            "G": [0] * ref_len,
+            "C": [0] * ref_len,
+            "N": [0] * ref_len,
+        }
         mismatches = [0] * ref_len
         insertions = [0] * ref_len
         deletions = [0] * ref_len
         quality_scores = [0] * ref_len
-        bases_mapped = [0] * ref_len # for mismatch & insertion frequency calcs
+        bases_mapped = [0] * ref_len  # for mismatch & insertion frequency calcs
 
         for read in samfile.fetch(ref):
             if read.is_unmapped or read.is_reverse:
@@ -55,14 +61,16 @@ def calculate_error_frequencies(bam_file, fasta_file):
             read_qual = read.query_qualities
 
             # track last insertion pos
-            # to avoid double counting insertions 
+            # to avoid double counting insertions
             # followed immediately by a mismatch
-            ins_pos = -1 
+            ins_pos = -1
             for cigar_op, cigar_len in read.cigartuples:
                 if cigar_op in [0, 7, 8]:  # Matches and mismatches
                     for i in range(cigar_len):
                         coverage[ref_pos + i] += 1
-                        ref_base = faidx.fetch(ref, ref_pos + i, ref_pos + i + 1).upper()
+                        ref_base = faidx.fetch(
+                            ref, ref_pos + i, ref_pos + i + 1
+                        ).upper()
                         read_base = read_seq[read_pos + i].upper()
                         qual = read_qual[read_pos + i]
 
@@ -82,7 +90,7 @@ def calculate_error_frequencies(bam_file, fasta_file):
                     insertions[ref_pos] += 1
                     read_pos += cigar_len
                     # track last insertion pos
-                    ins_pos = ref_pos 
+                    ins_pos = ref_pos
                 elif cigar_op == 2:  # Deletions
                     for i in range(cigar_len):
                         coverage[ref_pos + i] += 1
@@ -99,16 +107,50 @@ def calculate_error_frequencies(bam_file, fasta_file):
                 "Position": pos + 1,
                 "Spanning_Reads": coverage[pos],
                 "Bases_Mapped": bases_mapped[pos],
-                "A_Freq": base_counts['A'][pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "T_Freq": base_counts['T'][pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "G_Freq": base_counts['G'][pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "C_Freq": base_counts['C'][pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "N_freq": base_counts['N'][pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "MismatchFreq": mismatches[pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "InsertionFreq": insertions[pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0,
-                "DeletionFreq": deletions[pos] / coverage[pos] if coverage[pos] > 0 else 0,
-                "BCErrorFreq": (mismatches[pos] + insertions[pos] + deletions[pos]) / coverage[pos] if coverage[pos] > 0 else 0,
-                "MeanQual": quality_scores[pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0
+                "A_Freq": (
+                    base_counts["A"][pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
+                "T_Freq": (
+                    base_counts["T"][pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
+                "G_Freq": (
+                    base_counts["G"][pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
+                "C_Freq": (
+                    base_counts["C"][pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
+                "N_freq": (
+                    base_counts["N"][pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
+                "MismatchFreq": (
+                    mismatches[pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0
+                ),
+                "InsertionFreq": (
+                    insertions[pos] / bases_mapped[pos] if bases_mapped[pos] > 0 else 0
+                ),
+                "DeletionFreq": (
+                    deletions[pos] / coverage[pos] if coverage[pos] > 0 else 0
+                ),
+                "BCErrorFreq": (
+                    (mismatches[pos] + insertions[pos] + deletions[pos]) / coverage[pos]
+                    if coverage[pos] > 0
+                    else 0
+                ),
+                "MeanQual": (
+                    quality_scores[pos] / bases_mapped[pos]
+                    if bases_mapped[pos] > 0
+                    else 0
+                ),
             }
             error_data.append(pos_data)
 
@@ -117,8 +159,11 @@ def calculate_error_frequencies(bam_file, fasta_file):
 
     return pd.DataFrame(error_data)
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Calculate Basecalling Error Frequencies")
+    parser = argparse.ArgumentParser(
+        description="Calculate Basecalling Error Frequencies"
+    )
     parser.add_argument("bam_file", help="Path to the BAM file")
     parser.add_argument("fasta_file", help="Path to the FASTA file")
     parser.add_argument("output_tsv", help="Path for the output TSV file")
@@ -126,4 +171,3 @@ if __name__ == "__main__":
 
     error_freq_df = calculate_error_frequencies(args.bam_file, args.fasta_file)
     error_freq_df.to_csv(args.output_tsv, sep="\t", index=False)
-
