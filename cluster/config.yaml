@@ -17,10 +17,10 @@ default-resources:
 
 jobs: 50 
 
-# the cluster only has 4 gpus
-# setting this to 1 makes snakemake only schedule 1 gpu job at a time
+# amc-bodhi has 8 GPUs
+# this setting controls the number of concurrent GPU jobs run by snakemake
 resources: 
-  - ngpu=3
+  - ngpu=8
 
 # set rule specific requirements
 set-resources:
