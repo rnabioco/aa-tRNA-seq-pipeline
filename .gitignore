@@ -4,3 +4,4 @@ ext
 logs
 .DS_Store
 .temp_dorado_model*
+.vscode
