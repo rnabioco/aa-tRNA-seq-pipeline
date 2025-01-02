@@ -16,7 +16,7 @@ rule merge_pods:
     if [ "{params.is_fast5}" == "FAST5" ]; then
       pod5 convert fast5 -f --output {output} {input}
     else
-      pod5 merge -f -o {output} {input} 
+      pod5 merge -f -o {output} {input}
     fi
     """
 
@@ -42,7 +42,7 @@ rule rebasecall:
         """
     if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
       echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES 
+      export CUDA_VISIBLE_DEVICES
     fi
 
     dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
@@ -115,68 +115,24 @@ rule bwa:
     """
 
 
-# def trna_filter_opts():
-#  trna_table = config["trna_table"]
-#  if trna_table is not None and trna_table != "":
-#    opts = f" -r -t {config['trna_table']}"
-#  else:
-#    opts = ""
-#  return opts
+def select_gpu_device(wildcards, resources):
+    if not config["cuda"] or resources.gpu == 0:
+        return None
+    import GPUtil
 
-# rule filter_bwa:
-#  """
-#  filter bwa mem reads
-#  """
-#  input:
-#    reads = rules.bwa.output.bam,
-#  output:
-#    bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam"),
-#    bai = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.bam.bai"),
-#    failed_bam = os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.failed.bam")
-#  params:
-#    src = SCRIPT_DIR,
-#    trna_table = trna_filter_opts(),
-#    bf_opts = config["opts"]["bam_filter"],
-#  log:
-#    os.path.join(outdir, "logs", "bwa", "{sample}_filter")
-#  shell:
-#    """
-#    python {params.src}/filter_reads.py \
-#      {params.bf_opts} \
-#      -i {input.reads} \
-#      -o {output.bam} \
-#      -f {output.failed_bam} \
-#      {params.trna_table}
-#
-#
-#    samtools index {output.bam}
-#    samtools index {output.failed_bam}
-#    """
+    avail = GPUtil.getAvailable(
+        order="random",
+        limit=resources.gpu,
+    )
 
-# rule charging_table:
-#  """
-#  run remora to get signal stats
-#  """
-#  input:
-#    bam = rules.filter_bwa.output.bam,
-#    bai = rules.filter_bwa.output.bai
-#  output:
-#    tsv = os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
-#  log:
-#    os.path.join(outdir, "logs", "charging", "{sample}")
-# params:
-#    src = SCRIPT_DIR,
-#    trna_table = config["trna_table"],
-#  shell:
-#    """
-#    python {params.src}/get_charging_summary.py \
-#     -b {input.bam} \
-#     -t {params.trna_table} \
-#      > {output.tsv}
-#    """
+    if len(available_l) == 0 and resources.gpu > 0:
+        raise Exception("select_gpu_device did not select any GPUs")
+
+    print("Assigning %d available GPU devices: %s" % (resources.gpu, avail[0]))
+    return avail[0]
 
 
-rule classify_reads:
+rule cca_classify:
     """
   run remora trained model to classify charged and uncharged reads
   """
@@ -190,15 +146,17 @@ rule classify_reads:
     log:
         os.path.join(outdir, "logs", "charging_prediction_remora", "{sample}"),
     params:
-        model=config["remora_classifier"],
+        model=config["remora_cca_classifier"],
+        device=select_gpu_device,
     shell:
         """
     remora infer from_pod5_and_bam {input.pod5} {input.bam} \
       --model {params.model} \
       --out-bam {output.mod_bam} \
       --log-filename {output.txt} \
-      --reference-anchored
-      
+      --reference-anchored \
+      --device {params.device}
+
     samtools index {output.mod_bam}
     """
 
@@ -226,14 +184,14 @@ rule get_final_bam_and_charg_prob:
       -s {input.source_bam} \
       -t {input.target_bam} \
       -o {output.classified_bam}
-    
+
     samtools index {output.classified_bam}
-    
+
     (echo -e "read_id\ttRNA\tcharging_likelihood"; \
       samtools view {output.classified_bam} \
       | awk '{ml=""; for(i=1;i<=NF;i++) {if($i ~ /^ML:/) ml=$i}; if(ml!="") print $1 "\t" $3 "\t" ml}' \
       | sed 's/ML:B:C,//g') \
-      > {output.charging_tab} 
+      > {output.charging_tab}
     """
 
 
@@ -282,7 +240,7 @@ rule align_stats:
       -i {wildcards.sample} \
       -b {input.unmapped} \
          {input.aligned} \
-         {input.classified} 
+         {input.classified}
     """
 
 
