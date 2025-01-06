@@ -115,23 +115,6 @@ rule bwa:
     """
 
 
-def select_gpu_device(wildcards, resources):
-    if not config["cuda"] or resources.gpu == 0:
-        return None
-    import GPUtil
-
-    avail = GPUtil.getAvailable(
-        order="random",
-        limit=resources.gpu,
-    )
-
-    if len(available_l) == 0 and resources.gpu > 0:
-        raise Exception("select_gpu_device did not select any GPUs")
-
-    print("Assigning %d available GPU devices: %s" % (resources.gpu, avail[0]))
-    return avail[0]
-
-
 rule cca_classify:
     """
   run remora trained model to classify charged and uncharged reads
@@ -143,19 +126,28 @@ rule cca_classify:
         mod_bam=os.path.join(outdir, "mod_bams", "{sample}_mod.bam"),
         mod_bam_bai=os.path.join(outdir, "mod_bams", "{sample}_mod.bam.bai"),
         txt=os.path.join(outdir, "mod_bams", "{sample}.txt"),
+        temp_sorted_bam=temp(os.path.join(outdir, "mod_bams", "{sample}_mod.bam.tmp")),
     log:
-        os.path.join(outdir, "logs", "charging_prediction_remora", "{sample}"),
+        os.path.join(outdir, "logs", "cca_classify", "{sample}"),
     params:
         model=config["remora_cca_classifier"],
-        device=select_gpu_device,
     shell:
         """
+    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+      export CUDA_VISIBLE_DEVICES
+    fi
+
     remora infer from_pod5_and_bam {input.pod5} {input.bam} \
       --model {params.model} \
       --out-bam {output.mod_bam} \
       --log-filename {output.txt} \
       --reference-anchored \
-      --device {params.device}
+      --device 0
+
+    # sort the result
+    samtools sort {output.mod_bam} > {output.temp_sorted_bam}
+    cp {output.temp_sorted_bam} {output.mod_bam}
 
     samtools index {output.mod_bam}
     """
@@ -166,7 +158,7 @@ rule get_final_bam_and_charg_prob:
   creates final bam with classified reads MM and ML tags and table with charging probability per read
   """
     input:
-        source_bam=rules.classify_reads.output.mod_bam,
+        source_bam=rules.cca_classify.output.mod_bam,
         target_bam=rules.bwa.output.bam,
     output:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
@@ -189,7 +181,7 @@ rule get_final_bam_and_charg_prob:
 
     (echo -e "read_id\ttRNA\tcharging_likelihood"; \
       samtools view {output.classified_bam} \
-      | awk '{ml=""; for(i=1;i<=NF;i++) {if($i ~ /^ML:/) ml=$i}; if(ml!="") print $1 "\t" $3 "\t" ml}' \
+      | awk '{{ml=""; for(i=1;i<=NF;i++) {{if($i ~ /^ML:/) ml=$i}}; if(ml!="") print $1 "\t" $3 "\t" ml}}' \
       | sed 's/ML:B:C,//g') \
       > {output.charging_tab}
     """
@@ -278,7 +270,7 @@ rule bam_to_coverage:
     """
 
 
-rule remora:
+rule remora_signal_stats:
     """
   run remora to get signal stats
   """

@@ -43,7 +43,7 @@ fasta: ".test/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 remora_kmer_table: ".test/9mer_levels_v1.txt"
 
 #read classification model - remora trained model to classify charged vs uncharged reads
-remora_cca_classifier: "models/cca_classifier.pt"
+remora_cca_classifier: "resources/models/cca_classifier.pt"
 
 # additional options for particular commands
 opts:
