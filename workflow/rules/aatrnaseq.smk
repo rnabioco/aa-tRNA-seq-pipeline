@@ -164,7 +164,7 @@ rule get_final_bam_and_charg_prob:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
         classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
         charging_tab=os.path.join(
-            outdir, "tables", "{sample}_charging_prob_from_remora_model.tsv"
+            outdir, "tables", "{sample}.charging_prob.tsv.gz"
         ),
     log:
         os.path.join(outdir, "logs", "final_bams_and_tabs", "{sample}"),
@@ -183,6 +183,7 @@ rule get_final_bam_and_charg_prob:
       samtools view {output.classified_bam} \
       | awk '{{ml=""; for(i=1;i<=NF;i++) {{if($i ~ /^ML:/) ml=$i}}; if(ml!="") print $1 "\t" $3 "\t" ml}}' \
       | sed 's/ML:B:C,//g') \
+      | gzip -c \
       > {output.charging_tab}
     """
 
