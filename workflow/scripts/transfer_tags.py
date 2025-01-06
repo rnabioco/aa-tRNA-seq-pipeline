@@ -1,5 +1,11 @@
+#! /usr/bin/env python
+
+"""
+Transfer ML/MM tags from one BAM file to another based on read IDs.
+Output only primary alignments with transferred tags."
+"""
+
 import pysam
-import argparse
 
 
 def transfer_tags(source_bam, target_bam, output_bam):
@@ -41,7 +47,8 @@ def transfer_tags(source_bam, target_bam, output_bam):
 
 
 if __name__ == "__main__":
-    # Parse command-line arguments
+    import argparse
+
     parser = argparse.ArgumentParser(
         description="Transfer ML/MM tags from one BAM file to another based on read IDs, and output only primary alignments with transferred tags."
     )
