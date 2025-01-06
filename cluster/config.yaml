@@ -6,7 +6,7 @@ cluster-generic-submit-cmd:
     -J "{rule}-{wildcards}"
     -R "select[mem>{resources.mem_mb}] rusage[mem={resources.mem_mb}] span[hosts=1]"
     -n {threads}
-    -q "{resources.queue}" 
+    -q "{resources.queue}"
     "{resources.gpu_opts}"
 
 # note that GB values should be passed to mem_mb
@@ -15,11 +15,11 @@ default-resources:
   - queue="rna"
   - gpu_opts=""
 
-jobs: 50 
+jobs: 50
 
 # amc-bodhi has 8 GPUs
 # this setting controls the number of concurrent GPU jobs run by snakemake
-resources: 
+resources:
   - ngpu=8
 
 # set rule specific requirements
@@ -29,7 +29,10 @@ set-resources:
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
   - remora:mem_mb=24
-    
+  - cca_classify:queue="gpu"
+  - cca_classify:gpu_opts="-gpu num=1:j_exclusive=yes"
+  - cca_classify:ngpu=1
+
 
 printshellcmds: True
 show-failed-logs: True
