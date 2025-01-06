@@ -14,7 +14,8 @@ cd .test
 bash dl_data.sh
 ```
 
-Then you can test the pipeline by invoking snakemake in the pipeline root directory
+Then you can test the pipeline by invoking snakemake in the pipeline root directory:
+
 ```
 cd ../
 snakemake -c 1 -p

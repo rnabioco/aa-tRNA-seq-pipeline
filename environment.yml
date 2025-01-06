@@ -13,7 +13,7 @@ dependencies:
   - bwa
   - deeptools
   - snakemake >= 8.0
-  - gitpython 
+  - gitpython
   - pip
   - dorado >= 0.7.2
   - pip:
@@ -22,4 +22,4 @@ dependencies:
     - snakemake-executor-plugin-lsf
     - snakemake-executor-plugin-slurm
     - snakemake-executor-plugin-cluster-generic
-
+    - GPUtil
