@@ -87,7 +87,7 @@ rule bwa_idx:
     """
 
 
-rule bwa:
+rule bwa_align:
     """
   align reads to tRNA references with bwa mem
   """
@@ -121,7 +121,7 @@ rule cca_classify:
   """
     input:
         pod5=rules.merge_pods.output,
-        bam=rules.bwa.output.bam,
+        bam=rules.bwa_align.output.bam,
     output:
         mod_bam=os.path.join(outdir, "mod_bams", "{sample}_mod.bam"),
         mod_bam_bai=os.path.join(outdir, "mod_bams", "{sample}_mod.bam.bai"),
@@ -159,7 +159,7 @@ rule get_final_bam_and_charg_prob:
   """
     input:
         source_bam=rules.cca_classify.output.mod_bam,
-        target_bam=rules.bwa.output.bam,
+        target_bam=rules.bwa_align.output.bam,
     output:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
         classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
@@ -196,7 +196,7 @@ rule bcerror:
         bam=rules.get_final_bam_and_charg_prob.output.classified_bam,
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}_bcerror.tsv"),
+        tsv=os.path.join(outdir, "tables", "{sample}.bcerror.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "bcerror", "{sample}.bwa"),
     params:
@@ -207,7 +207,7 @@ rule bcerror:
     python {params.src}/get_bcerror_freqs.py \
       {input.bam} \
       {params.fa} \
-      {output}
+      {output.tsv}
     """
 
 
@@ -217,12 +217,12 @@ rule align_stats:
   """
     input:
         unmapped=get_optional_bam_inputs,
-        aligned=rules.bwa.output.bam,
+        aligned=rules.bwa_align.output.bam,
         classified=rules.get_final_bam_and_charg_prob.output.classified_bam,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}_align_stats.tsv"),
+        tsv=os.path.join(outdir, "tables", "{sample}.align_stats.tsv.gz"),
     log:
-        os.path.join(outdir, "logs", "stats", "{sample}_align_stats"),
+        os.path.join(outdir, "logs", "stats", "{sample}.align_stats"),
     params:
         src=SCRIPT_DIR,
     shell:
