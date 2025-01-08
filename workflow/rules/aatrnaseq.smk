@@ -163,7 +163,9 @@ rule get_final_bam_and_charg_prob:
     output:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
         classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
-        charging_tab=os.path.join(outdir, "tables", "{sample}.charging_prob.tsv.gz"),
+        charging_tab=os.path.join(
+            outdir, "tables", "{sample}", "{sample}.charging_prob.tsv.gz"
+        ),
     log:
         os.path.join(outdir, "logs", "final_bams_and_tabs", "{sample}"),
     params:
@@ -186,6 +188,29 @@ rule get_final_bam_and_charg_prob:
     """
 
 
+rule get_cca_trna_cpm:
+    """
+    calculate cpm for cca classified trnas
+    """
+    input:
+        charging_tab=rules.get_final_bam_and_charg_prob.output.charging_tab,
+    output:
+        cpm=os.path.join(outdir, "tables", "{sample}", "{sample}.charging.cpm.tsv.gz"),
+    log:
+        os.path.join(outdir, "logs", "cca_trna_cpm", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+        # XXX move `ml_thresh` to config file
+        ml_thresh=200,
+    shell:
+        """
+    python {params.src}/get_trna_charging_cpm.py \
+      --input {input.charging_tab} \
+      --output {output.cpm} \
+      --ml-threshold {params.ml_thresh}
+    """
+
+
 rule bcerror:
     """
   extract base calling error metrics to tsv file
@@ -194,7 +219,7 @@ rule bcerror:
         bam=rules.get_final_bam_and_charg_prob.output.classified_bam,
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}.bcerror.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}", "{sample}.bcerror.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "bcerror", "{sample}.bwa"),
     params:
@@ -218,7 +243,7 @@ rule align_stats:
         aligned=rules.bwa_align.output.bam,
         classified=rules.get_final_bam_and_charg_prob.output.classified_bam,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}.align_stats.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}", "{sample}.align_stats.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "stats", "{sample}.align_stats"),
     params:
@@ -240,10 +265,14 @@ rule bam_to_coverage:
         bam=rules.get_final_bam_and_charg_prob.output.classified_bam,
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
     output:
-        counts_tmp=temp(os.path.join(outdir, "tables", "{sample}.counts.bg")),
-        cpm_tmp=temp(os.path.join(outdir, "tables", "{sample}.cpm.bg")),
-        counts=protected(os.path.join(outdir, "tables", "{sample}.counts.bg.gz")),
-        cpm=protected(os.path.join(outdir, "tables", "{sample}.cpm.bg.gz")),
+        counts_tmp=temp(
+            os.path.join(outdir, "tables", "{sample}", "{sample}.counts.bg")
+        ),
+        cpm_tmp=temp(os.path.join(outdir, "tables", "{sample}", "{sample}.cpm.bg")),
+        counts=protected(
+            os.path.join(outdir, "tables", "{sample}", "{sample}.counts.bg.gz")
+        ),
+        cpm=protected(os.path.join(outdir, "tables", "{sample}", "{sample}.cpm.bg.gz")),
     params:
         bg_opts=config["opts"]["coverage"],
     log:
@@ -282,7 +311,7 @@ rule remora_signal_stats:
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
         pod5=rules.merge_pods.output,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}.remora.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}", "{sample}.remora.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "remora", "{sample}"),
     params:
