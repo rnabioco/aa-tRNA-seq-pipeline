@@ -102,21 +102,27 @@ samples = find_raw_inputs(samples)
 # Define target files for rule all
 def pipeline_outputs():
     outs = expand(
-        os.path.join(outdir, "tables", "{sample}.charging_prob.tsv.gz"),
+        os.path.join(outdir, "tables", "{sample}", "{sample}.charging_prob.tsv.gz"),
         sample=samples.keys(),
     )
 
     outs += expand(
-        os.path.join(outdir, "tables", "{sample}.bcerror.tsv.gz"), sample=samples.keys()
-    )
-
-    outs += expand(
-        os.path.join(outdir, "tables", "{sample}.align_stats.tsv.gz"),
+        os.path.join(outdir, "tables", "{sample}", "{sample}.charging.cpm.tsv.gz"),
         sample=samples.keys(),
     )
 
     outs += expand(
-        os.path.join(outdir, "tables", "{sample}.{values}.bg.gz"),
+        os.path.join(outdir, "tables", "{sample}", "{sample}.bcerror.tsv.gz"),
+        sample=samples.keys(),
+    )
+
+    outs += expand(
+        os.path.join(outdir, "tables", "{sample}", "{sample}.align_stats.tsv.gz"),
+        sample=samples.keys(),
+    )
+
+    outs += expand(
+        os.path.join(outdir, "tables", "{sample}", "{sample}.{values}.bg.gz"),
         sample=samples.keys(),
         values=["cpm", "counts"],
     )
@@ -127,12 +133,12 @@ def pipeline_outputs():
         and config["remora_kmer_table"] is not None
     ):
         outs += expand(
-            os.path.join(outdir, "tables", "{sample}.remora.tsv.gz"),
+            os.path.join(outdir, "tables", "{sample}", "{sample}.remora.tsv.gz"),
             sample=samples.keys(),
         )
 
     # if "trna_table" in config and config["trna_table"] != "" and config["trna_table"] is not None:
-    #    outs += expand(os.path.join(outdir, "tables", "{sample}.charging_status.tsv"),
+    #    outs += expand(os.path.join(outdir, "tables", "{sample}", "{sample}.charging_status.tsv"),
     #        sample = samples.keys())
 
     return outs
