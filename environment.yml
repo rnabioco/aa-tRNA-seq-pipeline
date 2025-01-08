@@ -13,6 +13,7 @@ dependencies:
   - bwa
   - deeptools
   - snakemake >= 8.0
+  - snakefmt
   - gitpython
   - pip
   - dorado >= 0.7.2
