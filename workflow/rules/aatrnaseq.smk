@@ -163,9 +163,7 @@ rule get_final_bam_and_charg_prob:
     output:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
         classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
-        charging_tab=os.path.join(
-            outdir, "tables", "{sample}.charging_prob.tsv.gz"
-        ),
+        charging_tab=os.path.join(outdir, "tables", "{sample}.charging_prob.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "final_bams_and_tabs", "{sample}"),
     params:
@@ -302,4 +300,3 @@ rule remora_signal_stats:
       | gzip -c \
       > {output.tsv}
     """
-
