@@ -242,8 +242,10 @@ rule bam_to_coverage:
         bam=rules.get_final_bam_and_charg_prob.output.classified_bam,
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
     output:
-        counts=os.path.join(outdir, "tables", "{sample}_counts.bg"),
-        cpm=os.path.join(outdir, "tables", "{sample}_cpm.bg"),
+        counts_tmp=temp(os.path.join(outdir, "tables", "{sample}.counts.bg")),
+        cpm_tmp=temp(os.path.join(outdir, "tables", "{sample}.cpm.bg")),
+        counts=protected(os.path.join(outdir, "tables", "{sample}.counts.bg.gz")),
+        cpm=protected(os.path.join(outdir, "tables", "{sample}.cpm.bg.gz")),
     params:
         bg_opts=config["opts"]["coverage"],
     log:
@@ -253,7 +255,7 @@ rule bam_to_coverage:
         """
     bamCoverage \
       -b {input.bam} \
-      -o {output.cpm} \
+      -o {output.cpm_tmp} \
       --normalizeUsing CPM \
       --outFileFormat bedgraph \
       -bs 1 \
@@ -262,12 +264,14 @@ rule bam_to_coverage:
 
     bamCoverage \
       -b {input.bam} \
-      -o {output.counts} \
+      -o {output.counts_tmp} \
       --outFileFormat bedgraph \
       -bs 1 \
       -p {threads} \
       {params.bg_opts}
 
+    gzip -c {output.counts_tmp} > {output.counts}
+    gzip -c {output.cpm_tmp} > {output.cpm}
     """
 
 
@@ -280,7 +284,7 @@ rule remora_signal_stats:
         bai=rules.get_final_bam_and_charg_prob.output.classified_bam_bai,
         pod5=rules.merge_pods.output,
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}_remora.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}.remora.tsv.gz"),
     log:
         os.path.join(outdir, "logs", "remora", "{sample}"),
     params:
@@ -295,5 +299,7 @@ rule remora_signal_stats:
       --kmer {params.kmer} \
       --sample_name {wildcards.sample} \
       {params.opts} \
-      | gzip > {output}
+      | gzip -c \
+      > {output.tsv}
     """
+
