@@ -1,6 +1,7 @@
 import argparse
 import pysam
-import pandas as pd
+import polars as pl
+import gzip
 
 """
 This script processes a BAM file to calculate per-nucleotide error frequencies, 
@@ -157,17 +158,23 @@ def calculate_error_frequencies(bam_file, fasta_file):
     samfile.close()
     faidx.close()
 
-    return pd.DataFrame(error_data)
+    return pl.DataFrame(error_data)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Calculate Basecalling Error Frequencies"
     )
+    
     parser.add_argument("bam_file", help="Path to the BAM file")
     parser.add_argument("fasta_file", help="Path to the FASTA file")
     parser.add_argument("output_tsv", help="Path for the output TSV file")
     args = parser.parse_args()
 
     error_freq_df = calculate_error_frequencies(args.bam_file, args.fasta_file)
-    error_freq_df.to_csv(args.output_tsv, sep="\t", index=False)
+
+    if args.output_tsv.endswith(".gz"):
+        with gzip.open(args.output_tsv, "wt") as file_out:
+            error_freq_df.write_csv(file_out, separator = "\t")
+    else:
+        error_freq_df.write_csv(args.output_tsv, separator = "\t")

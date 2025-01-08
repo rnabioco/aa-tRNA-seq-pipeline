@@ -102,21 +102,21 @@ samples = find_raw_inputs(samples)
 # Define target files for rule all
 def pipeline_outputs():
     outs = expand(
-        os.path.join(outdir, "tables", "{sample}_charging_prob_from_remora_model.tsv"),
+        os.path.join(outdir, "tables", "{sample}.charging_prob.tsv.gz"),
         sample=samples.keys(),
     )
 
     outs += expand(
-        os.path.join(outdir, "tables", "{sample}_bcerror.tsv"), sample=samples.keys()
+        os.path.join(outdir, "tables", "{sample}.bcerror.tsv.gz"), sample=samples.keys()
     )
 
     outs += expand(
-        os.path.join(outdir, "tables", "{sample}_align_stats.tsv"),
+        os.path.join(outdir, "tables", "{sample}.align_stats.tsv.gz"),
         sample=samples.keys(),
     )
 
     outs += expand(
-        os.path.join(outdir, "tables", "{sample}_{values}.bg"),
+        os.path.join(outdir, "tables", "{sample}.{values}.bg.gz"),
         sample=samples.keys(),
         values=["cpm", "counts"],
     )
@@ -127,7 +127,7 @@ def pipeline_outputs():
         and config["remora_kmer_table"] is not None
     ):
         outs += expand(
-            os.path.join(outdir, "tables", "{sample}_remora.tsv.gz"),
+            os.path.join(outdir, "tables", "{sample}.remora.tsv.gz"),
             sample=samples.keys(),
         )
 

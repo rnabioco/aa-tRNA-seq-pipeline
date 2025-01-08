@@ -1,6 +1,8 @@
 import argparse
 import pysam
 import sys
+import gzip
+
 from collections import OrderedDict
 
 MAX_ARRAY_LENGTH = 100000
@@ -228,7 +230,10 @@ if __name__ == "__main__":
     bam_fls = args.bam
     flag = args.flag
     if args.out:
-        fout = open(args.out, "w")
+        if args.out.endswith(".gz"):
+            fout = gzip.open(args.out, "wt")
+        else:
+            fout = open(args.out, "w")
     else:
         fout = sys.stdout
 
