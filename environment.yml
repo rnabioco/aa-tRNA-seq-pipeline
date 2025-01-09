@@ -12,7 +12,7 @@ dependencies:
   - samtools
   - bwa
   - deeptools
-  - snakemake >= 8.0
+  - snakemake
   - snakefmt
   - gitpython
   - pip
