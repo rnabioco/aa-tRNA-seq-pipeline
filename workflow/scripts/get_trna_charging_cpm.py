@@ -23,7 +23,7 @@ def per_read_charging(input, output, threshold):
 
     # Categorize tRNAs as charged or uncharged
     df["status"] = df["charging_likelihood"].apply(
-        lambda x: "charged" if x >= 200 else "uncharged"
+        lambda x: "charged" if x >= threshold else "uncharged"
     )
 
     # Group by tRNA and status to get counts
