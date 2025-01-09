@@ -9,4 +9,3 @@ samples: config/samples-preprint.tsv
 
 # output directory for files produced by pipline
 output_directory: "results/preprint"
-
