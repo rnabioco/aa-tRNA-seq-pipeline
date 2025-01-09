@@ -1,0 +1,4 @@
+uncharged_training	/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/seqdata/RNA004/20240729_lkw_singleadapts/uncharged/20240729_1237_P2S-01617-A_PAS67183_d7f5c7bd
+charged_training	/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/seqdata/RNA004/20240729_lkw_singleadapts/charged/20240729_1237_P2S-01617-B_PAU71964_4fd0a0ff
+uncharged_validation	/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/seqdata/RNA004/20240928_singleadapt_repeat_BY4741/BY4741_deac_unchargedadapt/20240928_1516_P2S-01618-A_PAU72795_50e21c8a
+charged_validation	/beevol/home/whitel/data/AAtRNAseq/biological_tRNA/seqdata/RNA004/20240928_singleadapt_repeat_BY4741/BY4741_untr_chargedadapt/20240928_1516_P2S-01618-B_PAS25693_64fee2f0
