@@ -27,7 +27,7 @@ A string, either "FAST5" or "POD5", if FAST5 then these files will be converted 
 A path to the reference fasta file to use for bwa alignment. A BWA index will be built if it does not exist for this fasta file
 
 ## remora_kmer_table
-A path to a table of expected normalized signal intensites for each kmer, provided by ONT at XXXX  
+A path to a table of expected normalized signal intensites for each kmer, provided by ONT at [nanoporetech/kmer_models](https://github.com/nanoporetech/kmer_models)  
 
 ## trna_table
 A path to table with trna isodecoder and charging status information.
