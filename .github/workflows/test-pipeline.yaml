@@ -1,0 +1,30 @@
+name: Test snakemake pipeline
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest
+    # For the action to work, you have to supply a mysql
+    # service as defined below.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - "8888:3306"
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: koesterlab/setup-slurm-action@v1
+
+      - uses: actions/cache@v4
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: aatrnaseqpipe
+          environment-file: environment.yml
