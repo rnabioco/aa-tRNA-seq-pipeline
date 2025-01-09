@@ -19,6 +19,8 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
     steps:
       - uses: actions/checkout@v4
+        with:
+          key: ${{ runner.os }}-test-pipeline
 
       - uses: koesterlab/setup-slurm-action@v1
 
