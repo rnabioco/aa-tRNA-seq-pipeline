@@ -24,7 +24,7 @@ snakemake -c 1 -p
 ## Configuration
 
 To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory. 
-See README.md in the config directory for additional details.
+See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
 
 ## Cluster execution
 
