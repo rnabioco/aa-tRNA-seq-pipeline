@@ -26,9 +26,21 @@ snakemake -c 1 -p
 To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory. 
 See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
 
+## Workflow overview
+
+The workflow for the aa-tRNA-seq pipeline is illustrated below. This Directed Acyclic Graph (DAG) provides an overview of the pipeline structure for a single sample.
+
+![Workflow DAG](https://github.com/rnabioco/aa-tRNA-seq-pipeline/blob/main/workflow/workflow_dag.png)
+
+To generate a DAG for your own configuration, use the following command in the pipeline root directory:
+
+`snakemake --dag | dot -Tpng > workflow_dag.png`
+
+You will need [Graphviz](https://graphviz.org) installed to run the above command.
+
 ## Cluster execution
 
-To use on `bodhi`, see the `run.sh` script and the `cluster/config.yaml` for configuration details.
+The pipeline includes a `run.sh` script optimized for the authors' local compute cluster (`bodhi`) which uses the LSF scheduler. For more details on configuring for HPC jobs, see `cluster/config.yaml`.
 
 ## Software requirements
 
