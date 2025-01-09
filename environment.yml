@@ -1,8 +1,8 @@
 name: aatrnaseqpipe
 
 channels:
-  - conda-forge
   - bioconda
+  - conda-forge
   - hcc
 
 dependencies:
