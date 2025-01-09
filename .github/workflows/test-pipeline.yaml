@@ -47,9 +47,9 @@ jobs:
         with:
           path: ~/.test
           key:
-            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}
+            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/XXX')}}
 
       - name: Download test data
         run: |
           cd .test
-          bash dl_test_data.sh
+          bash download_test_data.sh
