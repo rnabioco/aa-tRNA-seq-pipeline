@@ -26,9 +26,9 @@ snakemake -c 1 -p
 To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory. 
 See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
 
-## Workflow overview
+## Workflow
 
-Given a directory of pod5 files, this pipeline merges all files from the sample into a single pod5, rebasecalls them to generate an unmapped bam with move table information (for downstream use by Remora), converts the bam into a fastq, and aligns that fastq to a reference containing tRNA + adapter sequences with BWA MEM. The resulting data (pod5s and aligned reads) are then fed to a model trained using Remora to classify charged vs. uncharged reads in the rule `cca_classify`, generating numeric values indicating the likelihood of a read being aminoacylated in the `ML` tag of the BAM file. For classifying charged vs. uncharged reads, we treat ML values of 200-255 as aminoacylated in downstream steps, and values <200 as uncharged.
+Given a directory of pod5 files, this pipeline merges all files from the sample into a single pod5, rebasecalls them to generate an unmapped bam with move table information (for downstream use by Remora), converts the bam into a fastq, and aligns that fastq to a reference containing tRNA + adapter sequences with BWA MEM. The resulting data (pod5s and aligned reads) are then fed to a model trained using Remora to classify charged vs. uncharged reads in the rule `cca_classify`, generating numeric values indicating the likelihood of a read being aminoacylated in the `ML` tag of the BAM file. For classifying charged vs. uncharged reads, we treat ML values of 200-255 as aminoacylated in downstream steps, and values <200 as uncharged. This can be altered by adjusting the `ml-threshold` parameter in the rule `get_cca_trna_cpm`.
 
 The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`) and information on raw nanopore signal from Remora (`remora_signal_stats`).
 
