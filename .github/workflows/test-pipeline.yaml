@@ -18,8 +18,6 @@ jobs:
     steps:
       - name: Setup pipeline 🚰
         uses: actions/checkout@v4
-        with:
-          key: ${{ runner.os }}-test-pipeline
 
       - name: Setup slurm 🐌
         uses: koesterlab/setup-slurm-action@v1
@@ -28,15 +26,30 @@ jobs:
         uses: actions/cache@v4
         env:
           # Increase this value to reset cache if environment.yml has not changed
-          CACHE_NUMBER: 0
+          CACHE_NUMBER_CONDA: 0
         with:
-          path: |
-            ~/conda_pkgs_dir
+          path: ~/conda_pkgs_dir
           key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment.yml') }}
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER_CONDA }}-${{hashFiles('environment.yml') }}
 
       - name: Setup conda 🐍
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: aatrnaseqpipe
           environment-file: environment.yml
+          use-only-tar-bz2: true
+
+      - name: Cache test data 🏦
+        uses: actions/cache@v4
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER_TEST_DATA: 0
+        with:
+          path: ~/.test
+          key:
+            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}
+
+      - name: Download test data
+        run: |
+          cd .test
+          bash dl_test_data.sh
