@@ -1,0 +1,39 @@
+executor: cluster-generic
+cluster-generic-submit-cmd:
+  sbatch \
+      --output="{log}.out" \
+      --error="{log}.err" \
+      --job-name="{rule}-{wildcards}" \
+      --nodes=1 \
+      --ntasks={threads} \
+      --partition="{resources.queue}" \
+      --mem={resources.mem_mb} \
+      "{resources.gpu_opts}"
+
+# note that GB values should be passed to mem_mb
+default-resources:
+  - mem_mb=8
+  # - queue="rna"
+  - gpu_opts=""
+
+jobs: 50
+
+resources:
+  - ngpu=8
+
+# set rule specific requirements
+# set-resources:
+#   - rebasecall:queue="gpu"
+#   - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
+#   - rebasecall:ngpu=1
+#   - rebasecall:mem_mb=24
+#   - remora:mem_mb=24
+#   - cca_classify:queue="gpu"
+#   - cca_classify:gpu_opts="-gpu num=1:j_exclusive=yes"
+#   - cca_classify:ngpu=1
+
+
+printshellcmds: True
+show-failed-logs: True
+latency-wait: 60
+cluster-generic-cancel-cmd: "scancel"
