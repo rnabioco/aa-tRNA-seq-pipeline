@@ -1,0 +1,15 @@
+# config version v.0.1.0
+#
+# path to TSV file that lists samples to process
+# two columns:
+#   - sample_id
+#     a unique id for the sample
+#   - run_directory
+#     a path to the sequencing run folder.
+#
+# If multiple runs are provided for the same sample_id the reads will be merged before processing.
+samples: config/samples-test.tsv
+
+# output directory for files produced by pipline
+output_directory: ".test/outputs"
+
