@@ -127,6 +127,11 @@ def pipeline_outputs():
         values=["cpm", "counts"],
     )
 
+    outs += expand(
+        os.path.join(outdir, "squigualizer", "{sample}", "{sample}.tsv"),
+        sample=samples.keys(),
+    )
+
     if (
         "remora_kmer_table" in config
         and config["remora_kmer_table"] != ""
@@ -136,10 +141,6 @@ def pipeline_outputs():
             os.path.join(outdir, "tables", "{sample}", "{sample}.remora.tsv.gz"),
             sample=samples.keys(),
         )
-
-    # if "trna_table" in config and config["trna_table"] != "" and config["trna_table"] is not None:
-    #    outs += expand(os.path.join(outdir, "tables", "{sample}", "{sample}.charging_status.tsv"),
-    #        sample = samples.keys())
 
     return outs
 
