@@ -1,8 +1,8 @@
 name: aatrnaseqpipe
 
 channels:
-  - bioconda
   - conda-forge
+  - bioconda
   - hcc
 
 dependencies:
@@ -23,4 +23,3 @@ dependencies:
     - snakemake-executor-plugin-lsf
     - snakemake-executor-plugin-slurm
     - snakemake-executor-plugin-cluster-generic
-    - GPUtil
