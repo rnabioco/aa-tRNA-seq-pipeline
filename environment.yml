@@ -1,4 +1,4 @@
-name: aatrnaseqpipe
+name: aa-trna-seq-pipeline
 
 channels:
   - conda-forge
@@ -17,10 +17,12 @@ dependencies:
   - gitpython
   - pip
   - dorado >= 0.7.2
+  - f5c
+  - squigualiser
   - pip:
     - pod5
     - ont-remora >= 3.2
     - snakemake-executor-plugin-lsf
     - snakemake-executor-plugin-slurm
-    - snakemake-executor-plugin-cluster-generic
-    - GPUtil
+    - snakemake-executor-plugin-cluster-generic 
+    - blue-crab

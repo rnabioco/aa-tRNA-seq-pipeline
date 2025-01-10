@@ -32,6 +32,9 @@ set-resources:
   - cca_classify:queue="gpu"
   - cca_classify:gpu_opts="-gpu num=1:j_exclusive=yes"
   - cca_classify:ngpu=1
+  - resquiggle:queue="gpu"
+  - resquiggle:gpu_opts="-gpu num=1:j_exclusive=yes"
+  - resquiggle:ngpu=1
 
 
 printshellcmds: True
