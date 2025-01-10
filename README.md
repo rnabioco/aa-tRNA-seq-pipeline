@@ -1,7 +1,7 @@
 # aa-tRNA-seq-pipeline
 
 A pipeline to process ONT aa-tRNA-seq data built using snakemake.
-Downstream analysis to generate figures for the initial preprint can be found at: [https://github.com/rnabioco/aa-tRNA-seq](https://github.com/rnabioco/aa-tRNA-seq)
+Downstream analysis to generate figures for the initial preprint can be found at: (https://github.com/rnabioco/aa-tRNA-seq)
 
 ## Usage
 
@@ -11,7 +11,7 @@ run a small example dataset through the pipeline. To download these data files:
 ```
 git clone https://github.com/rnabioco/AAtRNAseqPipe.git
 cd .test
-# download test data 
+# download test data
 bash dl_data.sh
 ```
 
@@ -24,7 +24,7 @@ snakemake -c 1 -p
 
 ## Configuration
 
-To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory. 
+To use on your own samples you will need to edit the config.yml and samples.tsv files in the config directory.
 See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
 
 ## Workflow
@@ -51,7 +51,7 @@ The pipeline includes a `run.sh` script optimized for the authors' local compute
 
 ## Software requirements
 
-The following tools are required and are expected to be present in your PATH. 
+The following tools are required and are expected to be present in your PATH.
 
 ### Dorado
 
@@ -60,22 +60,22 @@ The dorado basecaller can be installed using pre-built binaries available from [
 ### Other tools
 
 Other CLI tools and python dependencies can be installed using conda/mamba, or manually installed. Make sure to activate
-the conda environment before running the pipeline.  
+the conda environment before running the pipeline.
 
 ```bash
 mamba env create -f environment.yml
-conda activate aatrnaseqpipe 
+conda activate aatrnaseqpipe
 ```
 
 ## Notes
 
 If using a macOS arm64 CPU (e.g. M1-3) many bioinformatics dependencies are not yet available via conda for arm64.
 
-To install these you'll need to use the x86 versions. Perform the following to set up the x86 conda enviroment 
+To install these you'll need to use the x86 versions. Perform the following to set up the x86 conda enviroment
 and install the dependencies.
 
 ```bash
-CONDA_SUBDIR=osx-64 mamba env create -f environment.yml 
+CONDA_SUBDIR=osx-64 mamba env create -f environment.yml
 conda activate aatrnaseqpipe
 conda config --env --set subdir osx-64
 ```
