@@ -59,4 +59,3 @@ jobs:
           ls -l
 
           echo "::endgroup::"
-.
