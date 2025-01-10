@@ -47,9 +47,10 @@ jobs:
         with:
           path: ~/.test
           key:
-            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/XXX')}}
+            # hash based on the FASTA reference
+            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
 
-      - name: Download test data
+      - name: Download test data ⬇️
         run: |
           cd .test
           bash download_test_data.sh
