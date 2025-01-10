@@ -1,7 +1,7 @@
 # aa-tRNA-seq-pipeline
 
 A pipeline to process ONT aa-tRNA-seq data built using snakemake.
-Downstream analysis to generate figures for the initial preprint can be found at: (https://github.com/rnabioco/aa-tRNA-seq)
+Downstream analysis to generate figures for the initial preprint can be found at: [https://github.com/rnabioco/aa-tRNA-seq](https://github.com/rnabioco/aa-tRNA-seq)
 
 ## Usage
 
