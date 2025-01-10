@@ -38,7 +38,7 @@ jobs:
           activate-environment: aatrnaseqpipe
           environment-file: environment.yml
           # https://github.com/conda-incubator/setup-miniconda/issues/267
-          # use-only-tar-bz2: true
+          # XXX don't use this: use-only-tar-bz2: true
 
       - name: Cache test data 🏦
         uses: actions/cache@v4
@@ -53,5 +53,10 @@ jobs:
 
       - name: Download test data ⬇️
         run: |
+          echo "::group::Download test data"
           cd .test
           bash download_test_data.sh
+          ls -l
+
+          echo "::endgroup::"
+.
