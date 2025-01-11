@@ -56,6 +56,9 @@ jobs:
 
       - if: ${{ steps.cache-test.outputs.cache-hit != 'true' }}
         name: Download test data ⬇️
-        working-directory: ./.test
+        working-directory: ~/.test
         run: |
+          echo ">> working directory: $(pwd)"
           bash download_test_data.sh
+          echo ">> directory contents:"
+          ls -l
