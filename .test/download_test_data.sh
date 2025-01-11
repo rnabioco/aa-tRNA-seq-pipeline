@@ -1,6 +1,9 @@
 #!/bin/bash
+
+# download and unpack test data for the aa-trna-seq-pipeline Snakemake workflow
+
 set -x -e
 
-wget --progress=bar:force:noscroll https://aatrnaseq-testdata.s3.amazonaws.com/test_data.tar.gz
+wget -q https://aatrnaseq-testdata.s3.amazonaws.com/test_data.tar.gz
 tar -zxvf test_data.tar.gz
 rm test_data.tar.gz

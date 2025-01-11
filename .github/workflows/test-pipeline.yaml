@@ -23,6 +23,7 @@ jobs:
         uses: koesterlab/setup-slurm-action@v1
 
       - name: Cache conda 🏦
+        id: cache-conda
         uses: actions/cache@v4
         env:
           # Increase this value to reset cache if environment.yml has not changed
@@ -32,7 +33,8 @@ jobs:
           key:
             ${{ runner.os }}-conda-${{ env.CACHE_NUMBER_CONDA }}-${{hashFiles('environment.yml') }}
 
-      - name: Setup conda 🐍
+      - if: ${{ steps.cache-conda.outputs.cache-hit != 'true' }}
+        name: Setup conda 🐍
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: aatrnaseqpipe
@@ -41,6 +43,7 @@ jobs:
           # XXX don't use this: use-only-tar-bz2: true
 
       - name: Cache test data 🏦
+        id: cache-test
         uses: actions/cache@v4
         env:
           # Increase this value to reset cache if environment.yml has not changed
@@ -51,11 +54,8 @@ jobs:
             # hash based on the FASTA reference
             ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
 
-      - name: Download test data ⬇️
+      - if: ${{ steps.cache-test.outputs.cache-hit != 'true' }}
+        name: Download test data ⬇️
+        working-directory: ./.test
         run: |
-          echo "::group::Download test data"
-          cd .test
           bash download_test_data.sh
-          ls -l
-
-          echo "::endgroup::"
