@@ -42,6 +42,12 @@ jobs:
           # https://github.com/conda-incubator/setup-miniconda/issues/267
           # XXX don't use this: use-only-tar-bz2: true
 
+      - if: ${{ steps.cache-conda.outputs.cache-hit == 'true' }}
+        name: Activate conda 🐍
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: aatrnaseqpipe
+
       - name: Cache test data 🏦
         id: cache-test
         uses: actions/cache@v4
