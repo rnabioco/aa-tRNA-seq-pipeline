@@ -71,6 +71,7 @@ jobs:
 
       - name: Dry-run snakemake
         run: |
+          conda init
           conda activate aatrnaseqpipe
 
           snakemake -n \
