@@ -49,16 +49,22 @@ jobs:
           # Increase this value to reset cache if environment.yml has not changed
           CACHE_NUMBER_TEST_DATA: 0
         with:
-          path: ~/.test
+          path: ./.test
           key:
             # hash based on the FASTA reference
             ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
 
       - if: ${{ steps.cache-test.outputs.cache-hit != 'true' }}
         name: Download test data ⬇️
-        working-directory: ~/.test
+        working-directory: ./.test
         run: |
           echo ">> working directory: $(pwd)"
           bash download_test_data.sh
           echo ">> directory contents:"
           ls -l
+
+      - name: Dry-run snakemake
+        run: |
+          snakemake -n \
+            --configfile=config/config-test.yaml \
+            --profile-cluster/slurm
