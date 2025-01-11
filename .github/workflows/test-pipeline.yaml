@@ -58,7 +58,7 @@ jobs:
           path: ./.test
           key:
             # hash based on the FASTA reference
-            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
+            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('./.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
 
       - if: ${{ steps.cache-test.outputs.cache-hit != 'true' }}
         name: Download test data ⬇️
