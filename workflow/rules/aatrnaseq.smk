@@ -155,7 +155,7 @@ rule cca_classify:
 
 rule get_final_bam_and_charg_prob:
     """
-  creates final bam with classified reads MM and ML tags and table with charging probability per read
+  creates final bam with classified reads CH and ML tags and table with charging probability per read
   """
     input:
         source_bam=rules.cca_classify.output.mod_bam,
@@ -173,16 +173,18 @@ rule get_final_bam_and_charg_prob:
     shell:
         """
     python {params.src}/transfer_tags.py \
-      -s {input.source_bam} \
-      -t {input.target_bam} \
-      -o {output.classified_bam}
+      --tags ML MM \
+      --rename ML=CH \
+      --source {input.source_bam} \
+      --target {input.target_bam} \
+      --output {output.classified_bam}
 
     samtools index {output.classified_bam}
 
     (echo -e "read_id\ttRNA\tcharging_likelihood"; \
       samtools view {output.classified_bam} \
-      | awk '{{ml=""; for(i=1;i<=NF;i++) {{if($i ~ /^ML:/) ml=$i}}; if(ml!="") print $1 "\t" $3 "\t" ml}}' \
-      | sed 's/ML:B:C,//g') \
+      | awk '{{ch=""; for(i=1;i<=NF;i++) {{if($i ~ /^CH:/) ch=$i}}; if(ch!="") print $1 "\t" $3 "\t" ch}}' \
+      | sed 's/CH:B:C,//g') \
       | gzip -c \
       > {output.charging_tab}
     """
