@@ -71,6 +71,8 @@ jobs:
 
       - name: Dry-run snakemake
         run: |
+          conda activate aatrnaseqpipe
+
           snakemake -n \
             --configfile=config/config-test.yaml \
             --profile-cluster/slurm
