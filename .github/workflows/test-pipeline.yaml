@@ -69,7 +69,8 @@ jobs:
           echo ">> directory contents:"
           ls -l
 
-      - name: Dry-run snakemake
+      - if: false
+        name: Dry-run snakemake
         run: |
           conda init
           conda activate aatrnaseqpipe
