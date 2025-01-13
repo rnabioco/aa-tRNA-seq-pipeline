@@ -28,11 +28,11 @@ set-resources:
   - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-  - remora:mem_mb=24
   - cca_classify:queue="gpu"
   - cca_classify:gpu_opts="-gpu num=1:j_exclusive=yes"
   - cca_classify:ngpu=1
   - cca_classify:mem_mb=24
+  - remora_signal_stats:mem_mb=24
 
 
 printshellcmds: True
