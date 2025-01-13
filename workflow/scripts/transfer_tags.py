@@ -14,7 +14,7 @@ from pysam import AlignmentFile
 
 def transfer_tags(tags, rename, source_bam, target_bam, output_bam):
 
-    rename_tags = parse_tag_items(rename)
+    renamed_tags = parse_tag_items(rename)
 
     with (
         AlignmentFile(source_bam, "rb") as source,
@@ -39,8 +39,8 @@ def transfer_tags(tags, rename, source_bam, target_bam, output_bam):
 
             if read.query_name in source_tags:
                 for tag, tag_val in source_tags[read.query_name].items():
-                    if tag in rename_tags:
-                        read.set_tag[rename_tags[tag], tag_val]
+                    if tag in renamed_tags:
+                        read.set_tag(renamed_tags[tag], tag_val)
                     else:
                         read.set_tag(tag, tag_val)
 
