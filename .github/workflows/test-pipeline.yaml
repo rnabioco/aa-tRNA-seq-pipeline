@@ -48,6 +48,7 @@ jobs:
         with:
           activate-environment: aatrnaseqpipe
 
+      - run: conda activate aatrnaseqpipe
       - run: conda info
       - run: conda list
       - run: conda config --show
