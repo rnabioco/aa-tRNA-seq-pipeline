@@ -45,22 +45,6 @@ od=sample2/pod5_fail
 mkdir -p $od
 pod5 filter $ex/rbc/JMW_510_37C/JMW_510_37C.pod5 --ids ex2_read_ids_3.txt --force-overwrite -o $od/1.pod5
 
-od=sample1/fast5_pass
-mkdir -p $od
-pod5 convert to_fast5 -f -o $od sample1/pod5_pass/*.pod5
-
-od=sample1/fast5_fail
-mkdir -p $od
-pod5 convert to_fast5 -f -o $od sample1/pod5_fail/*.pod5
-
-od=sample2/fast5_pass
-mkdir -p $od
-pod5 convert to_fast5 -f -o $od sample2/pod5_pass/*.pod5
-
-od=sample2/fast5_fail
-mkdir -p $od
-pod5 convert to_fast5 -f -o $od sample2/pod5_fail/*.pod5
-
 # make another "sample2" dataset to test merging multiple runs
 # don't duplicate sample2 reads to avoid throwing an error when merging
 # pod5s

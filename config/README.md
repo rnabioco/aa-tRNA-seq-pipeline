@@ -7,7 +7,7 @@ Provide a path to a TSV file which indicates the samples to process (e.g. `confi
 TSV file should have two columns containing the following information.
 
   - a unique id for the sample
-  - a path to the sequencing run folder which has `pod5_pass`, `pod5`, `pod5_fail`, `fast5_pass`, or `fast5_fail` subdirectories containing raw data.
+  - a path to the sequencing run folder with `pod5_pass` and `pod5_fail` subdirectories containing raw data.
 
 The pipeline will recursively search for pod5 or fast5 files to process within the specified directory and subdirectories 
 
