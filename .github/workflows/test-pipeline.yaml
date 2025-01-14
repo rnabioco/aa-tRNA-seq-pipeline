@@ -48,6 +48,10 @@ jobs:
         with:
           activate-environment: aatrnaseqpipe
 
+      - run: conda info
+      - run: conda list
+      - run: conda config --show
+
       - name: Cache test data 🏦
         id: cache-test
         uses: actions/cache@v4
