@@ -1,7 +1,7 @@
 
 rule merge_pods:
     """
-  merge all fast5/pod5s into a single pod5
+  merge pod5s into a single pod5
   """
     input:
         get_raw_inputs,
@@ -9,15 +9,9 @@ rule merge_pods:
         os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "merge_pods", "{sample}"),
-    params:
-        is_fast5=config["input_format"],
     shell:
         """
-    if [ "{params.is_fast5}" == "FAST5" ]; then
-      pod5 convert fast5 -f --output {output} {input}
-    else
       pod5 merge -f -o {output} {input}
-    fi
     """
 
 
