@@ -9,8 +9,6 @@ import argparse
 import csv
 import gzip
 
-import pdb
-
 
 def extract_tag(bam_file, output_tsv, tag):
 
@@ -29,6 +27,9 @@ def extract_tag(bam_file, output_tsv, tag):
             reference = read.reference_name if read.reference_name else "*"
             tag_array = dict(read.tags).get(tag, None)
 
+            # XXX: handle case where there are more than 1 tag value
+            # not clear why this is, but we skip for now as it's a small 
+            # number of reads affected
             if len(tag_array) > 1:
                 continue
 
