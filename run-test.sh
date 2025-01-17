@@ -8,5 +8,5 @@
 mkdir -p results/logs
 
 snakemake \
-  --configfile=config/config.yml \
+  --configfile=config/config-test.yml \
   --profile cluster
