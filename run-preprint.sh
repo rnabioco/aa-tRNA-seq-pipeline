@@ -9,4 +9,5 @@ mkdir -p logs
 
 snakemake \
     --configfile=config/config-preprint.yml \
-    --profile cluster
+    --profile cluster \
+    --rerun-incomplete
