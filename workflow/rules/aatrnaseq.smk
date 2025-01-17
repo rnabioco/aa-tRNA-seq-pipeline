@@ -153,7 +153,7 @@ rule cca_classify:
     """
 
 
-rule get_final_bam_and_charg_prob:
+rule transfer_bam_tags:
     """
   creates final bam with classified reads MM and ML tags and table with charging probability per read
   """
@@ -163,11 +163,8 @@ rule get_final_bam_and_charg_prob:
     output:
         classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
         classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
-        charging_tab=os.path.join(
-            outdir, "tables", "{sample}", "{sample}.charging_prob.tsv.gz"
-        ),
     log:
-        os.path.join(outdir, "logs", "final_bams_and_tabs", "{sample}"),
+        os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
     params:
         src=SCRIPT_DIR,
     shell:
@@ -178,14 +175,29 @@ rule get_final_bam_and_charg_prob:
       -o {output.classified_bam}
 
     samtools index {output.classified_bam}
-
-    (echo -e "read_id\ttRNA\tcharging_likelihood"; \
-      samtools view {output.classified_bam} \
-      | awk '{{ml=""; for(i=1;i<=NF;i++) {{if($i ~ /^ML:/) ml=$i}}; if(ml!="") print $1 "\t" $3 "\t" ml}}' \
-      | sed 's/ML:B:C,//g') \
-      | gzip -c \
-      > {output.charging_tab}
     """
+
+rule get_cca_trna:
+    """
+    extract and report charing probability (ML tag) per read
+    """
+    input:
+        bam=rules.transfer_bam_tags.output.classified_bam
+    output:
+        charging_tab=os.path.join(
+            outdir, "tables", "{sample}", "{sample}.charging_prob.tsv.gz"
+        )
+    log:
+        os.path.join(outdir, "logs", "get_cca_trna", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+    shell:
+        """
+    python {params.src}/get_charging_table.py \
+      -i {input.bam} \
+      | gzip -c > {output.charging_tab}
+    """
+
 
 
 rule get_cca_trna_cpm:
