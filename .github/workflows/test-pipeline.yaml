@@ -1,0 +1,83 @@
+name: Test snakemake 🐍 pipeline
+on:
+  pull_request:
+    branches:
+    - main
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - "8888:3306"
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    steps:
+      - name: Setup pipeline 🚰
+        uses: actions/checkout@v4
+
+      - name: Setup slurm 🐌
+        uses: koesterlab/setup-slurm-action@v1
+
+      - name: Cache conda 🏦
+        id: cache-conda
+        uses: actions/cache@v4
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER_CONDA: 1
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER_CONDA }}-${{hashFiles('environment.yml') }}
+
+      - if: ${{ steps.cache-conda.outputs.cache-hit != 'true' }}
+        name: Setup conda 🐍
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: aatrnaseqpipe
+          environment-file: environment.yml
+          # https://github.com/conda-incubator/setup-miniconda/issues/267
+          # XXX don't use this: use-only-tar-bz2: true
+
+      - if: ${{ steps.cache-conda.outputs.cache-hit == 'true' }}
+        name: Activate conda 🐍
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: aatrnaseqpipe
+
+      - run: conda activate aatrnaseqpipe
+      - run: conda info
+      - run: conda list
+      - run: conda config --show
+
+      - name: Cache test data 🏦
+        id: cache-test
+        uses: actions/cache@v4
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER_TEST_DATA: 0
+        with:
+          path: ./.test
+          key:
+            # hash based on the FASTA reference
+            ${{ runner.os }}-test-data-${{ env.CACHE_NUMBER_TEST_DATA }}-${{hashFiles('./.test/sacCer3-mature-tRNAs-dual-adapt-v2.fa')}}
+
+      - if: ${{ steps.cache-test.outputs.cache-hit != 'true' }}
+        name: Download test data ⬇️
+        working-directory: ./.test
+        run: |
+          echo ">> working directory: $(pwd)"
+          bash download_test_data.sh
+          echo ">> directory contents:"
+          ls -l
+      - if: false
+        name: Dry-run snakemake
+        run: |
+          conda init
+          conda activate aatrnaseqpipe
+          snakemake -n \
+            --configfile=config/config-test.yaml \
+            --profile-cluster/slurm
