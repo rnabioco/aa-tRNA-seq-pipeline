@@ -33,6 +33,7 @@ set-resources:
   - cca_classify:ngpu=1
   - cca_classify:mem_mb=24
   - remora_signal_stats:mem_mb=24
+  - bwa_align:mem_mb=24
 
 
 printshellcmds: True
