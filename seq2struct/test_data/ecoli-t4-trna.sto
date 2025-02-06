@@ -1,0 +1,292 @@
+# STOCKHOLM 1.0
+#=GF AU Infernal 1.1.4
+
+#=GS >U00096.3.trna1   DE U00096.3:225381-225457 (+) Ile (GAT) 77 bp Sc: 75.8
+#=GS U00096.3.trna2    DE U00096.3:225500-225575 (+) Ala (TGC) 76 bp Sc: 78.1
+#=GS U00096.3.trna3    DE U00096.3:228928-229004 (+) Asp (GTC) 77 bp Sc: 85.5
+#=GS U00096.3.trna4    DE U00096.3:236931-237007 (+) Asp (GTC) 77 bp Sc: 85.5
+#=GS U00096.3.trna5    DE U00096.3:262871-262946 (+) Thr (CGT) 76 bp Sc: 85.1
+#=GS U00096.3.trna6    DE U00096.3:297184-297254 (+) Thr (CGT) 71 bp Sc: 44.2
+#=GS U00096.3.trna7    DE U00096.3:564723-564799 (+) Arg (TCT) 77 bp Sc: 86.6
+#=GS U00096.3.trna9    DE U00096.3:780554-780629 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna10   DE U00096.3:780765-780840 (+) Val (TAC) 76 bp Sc: 84.6
+#=GS U00096.3.trna11   DE U00096.3:780843-780918 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna12   DE U00096.3:781068-781143 (+) Val (TAC) 76 bp Sc: 84.6
+#=GS U00096.3.trna13   DE U00096.3:781147-781222 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna14   DE U00096.3:781369-781444 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna15   DE U00096.3:781577-781652 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna16   DE U00096.3:1746435-1746511 (+) Val (GAC) 77 bp Sc: 82.5
+#=GS U00096.3.trna17   DE U00096.3:1746516-1746592 (+) Val (GAC) 77 bp Sc: 85.9
+#=GS U00096.3.trna18   DE U00096.3:2044549-2044624 (+) Asn (GTT) 76 bp Sc: 79.7
+#=GS U00096.3.trna19   DE U00096.3:2059851-2059926 (+) Asn (GTT) 76 bp Sc: 79.7
+#=GS U00096.3.trna20   DE U00096.3:2062260-2062335 (+) Asn (GTT) 76 bp Sc: 79.7
+#=GS U00096.3.trna21   DE U00096.3:2286211-2286287 (+) Pro (GGG) 77 bp Sc: 67.3
+#=GS U00096.3.trna22   DE U00096.3:2466309-2466383 (+) Arg (CCT) 75 bp Sc: 62.5
+#=GS U00096.3.trna23   DE U00096.3:2520931-2521006 (+) Val (TAC) 76 bp Sc: 84.6
+#=GS U00096.3.trna24   DE U00096.3:2521051-2521126 (+) Val (TAC) 76 bp Sc: 84.6
+#=GS U00096.3.trna25   DE U00096.3:2521173-2521248 (+) Val (TAC) 76 bp Sc: 84.6
+#=GS U00096.3.trna26   DE U00096.3:2521253-2521328 (+) Lys (TTT) 76 bp Sc: 94.9
+#=GS U00096.3.trna28   DE U00096.3:2947387-2947463 (+) fMet (CAT) 77 bp Sc: 77.5
+#=GS U00096.3.trna29   DE U00096.3:2947497-2947573 (+) fMet (CAT) 77 bp Sc: 77.5
+#=GS U00096.3.trna30   DE U00096.3:2947607-2947683 (+) fMet (CAT) 77 bp Sc: 77.5
+#=GS U00096.3.trna31   DE U00096.3:3110366-3110441 (+) Phe (GAA) 76 bp Sc: 75.3
+#=GS U00096.3.trna32   DE U00096.3:3215598-3215673 (+) Ile2 (CAT) 76 bp Sc: 85.1
+#=GS U00096.3.trna33   DE U00096.3:3836222-3836316 (+) SeC (TCA) 95 bp Sc: 142.5
+#=GS U00096.3.trna34   DE U00096.3:3943435-3943510 (+) Glu (TTC) 76 bp Sc: 66.6
+#=GS U00096.3.trna35   DE U00096.3:3946872-3946948 (+) Asp (GTC) 77 bp Sc: 85.5
+#=GS U00096.3.trna36   DE U00096.3:3946957-3947032 (+) Trp (CCA) 76 bp Sc: 79.9
+#=GS U00096.3.trna37   DE U00096.3:3982375-3982451 (+) Arg (CCG) 77 bp Sc: 82.2
+#=GS U00096.3.trna38   DE U00096.3:3982510-3982585 (+) His (GTG) 76 bp Sc: 78.7
+#=GS U00096.3.trna39   DE U00096.3:3982606-3982692 (+) Leu (CAG) 87 bp Sc: 67.1
+#=GS U00096.3.trna40   DE U00096.3:3982735-3982811 (+) Pro (TGG) 77 bp Sc: 82.4
+#=GS U00096.3.trna41   DE U00096.3:4037141-4037217 (+) Ile (GAT) 77 bp Sc: 75.8
+#=GS U00096.3.trna42   DE U00096.3:4037260-4037335 (+) Ala (TGC) 76 bp Sc: 78.1
+#=GS U00096.3.trna43   DE U00096.3:4168372-4168447 (+) Glu (TTC) 76 bp Sc: 66.6
+#=GS U00096.3.trna44   DE U00096.3:4175388-4175463 (+) Thr (TGT) 76 bp Sc: 81.3
+#=GS U00096.3.trna45   DE U00096.3:4175472-4175556 (+) Tyr (GTA) 85 bp Sc: 73.0
+#=GS U00096.3.trna46   DE U00096.3:4175673-4175747 (+) Gly (TCC) 75 bp Sc: 70.6
+#=GS U00096.3.trna47   DE U00096.3:4175754-4175829 (+) Thr (GGT) 76 bp Sc: 84.7
+#=GS U00096.3.trna48   DE U00096.3:4209774-4209849 (+) Glu (TTC) 76 bp Sc: 66.6
+#=GS U00096.3.trna49   DE U00096.3:4392360-4392435 (+) Gly (GCC) 76 bp Sc: 88.4
+#=GS U00096.3.trna50   DE U00096.3:4392472-4392547 (+) Gly (GCC) 76 bp Sc: 88.4
+#=GS U00096.3.trna51   DE U00096.3:4392583-4392658 (+) Gly (GCC) 76 bp Sc: 88.4
+#=GS U00096.3.trna52   DE U00096.3:4496405-4496489 (+) Leu (CAA) 85 bp Sc: 79.3
+#=GS U00096.3.trna53   DE U00096.3:4606315-4606401 (-) Leu (CAG) 87 bp Sc: 67.1
+#=GS U00096.3.trna54   DE U00096.3:4606200-4606286 (-) Leu (CAG) 87 bp Sc: 65.0
+#=GS U00096.3.trna55   DE U00096.3:4606079-4606165 (-) Leu (CAG) 87 bp Sc: 67.1
+#=GS U00096.3.trna56   DE U00096.3:4362551-4362626 (-) Phe (GAA) 76 bp Sc: 75.3
+#=GS U00096.3.trna57   DE U00096.3:3708616-3708692 (-) Pro (CGG) 77 bp Sc: 76.0
+#=GS U00096.3.trna58   DE U00096.3:3427076-3427152 (-) Ile (GAT) 77 bp Sc: 75.8
+#=GS U00096.3.trna59   DE U00096.3:3426958-3427033 (-) Ala (TGC) 76 bp Sc: 78.1
+#=GS U00096.3.trna60   DE U00096.3:3423580-3423655 (-) Thr (GGT) 76 bp Sc: 79.8
+#=GS U00096.3.trna61   DE U00096.3:3322072-3322158 (-) Leu (GAG) 87 bp Sc: 64.5
+#=GS U00096.3.trna62   DE U00096.3:3318213-3318289 (-) fMet (CAT) 77 bp Sc: 75.5
+#=GS U00096.3.trna63   DE U00096.3:2998984-2999057 (-) Gly (CCC) 74 bp Sc: 81.1
+#=GS U00096.3.trna64   DE U00096.3:2818553-2818645 (-) Ser (GCT) 93 bp Sc: 83.4
+#=GS U00096.3.trna65   DE U00096.3:2818473-2818549 (-) Arg (ACG) 77 bp Sc: 85.1
+#=GS U00096.3.trna66   DE U00096.3:2818198-2818274 (-) Arg (ACG) 77 bp Sc: 85.1
+#=GS U00096.3.trna67   DE U00096.3:2818059-2818135 (-) Arg (ACG) 77 bp Sc: 85.1
+#=GS U00096.3.trna68   DE U00096.3:2817784-2817860 (-) Arg (ACG) 77 bp Sc: 85.1
+#=GS U00096.3.trna69   DE U00096.3:2785762-2785837 (-) Ile2 (CAT) 76 bp Sc: 84.7
+#=GS U00096.3.trna70   DE U00096.3:2729369-2729444 (-) Glu (TTC) 76 bp Sc: 66.6
+#=GS U00096.3.trna71   DE U00096.3:2518156-2518231 (-) Ala (GGC) 76 bp Sc: 75.0
+#=GS U00096.3.trna72   DE U00096.3:2518041-2518116 (-) Ala (GGC) 76 bp Sc: 75.0
+#=GS U00096.3.trna73   DE U00096.3:2058027-2058102 (-) Asn (GTT) 76 bp Sc: 79.7
+#=GS U00096.3.trna74   DE U00096.3:2043468-2043557 (-) Ser (CGA) 90 bp Sc: 90.4
+#=GS U00096.3.trna75   DE U00096.3:1992042-1992117 (-) Gly (GCC) 76 bp Sc: 88.4
+#=GS U00096.3.trna76   DE U00096.3:1991914-1991987 (-) Cys (GCA) 74 bp Sc: 63.0
+#=GS U00096.3.trna77   DE U00096.3:1991815-1991901 (-) Leu (TAA) 87 bp Sc: 71.7
+#=GS U00096.3.trna78   DE U00096.3:1287538-1287622 (-) Tyr (GTA) 85 bp Sc: 72.2
+#=GS U00096.3.trna79   DE U00096.3:1287244-1287328 (-) Tyr (GTA) 85 bp Sc: 72.2
+#=GS U00096.3.trna80   DE U00096.3:1097565-1097652 (-) Ser (GGA) 88 bp Sc: 76.9
+#=GS U00096.3.trna81   DE U00096.3:1031625-1031712 (-) Ser (TGA) 88 bp Sc: 83.5
+#=GS U00096.3.trna82   DE U00096.3:925884-925971 (-) Ser (GGA) 88 bp Sc: 76.9
+#=GS U00096.3.trna83   DE U00096.3:697057-697133 (-) Met (CAT) 77 bp Sc: 84.4
+#=GS U00096.3.trna84   DE U00096.3:696963-697047 (-) Leu (TAG) 85 bp Sc: 74.1
+#=GS U00096.3.trna85   DE U00096.3:696865-696939 (-) Gln (TTG) 75 bp Sc: 70.4
+#=GS U00096.3.trna86   DE U00096.3:696756-696830 (-) Gln (TTG) 75 bp Sc: 70.4
+#=GS U00096.3.trna87   DE U00096.3:696664-696740 (-) Met (CAT) 77 bp Sc: 84.4
+#=GS U00096.3.trna88   DE U00096.3:696542-696616 (-) Gln (CTG) 75 bp Sc: 70.8
+#=GS U00096.3.trna89   DE U00096.3:696430-696504 (-) Gln (CTG) 75 bp Sc: 70.8
+#=GS NC_000866.4.trna1 DE NC_000866.4:72458-72530 (-) Gln (TTG) 73 bp Sc: 67.7
+#=GS NC_000866.4.trna2 DE NC_000866.4:72370-72456 (-) Leu (TAA) 87 bp Sc: 71.0
+#=GS NC_000866.4.trna3 DE NC_000866.4:72291-72364 (-) Gly (TCC) 74 bp Sc: 65.9
+#=GS NC_000866.4.trna4 DE NC_000866.4:72207-72280 (-) Pro (TGG) 74 bp Sc: 64.6
+#=GS NC_000866.4.trna5 DE NC_000866.4:72118-72204 (-) Ser (TGA) 87 bp Sc: 77.8
+#=GS NC_000866.4.trna6 DE NC_000866.4:72035-72110 (-) Thr (TGT) 76 bp Sc: 82.0
+#=GS NC_000866.4.trna7 DE NC_000866.4:71960-72033 (-) Ile2 (CAT) 74 bp Sc: 53.8
+#=GS NC_000866.4.trna8 DE NC_000866.4:71173-71247 (-) Arg (TCT) 75 bp Sc: 44.1 Possible pseudogene
+
+>U00096.3.trna1           AG.GCUUGUAGCUCAGG.uGGU.uAGAGCGCACCCCUGAUAAGGGUGAG...................GuCGGUGGUUCAAGUCCACU...CAGGC....C...U...Acca
+#=GR >U00096.3.trna1   PP **.**************.****.**************************...................********************...*****....*...*...5555
+U00096.3.trna2            GG.GGCUAUAGCUCAGC.uGGG..AGAGCGCCUGCUUUGCACGCAGGAG...................GuCUGCGGUUCGAUCCCGCA...UAGCU....C...C...Acca
+#=GR U00096.3.trna2    PP **.**************.9555..*************************...................********************...*****....8...7...4444
+U00096.3.trna3            GG.AGCGGUAGUUCAGU.cGGU.uAGAAUACCUGCCUGUCACGCAGGGG...................GuCGCGGGUUCGAGUCCCGU...CCGUU....C...CgccA...
+#=GR U00096.3.trna3    PP **.**************.****.**************************...................********************...*****....8...64445...
+U00096.3.trna4            GG.AGCGGUAGUUCAGU.cGGU.uAGAAUACCUGCCUGUCACGCAGGGG...................GuCGCGGGUUCGAGUCCCGU...CCGUU....C...CgccA...
+#=GR U00096.3.trna4    PP **.**************.****.**************************...................********************...*****....8...64445...
+U00096.3.trna5            GC.CGAUAUAGCUCAGU.uGGU..AGAGCAGCGCAUUCGUAAUGCGAAG...................GuCGUAGGUUCGACUCCUAU...UAUCG....G...C...Acca
+#=GR U00096.3.trna5    PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna6            --.----GUAGUUAAAA.aUGC.aUUAACAUCGCAUUCGUAAUGCGAAG...................GuCGUAGGUUCGACUCCUAUuauCGGCA....C...C...A...
+#=GR U00096.3.trna6    PP .......********98.7666.78************************...................*******************7777*****....*...*...*...
+U00096.3.trna7            GC.GCCCUUAGCUCAGU.uGGA.uAGAGCAACGACCUUCUAAGUCGUGG...................GcCGCAGGUUCGAAUCCUGC...AGGGC....G...CgccA...
+#=GR U00096.3.trna7    PP **.**************.*888.8*************************...................********************...*****....*...85554...
+U00096.3.trna9            GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna9    PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna10           GG.GUGAUUAGCUCAGC.uGGG..AGAGCACCUCCCUUACAAGGAGGGG...................GuCGGCGGUUCGAUCCCGUC...AUCAC....C...C...Acca
+#=GR U00096.3.trna10   PP **.**************.9555..*************************...................********************...*****....9...7...4444
+U00096.3.trna11           GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna11   PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna12           GG.GUGAUUAGCUCAGC.uGGG..AGAGCACCUCCCUUACAAGGAGGGG...................GuCGGCGGUUCGAUCCCGUC...AUCAC....C...C...Acca
+#=GR U00096.3.trna12   PP **.**************.9555..*************************...................********************...*****....9...7...4444
+U00096.3.trna13           GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna13   PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna14           GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna14   PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna15           GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna15   PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna16           GC.GUUCAUAGCUCAGU.uGGU.uAGAGCACCACCUUGACAUGGUGGGG...................GuCGUUGGUUCGAGUCCAAU...UGAAC....G...C...Acca
+#=GR U00096.3.trna16   PP **.**************.****.**************************...................********************...*****....*...8...4444
+U00096.3.trna17           GC.GUCCGUAGCUCAGU.uGGU.uAGAGCACCACCUUGACAUGGUGGGG...................GuCGGUGGUUCGAGUCCACU...CGGAC....G...C...Acca
+#=GR U00096.3.trna17   PP **.**************.****.**************************...................********************...*****....*...8...4444
+U00096.3.trna18           UC.CUCUGUAGUUCAGU.cGGU..AGAACGGCGGACUGUUAAUCCGUAU...................GuCACUGGUUCGAGUCCAGU...CAGAG....G...Agcc-a..
+#=GR U00096.3.trna18   PP **.**************.****..*************************...................********************...*****....*...*666.4..
+U00096.3.trna19           UC.CUCUGUAGUUCAGU.cGGU..AGAACGGCGGACUGUUAAUCCGUAU...................GuCACUGGUUCGAGUCCAGU...CAGAG....G...Agcc-a..
+#=GR U00096.3.trna19   PP **.**************.****..*************************...................********************...*****....*...*666.4..
+U00096.3.trna20           UC.CUCUGUAGUUCAGU.cGGU..AGAACGGCGGACUGUUAAUCCGUAU...................GuCACUGGUUCGAGUCCAGU...CAGAG....G...Agcc-a..
+#=GR U00096.3.trna20   PP **.**************.****..*************************...................********************...*****....*...*666.4..
+U00096.3.trna21           CG.GCACGUAGCGCAGCcuGGU..AGCGCACCGUCAUGGGGUGUCGGGG...................GuCGGAGGUUCAAAUCCUCU...CGUGC....C...G...Acca
+#=GR U00096.3.trna21   PP **.*******************..*************************...................********************...*****....*...*...5555
+U00096.3.trna22           GU.CCUCUUAGUUAAAU..GGA.uAUAACGAGCCCCUCCUAAGGGCUAA...................U.UGCAGGUUCGAUUCCUGC...AGGGG....A...C...Acca
+#=GR U00096.3.trna22   PP **.**************..777.7*************************...................*.******************...*****....*...8...4444
+U00096.3.trna23           GG.GUGAUUAGCUCAGC.uGGG..AGAGCACCUCCCUUACAAGGAGGGG...................GuCGGCGGUUCGAUCCCGUC...AUCAC....C...C...Acca
+#=GR U00096.3.trna23   PP **.**************.9555..*************************...................********************...*****....9...7...4444
+U00096.3.trna24           GG.GUGAUUAGCUCAGC.uGGG..AGAGCACCUCCCUUACAAGGAGGGG...................GuCGGCGGUUCGAUCCCGUC...AUCAC....C...C...Acca
+#=GR U00096.3.trna24   PP **.**************.9555..*************************...................********************...*****....9...7...4444
+U00096.3.trna25           GG.GUGAUUAGCUCAGC.uGGG..AGAGCACCUCCCUUACAAGGAGGGG...................GuCGGCGGUUCGAUCCCGUC...AUCAC....C...C...Acca
+#=GR U00096.3.trna25   PP **.**************.9555..*************************...................********************...*****....9...7...4444
+U00096.3.trna26           GG.GUCGUUAGCUCAGU.uGGU..AGAGCAGUUGACUUUUAAUCAAUUG...................GuCGCAGGUUCGAAUCCUGC...ACGAC....C...C...Acca
+#=GR U00096.3.trna26   PP **.**************.****..*************************...................********************...*****....9...7...4444
+U00096.3.trna28           CG.CGGGGUGGAGCAGCcuGGU..AGCUCGUCGGGCUCAUAACCCGAAG...................GuCGUCGGUUCAAAUCCGGC...CCCCG....C...A...Acca
+#=GR U00096.3.trna28   PP **.*******************..*************************...................********************...*****....9...8...4444
+U00096.3.trna29           CG.CGGGGUGGAGCAGCcuGGU..AGCUCGUCGGGCUCAUAACCCGAAG...................GuCGUCGGUUCAAAUCCGGC...CCCCG....C...A...Acca
+#=GR U00096.3.trna29   PP **.*******************..*************************...................********************...*****....9...8...4444
+U00096.3.trna30           CG.CGGGGUGGAGCAGCcuGGU..AGCUCGUCGGGCUCAUAACCCGAAG...................GuCGUCGGUUCAAAUCCGGC...CCCCG....C...A...Acca
+#=GR U00096.3.trna30   PP **.*******************..*************************...................********************...*****....9...8...4444
+U00096.3.trna31           GC.CCGGAUAGCUCAGU.cGGU..AGAGCAGGGGAUUGAAAAUCCCCGU...................GuCCUUGGUUCGAUUCCGAG...UCCGG....G...C...Acca
+#=GR U00096.3.trna31   PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna32           GG.CCCCUUAGCUCAGU..GGU.uAGAGCAGGCGACUCAUAAUCGCUUG...................GuCGCUGGUUCAAGUCCAGC...AGGGG....C...C...Acca
+#=GR U00096.3.trna32   PP **.**************..999.9*************************...................********************...*****....9...7...4444
+U00096.3.trna33           GGaAGAUCGUCGUCUCC..GGU.gAGGCGGCUGGACUUCAAAUCCAGU-uggggccgccagcggucccG.GGCAGGUUCGACUCCUGU...GAUCUuccgC...C...A...
+#=GR U00096.3.trna33   PP 9659999999*******..***.*************************.9*****************95.******************...9999955556...8...8...
+U00096.3.trna34           GU.CCCCUUCGUCUAGA..GGCccAGGACACCGCCCUUUCACGGCGGUA...................A.CAGGGGUUCGAAUCCCCU...AGGGG....A...CgccA...
+#=GR U00096.3.trna34   PP **.**************..9999**************************...................*.******************...*****....*...85554...
+U00096.3.trna35           GG.AGCGGUAGUUCAGU.cGGU.uAGAAUACCUGCCUGUCACGCAGGGG...................GuCGCGGGUUCGAGUCCCGU...CCGUU....C...CgccA...
+#=GR U00096.3.trna35   PP **.**************.****.**************************...................********************...*****....8...64445...
+U00096.3.trna36           AG.GGGCGUAGUUCAAU.uGGU..AGAGCACCGGUCUCCAAAACCGGGU...................GuUGGGAGUUCGAGUCUCUC...CGCCC....C...Ugcc-a..
+#=GR U00096.3.trna36   PP **.**************.****..************************9...................99******************...*****....*...*666.4..
+U00096.3.trna37           GC.GCCCGUAGCUCAGC.uGGA.uAGAGCGCUGCCCUCCGGAGGCAGAG...................GuCUCAGGUUCGAAUCCUGU...CGGGC....G...CgccA...
+#=GR U00096.3.trna37   PP **.**************.*888.8*************************...................********************...*****....*...85554...
+U00096.3.trna38           GU.GGCUAUAGCUCAGU.uGGU..AGAGCCCUGGAUUGUGAUUCCAGUU...................GuCGUGGGUUCGAAUCCCAU...UAGCC....A...CcccA...
+#=GR U00096.3.trna38   PP **.**************.****..*************************...................********************...*****....*...76665...
+U00096.3.trna39           GC.GAAGGUGGCGGAAU.uGGU.aGACGCGCUAGCUUCAGGUGUUAGU-guccuu.......acggacG.UGGGGGUUCAAGUCCCCC...CCCUC....G...C...Acca
+#=GR U00096.3.trna39   PP **.**************.****.*************************.8*****.......*****95.******************...*****....*...8...4444
+U00096.3.trna40           CG.GCGAGUAGCGCAGCuuGGU..AGCGCAACUGGUUUGGGACCAGUGG...................GuCGGAGGUUCGAAUCCUCU...CUCGC....C...G...Acca
+#=GR U00096.3.trna40   PP **.*******************..*************************...................********************...*****....*...*...5555
+U00096.3.trna41           AG.GCUUGUAGCUCAGG.uGGU.uAGAGCGCACCCCUGAUAAGGGUGAG...................GuCGGUGGUUCAAGUCCACU...CAGGC....C...U...Acca
+#=GR U00096.3.trna41   PP **.**************.****.**************************...................********************...*****....*...*...5555
+U00096.3.trna42           GG.GGCUAUAGCUCAGC.uGGG..AGAGCGCCUGCUUUGCACGCAGGAG...................GuCUGCGGUUCGAUCCCGCA...UAGCU....C...C...Acca
+#=GR U00096.3.trna42   PP **.**************.9555..*************************...................********************...*****....8...7...4444
+U00096.3.trna43           GU.CCCCUUCGUCUAGA..GGCccAGGACACCGCCCUUUCACGGCGGUA...................A.CAGGGGUUCGAAUCCCCU...AGGGG....A...CgccA...
+#=GR U00096.3.trna43   PP **.**************..9999**************************...................*.******************...*****....*...85554...
+U00096.3.trna44           GC.CGACUUAGCUCAGU.aGGU..AGAGCAACUGACUUGUAAUCAGUAG...................GuCACCAGUUCGAUUCCGGU...AGUCG....G...C...Acca
+#=GR U00096.3.trna44   PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna45           GG.UGGGGUUCCCGAGC..GGCcaAAGGGAGCAGACUGUAAAUCUGCC-gucac........agacuu-.CGAAGGUUCGAAUCCUUC...CCCCA....C...CaccA...
+#=GR U00096.3.trna45   PP **.**************..9999*************************.8****........****85..*****************9...88766....5...42227...
+U00096.3.trna46           GC.GGGCAUCGUAUAAU..GGC.uAUUACCUCAGCCUUCCAAGCUGAUG...................A.UGCGGGUUCGAUUCCCGC...UGCCC....G...CuccA...
+#=GR U00096.3.trna46   PP **.**************..998.8*************************...................*.******************...*****....*...86554...
+U00096.3.trna47           GC.UGAUAUAGCUCAGU.uGGU..AGAGCGCACCCUUGGUAAGGGUGAG...................GuCGGCAGUUCGAAUCUGCC...UAUCA....G...C...Acca
+#=GR U00096.3.trna47   PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna48           GU.CCCCUUCGUCUAGA..GGCccAGGACACCGCCCUUUCACGGCGGUA...................A.CAGGGGUUCGAAUCCCCU...AGGGG....A...CgccA...
+#=GR U00096.3.trna48   PP **.**************..9999**************************...................*.******************...*****....*...85554...
+U00096.3.trna49           GC.GGGAAUAGCUCAGU.uGGU..AGAGCACGACCUUGCCAAGGUCGGG...................GuCGCGAGUUCGAGUCUCGU...UUCCC....G...CuccA...
+#=GR U00096.3.trna49   PP **.**************.****..*************************...................********************...*****....*...86554...
+U00096.3.trna50           GC.GGGAAUAGCUCAGU.uGGU..AGAGCACGACCUUGCCAAGGUCGGG...................GuCGCGAGUUCGAGUCUCGU...UUCCC....G...CuccA...
+#=GR U00096.3.trna50   PP **.**************.****..*************************...................********************...*****....*...86554...
+U00096.3.trna51           GC.GGGAAUAGCUCAGU.uGGU..AGAGCACGACCUUGCCAAGGUCGGG...................GuCGCGAGUUCGAGUCUCGU...UUCCC....G...CuccA...
+#=GR U00096.3.trna51   PP **.**************.****..*************************...................********************...*****....*...86554...
+U00096.3.trna52           GC.CGAAGUGGCGAAAU.cGGU.aGACGCAGUUGAUUCAAAAUCAACC-guaga.........aauacG.UGCCGGUUCGAGUCCGGC...CUUCG....G...C...Acca
+#=GR U00096.3.trna52   PP **.**************.****.*************************.8****.........****95.******************...*****....*...8...4444
+U00096.3.trna53           GC.GAAGGUGGCGGAAU.uGGU.aGACGCGCUAGCUUCAGGUGUUAGU-guccuu.......acggacG.UGGGGGUUCAAGUCCCCC...CCCUC....G...C...Acca
+#=GR U00096.3.trna53   PP **.**************.****.*************************.8*****.......*****95.******************...*****....*...8...4444
+U00096.3.trna54           GC.GAAGGUGGCGGAAU.uGGU.aGACGCGCUAGCUUCAGGUGUUAGU-guucuu.......acggacG.UGGGGGUUCAAGUCCCCC...CCCUC....G...C...Acca
+#=GR U00096.3.trna54   PP **.**************.****.*************************.8*****.......*****95.******************...*****....*...8...4444
+U00096.3.trna55           GC.GAAGGUGGCGGAAU.uGGU.aGACGCGCUAGCUUCAGGUGUUAGU-guccuu.......acggacG.UGGGGGUUCAAGUCCCCC...CCCUC....G...C...Acca
+#=GR U00096.3.trna55   PP **.**************.****.*************************.8*****.......*****95.******************...*****....*...8...4444
+U00096.3.trna56           GC.CCGGAUAGCUCAGU.cGGU..AGAGCAGGGGAUUGAAAAUCCCCGU...................GuCCUUGGUUCGAUUCCGAG...UCCGG....G...C...Acca
+#=GR U00096.3.trna56   PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna57           CG.GUGAUUGGCGCAGCcuGGU..AGCGCACUUCGUUCGGGACGAAGGG...................GuCGGAGGUUCGAAUCCUCU...AUCAC....C...G...Acca
+#=GR U00096.3.trna57   PP **.*******************..*************************...................********************...*****....*...*...5555
+U00096.3.trna58           AG.GCUUGUAGCUCAGG.uGGU.uAGAGCGCACCCCUGAUAAGGGUGAG...................GuCGGUGGUUCAAGUCCACU...CAGGC....C...U...Acca
+#=GR U00096.3.trna58   PP **.**************.****.**************************...................********************...*****....*...*...5555
+U00096.3.trna59           GG.GGCUAUAGCUCAGC.uGGG..AGAGCGCCUGCUUUGCACGCAGGAG...................GuCUGCGGUUCGAUCCCGCA...UAGCU....C...C...Acca
+#=GR U00096.3.trna59   PP **.**************.9555..*************************...................********************...*****....8...7...4444
+U00096.3.trna60           GC.UGAUAUGGCUCAGU.uGGU..AGAGCGCACCCUUGGUAAGGGUGAG...................GuCCCCAGUUCGACUCUGGG...UAUCA....G...C...Acca
+#=GR U00096.3.trna60   PP **.**************.****..*************************...................********************...*****....*...8...4444
+U00096.3.trna61           GC.CGAGGUGGUGGAAU.uGGU.aGACACGCUACCUUGAGGUGGUAGU-gcccaa......uagggcu-.UACGGGUUCAAGUCCCGU...CCUCG....GuacC...A...
+#=GR U00096.3.trna61   PP **.**************.****.*************************.8*****......*****95..******************...*****....*6666...6...
+U00096.3.trna62           CG.CGGGGUGGAGCAGCcuGGU..AGCUCGUCGGGCUCAUAACCCGAAG...................AuCGUCGGUUCAAAUCCGGC...CCCCG....C...A...Acca
+#=GR U00096.3.trna62   PP **.*******************..*************************...................********************...*****....9...8...4444
+U00096.3.trna63           GC.GGGCGUAGUUCAAU..GGU..AGAACGAGAGCUUCCCAAGCUCUAU...................A.CGAGGGUUCGAUUCCCUU...CGCCC....G...CuccA...
+#=GR U00096.3.trna63   PP **.**************..***..*************************...................*.******************...*****....*...86554...
+U00096.3.trna64           GG.UGAGGUGGCCGAGA..GGCugAAGGCGCUCCCCUGCUAAGGGAGU-augcgguca.aaagcugca-uCCGGGGUUCGAAUCCCCG...CCUCA....C...CgccA...
+#=GR U00096.3.trna64   PP **.**************..7777*************************.8********.********6.4******************...****9....8...64445...
+U00096.3.trna65           GC.AUCCGUAGCUCAGC.uGGA.uAGAGUACUCGGCUACGAACCGAGCG...................GuCGGAGGUUCGAAUCCUCC...CGGAU....G...C...Acca
+#=GR U00096.3.trna65   PP **.**************.*888.8*************************...................********************...*****....*...8...4444
+U00096.3.trna66           GC.AUCCGUAGCUCAGC.uGGA.uAGAGUACUCGGCUACGAACCGAGCG...................GuCGGAGGUUCGAAUCCUCC...CGGAU....G...C...Acca
+#=GR U00096.3.trna66   PP **.**************.*888.8*************************...................********************...*****....*...8...4444
+U00096.3.trna67           GC.AUCCGUAGCUCAGC.uGGA.uAGAGUACUCGGCUACGAACCGAGCG...................GuCGGAGGUUCGAAUCCUCC...CGGAU....G...C...Acca
+#=GR U00096.3.trna67   PP **.**************.*888.8*************************...................********************...*****....*...8...4444
+U00096.3.trna68           GC.AUCCGUAGCUCAGC.uGGA.uAGAGUACUCGGCUACGAACCGAGCG...................GuCGGAGGUUCGAAUCCUCC...CGGAU....G...C...Acca
+#=GR U00096.3.trna68   PP **.**************.*888.8*************************...................********************...*****....*...8...4444
+U00096.3.trna69           GG.CCCUUUAGCUCAGU..GGU.uAGAGCAGGCGACUCAUAAUCGCUUG...................GuCGCUGGUUCAAGUCCAGC...AAGGG....C...C...Acca
+#=GR U00096.3.trna69   PP **.**************..999.9*************************...................********************...*****....9...7...4444
+U00096.3.trna70           GU.CCCCUUCGUCUAGA..GGCccAGGACACCGCCCUUUCACGGCGGUA...................A.CAGGGGUUCGAAUCCCCU...AGGGG....A...CgccA...
+#=GR U00096.3.trna70   PP **.**************..9999**************************...................*.******************...*****....*...85554...
+U00096.3.trna71           GG.GGCUAUAGCUCAGC.uGGG..AGAGCGCUUGCAUGGCAUGCAAGAG...................GuCAGCGGUUCGAUCCCGCU...UAGCU....C...C...Acca
+#=GR U00096.3.trna71   PP **.**************.9555..*************************...................********************...*****....8...7...4444
+U00096.3.trna72           GG.GGCUAUAGCUCAGC.uGGG..AGAGCGCUUGCAUGGCAUGCAAGAG...................GuCAGCGGUUCGAUCCCGCU...UAGCU....C...C...Acca
+#=GR U00096.3.trna72   PP **.**************.9555..*************************...................********************...*****....8...7...4444
+U00096.3.trna73           UC.CUCUGUAGUUCAGU.cGGU..AGAACGGCGGACUGUUAAUCCGUAU...................GuCACUGGUUCGAGUCCAGU...CAGAG....G...Agcc-a..
+#=GR U00096.3.trna73   PP **.**************.****..*************************...................********************...*****....*...*666.4..
+U00096.3.trna74           GG.AGAGAUGCCGGAGC..GGCugAACGGACCGGUCUCGAAAACCGGA-guagggg....caacucua-cCGGGGGUUCAAAUCCCCC...UCUCU....C...CgccA...
+#=GR U00096.3.trna74   PP **.**************..7777*************************.8******....*******5.5******************...*****....8...64445...
+U00096.3.trna75           GC.GGGAAUAGCUCAGU.uGGU..AGAGCACGACCUUGCCAAGGUCGGG...................GuCGCGAGUUCGAGUCUCGU...UUCCC....G...CuccA...
+#=GR U00096.3.trna75   PP **.**************.****..*************************...................********************...*****....*...86554...
+U00096.3.trna76           GG.CGCGUUAACAAAGC..GGU..UAUGUAGCGGAUUGCAAAUCCGUCU...................A.GUCCGGUUCGACUCCGGA...ACGCG....C...CuccA...
+#=GR U00096.3.trna76   PP **.**************..***..9************************...................*.******************...*****....8...64445...
+U00096.3.trna77           GC.CCGGAUGGUGGAAU.cGGU.aGACACAAGGGAUUUAAAAUCCCUC-ggcguu.......cgcgcuG.UGCGGGUUCAAGUCCCGC...UCCGG....GuacC...A...
+#=GR U00096.3.trna77   PP **.**************.****.*************************.8*****.......*****85.******************...*****....*6666...6...
+U00096.3.trna78           GG.UGGGGUUCCCGAGC..GGCcaAAGGGAGCAGACUGUAAAUCUGCC-gucau........cgacuu-.CGAAGGUUCGAAUCCUUC...CCCCA....C...CaccA...
+#=GR U00096.3.trna78   PP **.**************..9999*************************.8****........****85..*****************9...88766....5...42227...
+U00096.3.trna79           GG.UGGGGUUCCCGAGC..GGCcaAAGGGAGCAGACUGUAAAUCUGCC-gucau........cgacuu-.CGAAGGUUCGAAUCCUUC...CCCCA....C...CaccA...
+#=GR U00096.3.trna79   PP **.**************..9999*************************.8****........****85..*****************9...88766....5...42227...
+U00096.3.trna80           GG.UGAGGUGUCCGAGU..GGCugAAGGAGCACGCCUGGAAAGUGUGU-auacgg......caacgua-uCGGGGGUUCGAAUCCCCC...CCUCA....C...CgccA...
+#=GR U00096.3.trna80   PP **.**************..7777*************************.8*****......******6.4******************...****9....8...64445...
+U00096.3.trna81           GG.AAGUGUGGCCGAGC..GGUugAAGGCACCGGUCUUGAAAACCGGC-gacccga.....aaggguu-.CCAGAGUUCGAAUCUCUG...CGCUU....C...CgccA...
+#=GR U00096.3.trna81   PP **.**************..9998*************************.8******.....*****74..******************...*****....8...74445...
+U00096.3.trna82           GG.UGAGGUGUCCGAGU..GGCugAAGGAGCACGCCUGGAAAGUGUGU-auacgg......caacgua-uCGGGGGUUCGAAUCCCCC...CCUCA....C...CgccA...
+#=GR U00096.3.trna82   PP **.**************..7777*************************.8*****......******6.4******************...****9....8...64445...
+U00096.3.trna83           GG.CUACGUAGCUCAGU.uGGU.uAGAGCACAUCACUCAUAAUGAUGGG...................GuCACAGGUUCGAAUCCCGU...CGUAG....C...C...Acca
+#=GR U00096.3.trna83   PP **.**************.****.**************************...................********************...*****....9...7...4444
+U00096.3.trna84           GC.GGGAGUGGCGAAAU.uGGU.aGACGCACCAGAUUUAGGUUCUGGC-gccgc.........aagguG.UGCGAGUUCAAGUCUCGC...CUCCC....G...C...Acca
+#=GR U00096.3.trna84   PP **.**************.****.*************************.8****.........****85.******************...*****....*...8...4444
+U00096.3.trna85           UG.GGGUAUCGCCAAGC..GGU..AAGGCACCGGUUUUUGAUACCGGCA...................UuCCCUGGUUCGAAUCCAGG...UACCC....C...Agcc-a..
+#=GR U00096.3.trna85   PP **.**************..***..************************9...................99******************...*****....9...9666.4..
+U00096.3.trna86           UG.GGGUAUCGCCAAGC..GGU..AAGGCACCGGUUUUUGAUACCGGCA...................UuCCCUGGUUCGAAUCCAGG...UACCC....C...Agcc-a..
+#=GR U00096.3.trna86   PP **.**************..***..************************9...................99******************...*****....9...9666.4..
+U00096.3.trna87           GG.CUACGUAGCUCAGU.uGGU.uAGAGCACAUCACUCAUAAUGAUGGG...................GuCACAGGUUCGAAUCCCGU...CGUAG....C...C...Acca
+#=GR U00096.3.trna87   PP **.**************.****.**************************...................********************...*****....9...7...4444
+U00096.3.trna88           UG.GGGUAUCGCCAAGC..GGU..AAGGCACCGGAUUCUGAUUCCGGCA...................UuCCGAGGUUCGAAUCCUCG...UACCC....C...Agcc-a..
+#=GR U00096.3.trna88   PP **.**************..***..************************9...................9*******************...*****....9...9666.4..
+U00096.3.trna89           UG.GGGUAUCGCCAAGC..GGU..AAGGCACCGGAUUCUGAUUCCGGCA...................UuCCGAGGUUCGAAUCCUCG...UACCC....C...Agcc-a..
+#=GR U00096.3.trna89   PP **.**************..***..************************9...................9*******************...*****....9...9666.4..
+NC_000866.4.trna1         UG.GGAAUUAGCCAAGU.uGGU..AAGGCAUAGCACUUUGACUGCUAGA...................UgCAAAGGUUCGAGUCCUUU...AUUCC....C...A...G...
+#=GR NC_000866.4.trna1 PP **.**************.****..************************9...................99******************...*****....*...*...*...
+NC_000866.4.trna2         GC.GAGAAUGGUCAAAU.uGGU.aAAGGCACAGCACUUAAAAUGCUGC-ggaaug......auuuccu-.UGUGGGUUCGAGUCCCAC...UUCUC....G...C...Acca
+#=GR NC_000866.4.trna2 PP **.**************.****.*************************.8*****......*****95..******************...*****....*...8...4444
+NC_000866.4.trna3         GC.GGAUAUCGUAUAAU..GGU..AUUACCUCAGACUUCCAAUCUGAUG...................A.UGUGAGUUCGAUUCUCAU...UAUCC....G...CuccA...
+#=GR NC_000866.4.trna3 PP **.**************..***..*************************...................*.******************...*****....*...86554...
+NC_000866.4.trna4         CU.CCGUGUAGCUCAGUuuGGU..AGAGCGCCUGAUUUGGGAUCAGGAG...................GuCCAAGGUUCAAAUCCUUG...UAUGG....A...G...A...
+#=GR NC_000866.4.trna4 PP **.*******************..*************************...................********************...*****....*...*...*...
+NC_000866.4.trna5         GG.AGGCGUGGCAGAGU..GGUuuAAUGCACCGGUCUUGAAAACCGGC-agucgcuc...cggcgacu-.CAUAGGUUCAAAUCCUAU...CGCCU....C...C...G...
+#=GR NC_000866.4.trna5 PP **.**************..9888*************************.8*******...******95..******************...*****....*...*...*...
+NC_000866.4.trna6         GC.UGAUUUAGCUCAGU.aGGU..AGAGCACCUCACUUGUAAUGAGGAU...................GuCGGCGGUUCGAUUCCGUC...AAUCA....G...C...Acca
+#=GR NC_000866.4.trna6 PP **.**************.****..*************************...................********************...*****....*...8...4444
+NC_000866.4.trna7         GG.CCCUGUAGCUCAAU..GGUuaGCAGCAGUCCCCUCAUAAGGGAAAG...................GuUACCAGUUCAAAUCUGGU...CUGGG....U...C...A...
+#=GR NC_000866.4.trna7 PP **.**************..9998888***********************...................********************...*****....*...*...*...
+NC_000866.4.trna8         GU.CCCGCUGGUGUAAU..GGA.uAGCAUACGAUCCUUCUAAGUUUGCG...................G.UCCUGGUUCGAUCCCAGG...GCGGG....AuacC...A...
+#=GR NC_000866.4.trna8 PP **.**************..777.7*************************...................*.******************...*****....*6666...6...
+#=GC SS_cons              ((.(((((,,<<<<___..___.._>>>>,<<<<<_______>>>>>,,...................,.,<<<<<_______>>>>>...)))))....)...)...:...
+#=GC RF                   Gg.agauaUAGCucAgU..GGU..AgaGCgucgGaCUuaaAAuCcgaag...................g.cgcgGGUUCgAaUCCcgc...uaucu....c...C...a...
+//
