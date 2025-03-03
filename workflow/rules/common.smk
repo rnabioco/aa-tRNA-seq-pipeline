@@ -14,18 +14,58 @@ def parse_samples(fl):
             line = l.rstrip()
             if not line or line.startswith("#"):
                 continue
-            try:
-                sample, path = line.split()
-            except:
+            fields = line.split()
+
+            if len(fields) == 2:
+                # if samples.tsv has the old format, assume aa-tRNA-seq input
+                try:
+                    sample, path = fields
+
+            except ValueError:
                 print(
-                    "samples file must have 2 columns, sample_id and data_path, separated by whitespace",
+                    "samples file must have 2 columns (sample_id and data_path, in which case "
+                    "aa-tRNA-seq input will be assumed), or 5 columns ((sample_id, data_path, "
+                    "sequencing_input, organism, chemistry)) separated by whitespace",
                     file=sys.stderr,
                 )
                 sys.exit(f"found {line}")
+            sequencing_input = "aa-tRNA"
+            organisms = "scerevisiae"
+            chemistry = "RNA004"
+            basecall_model = "sup"
+
+            elif len(fields) == 5:
+                # new format, use provided values
+                try:
+                    sample, path, sequencing_input, organism, chemistry = fields
+                except ValueError:
+                    print(
+                        "sample file must have either 2 or 5 columns, separated by whitespace."
+                        file=sys.stderr
+                    )
+                    sys.exit(f"found {line}")
             if sample in samples:
                 samples[sample]["path"].add(path)
             else:
-                samples[sample] = {"path": {path}}
+                print(
+                    "Error: samples file must have either 2 or 5 columns:\n"
+                    "2-column format: sample_id, data_path (defaults to scerevisiae RNA004 aa-tRNA)\n"
+                    "5-column format: sample_id, data_path, sequencing_input, organism, chemistry",
+                    file=sys.stderr,
+                )
+                sys.exit(f"found {line}")
+
+            if sample in samples:
+                print(f"Duplicate sample found: {sample}, file=sys.stderr)
+                sys.exit(1)
+            else:
+                samples[sample] = {
+                    "path": path,
+                    "sequencing_input": sequencing_input,
+                    "organism": organism,  # defaults to scerevisiae if 2 cols
+                    "chemistry": chemistry,
+                    "basecall_model": basecall_model
+                }
     return samples
 
 
