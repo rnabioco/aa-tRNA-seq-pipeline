@@ -6,9 +6,15 @@ base_calling_model: "resources/models/rna004_130bps_sup@v5.0.0"
 # either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
 input_format: "POD5"
 
-# path to fasta file to use for bwa alignment.
-# a BWA index will be built if it does not exist for this fasta file
-fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
+# paths to fasta files to use for bwa alignment for uncharged tRNA sequencing
+# will built a BWA index for each if it doesn't exist
+references:
+    scerevisiae: "resources/ref/uncharged/sacCer-mito-and-nuclear-tRNAs.fa"
+    hsapiens: "resources/ref/uncharged/hg38-mature-tRNAs.fa"
+    drerio: "resources/ref/uncharged/danRer11-mature-tRNAs.fa"
+    tthermophila: "resources/ref/uncharged/tthermophila-numbered-mature-tRNAs.fa"
+    dmelanogaster: "resources/ref/uncharged/dm6-mature-tRNAs.fa"
+    ecoli: "resources/ref/uncharged/ecoliK12MG1655-mature-tRNAs.fa"
 
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
