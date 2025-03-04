@@ -62,7 +62,7 @@ def parse_samples(fl):
                 samples[sample] = {
                     "path": path,
                     "sequencing_input": sequencing_input,
-                    "organism": organism,  # defaults to scerevisiae if 2 cols
+                    "organism": organism,  # defaults to scerevisiae if 2-col
                     "chemistry": chemistry,
                     "basecall_model": basecall_model
                 }

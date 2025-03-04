@@ -118,6 +118,7 @@ rule bwa_align:
 rule cca_classify:
     """
   run remora trained model to classify charged and uncharged reads
+  skip this step if it's just tRNA sequencing not aa-tRNA-seq 
   """
     input:
         pod5=rules.merge_pods.output,
@@ -131,25 +132,31 @@ rule cca_classify:
         os.path.join(outdir, "logs", "cca_classify", "{sample}"),
     params:
         model=config["remora_cca_classifier"],
+        sequencing_input=lambda wildcards: samples[wildcards.sample]["sequencing_input"],  # Fetch sequencing type
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
+    if [[ "{params.sequencing_input}" == "aa-tRNA" ]]; then
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+        echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+        export CUDA_VISIBLE_DEVICES
+        fi
 
-    remora infer from_pod5_and_bam {input.pod5} {input.bam} \
-      --model {params.model} \
-      --out-bam {output.mod_bam} \
-      --log-filename {output.txt} \
-      --reference-anchored \
-      --device 0
+        remora infer from_pod5_and_bam {input.pod5} {input.bam} \
+        --model {params.model} \
+        --out-bam {output.mod_bam} \
+        --log-filename {output.txt} \
+        --reference-anchored \
+        --device 0
 
-    # sort the result
-    samtools sort {output.mod_bam} > {output.temp_sorted_bam}
-    cp {output.temp_sorted_bam} {output.mod_bam}
+        # sort the result
+        samtools sort {output.mod_bam} > {output.temp_sorted_bam}
+        cp {output.temp_sorted_bam} {output.mod_bam}
 
-    samtools index {output.mod_bam}
+        samtools index {output.mod_bam}
+
+    else
+        # Skip classification for tRNA-seq by creating empty output (to avoid MissingOutputException error from Snakemake)
+            touch {output.mod_bam} {output.mod_bam_bai} {output.txt}
     """
 
 
