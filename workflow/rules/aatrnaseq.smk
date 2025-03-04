@@ -93,7 +93,7 @@ rule bwa_align:
   """
     input:
         reads=rules.ubam_to_fq.output,
-        idx=rules.bwa_idx.output,
+        idx=lambda wildcards: config["references"][samples[wildcards.sample]["organism"]],
     output:
         bam=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam"),
         bai=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam.bai"),
