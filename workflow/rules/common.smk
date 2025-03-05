@@ -94,17 +94,18 @@ def report_metadata():
     logger.info(f"Pipeline commit: {cid}")
     logger.info(format_config_values())
 
-
 def find_raw_inputs(sample_dict):
     """
-    parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
-    store input files and uuid base file names in dictionary for each sample
+    Parse directories listed in samples.tsv and identify FAST5 or POD5 files to process.
+    Store input files and UUID base file names in a dictionary for each sample.
     """
-    POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
+    POD5_DIRS = ["pod5_pass", "pod5_fail"]
     FAST5_DIRS = ["fast5_pass", "fast5_fail"]
-    fmt = config["input_format"]
+    fmt = config["input_format"]  # Get input format from config file
 
-    data_subdirs = []
+    print(f"DEBUG: input_format set to {fmt}", file=sys.stderr)  # Print input format for debugging
+
+    # Select correct subdirectories and file extension
     if fmt == "POD5":
         data_subdirs = POD5_DIRS
         ext = ".pod5"
@@ -112,31 +113,50 @@ def find_raw_inputs(sample_dict):
         data_subdirs = FAST5_DIRS
         ext = ".fast5"
     else:
-        sys.exit("input_format config option must be either FAST5, or POD5")
+        sys.exit("ERROR: input_format in config must be either FAST5 or POD5")
+
+    print(f"DEBUG: Searching for {ext} files in {data_subdirs}", file=sys.stderr)  # Debug file search path
 
     for sample, info in sample_dict.items():
         raw_fls = []
-        for path in info["path"]:
+        print(f"DEBUG: Processing sample {sample}, Looking inside: {info['path']}", file=sys.stderr)
+
+        # Ensure path is stored as a string (not split into characters!)
+        if isinstance(info["path"], set):
+            path_list = list(info["path"])  # Convert set to list if necessary
+        else:
+            path_list = [info["path"]]  # Ensure it's a list for iteration
+
+        for path in path_list:
+            absolute_path = os.path.abspath(path)  # Ensure correct absolute path
             for subdir in data_subdirs:
-                data_path = os.path.join(path, subdir, "*" + ext)
+                data_path = os.path.join(absolute_path, subdir, "*" + ext)  # Corrected path handling
                 fls = glob.glob(data_path)
+
+                print(f"DEBUG: Sample {sample}, Searching {data_path}, Found: {fls}", file=sys.stderr)
+
                 raw_fls += fls
+
         if len(raw_fls) == 0:
             sys.exit(
-                f"No input files found for sample: {sample}. Please check the path in the samples.tsv file"
+                f"ERROR: No input files found for sample: {sample}. Please check the path in the samples.tsv file"
             )
+
         sample_dict[sample]["raw_files"] = raw_fls
 
     return sample_dict
-
 
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
 rbc_outdir = os.path.join(outdir, "rbc_bams")
 
 samples = parse_samples(config["samples"])
-samples = find_raw_inputs(samples)
+print("Parsed samples:", samples, file=sys.stderr)
+for sample, info in samples.items():
+    print(f"Sample: {sample}, Paths: {info['path']}", file=sys.stderr)
 
+samples = find_raw_inputs(samples)
+print("Parsed samples dictionary:", samples, file=sys.stderr)
 
 # Define target files for rule all
 def pipeline_outputs():
