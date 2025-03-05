@@ -1,4 +1,6 @@
 # new config for running uncharged nanopore tRNA-seq libraries (to be edited)
+samples: "config/samples-test.tsv"
+
 # paths to basecalling models below (these will need to be added to resources dir unless we can point to Dorado install instead)
 base_calling_models:
   RNA002:
