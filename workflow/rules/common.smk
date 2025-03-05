@@ -6,7 +6,6 @@ from git import Repo
 
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
-
 def parse_samples(fl):
     samples = {}
     with open(fl) as f:
@@ -17,35 +16,34 @@ def parse_samples(fl):
             fields = line.split()
 
             if len(fields) == 2:
-                # if samples.tsv has the old format, assume aa-tRNA-seq input
+                # If samples.tsv has the old format, assume aa-tRNA-seq input
                 try:
                     sample, path = fields
+                except ValueError:
+                    print(
+                        "samples file must have 2 columns (sample_id and data_path, in which case "
+                        "aa-tRNA-seq input will be assumed), or 5 columns (sample_id, data_path, "
+                        "sequencing_input, organism, chemistry) separated by whitespace",
+                        file=sys.stderr,
+                    )
+                    sys.exit(f"found {line}")
 
-            except ValueError:
-                print(
-                    "samples file must have 2 columns (sample_id and data_path, in which case "
-                    "aa-tRNA-seq input will be assumed), or 5 columns ((sample_id, data_path, "
-                    "sequencing_input, organism, chemistry)) separated by whitespace",
-                    file=sys.stderr,
-                )
-                sys.exit(f"found {line}")
-            sequencing_input = "aa-tRNA"
-            organisms = "scerevisiae"
-            chemistry = "RNA004"
-            basecall_model = "sup"
+                sequencing_input = "aa-tRNA"
+                organism = "scerevisiae"  # ✅ Fixed typo (was `organisms`)
+                chemistry = "RNA004"
+                basecall_model = "sup"
 
             elif len(fields) == 5:
-                # new format, use provided values
+                # New format, use provided values
                 try:
                     sample, path, sequencing_input, organism, chemistry = fields
                 except ValueError:
                     print(
-                        "sample file must have either 2 or 5 columns, separated by whitespace."
+                        "sample file must have either 2 or 5 columns, separated by whitespace.",
                         file=sys.stderr
                     )
                     sys.exit(f"found {line}")
-            if sample in samples:
-                samples[sample]["path"].add(path)
+
             else:
                 print(
                     "Error: samples file must have either 2 or 5 columns:\n"
@@ -56,16 +54,17 @@ def parse_samples(fl):
                 sys.exit(f"found {line}")
 
             if sample in samples:
-                print(f"Duplicate sample found: {sample}, file=sys.stderr)
+                print(f"Duplicate sample found: {sample}", file=sys.stderr)
                 sys.exit(1)
             else:
                 samples[sample] = {
                     "path": path,
                     "sequencing_input": sequencing_input,
-                    "organism": organism,  # defaults to scerevisiae if 2-col
+                    "organism": organism,
                     "chemistry": chemistry,
                     "basecall_model": basecall_model
                 }
+
     return samples
 
 

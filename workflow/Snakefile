@@ -4,8 +4,8 @@ from snakemake.utils import min_version
 
 min_version("8.0")
 
-
-configfile: "config/config-base.yml"
+# select correct one here
+configfile: "config/config-uncharged.yml"
 
 
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)

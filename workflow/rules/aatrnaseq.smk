@@ -23,30 +23,45 @@ rule merge_pods:
 
 rule rebasecall:
     """
-  rebasecall using different accuracy model
+  rebasecall using using multiple chemistry-specific Dorado models for tRNA-seq or a single model for aa-tRNA-seq
+  add the name of the basecalling model used to the output file
   requires a GPU
-  """
+    """
     input:
         rules.merge_pods.output,
     output:
-        protected(os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")),
+        lambda wildcards: (
+            expand(
+                os.path.join(rbc_outdir, "{sample}", "{sample}.{model}.unmapped.bam"),
+                model=config["base_calling_models"][samples[wildcards.sample]["chemistry"]]["tRNA"]
+            ) if samples[wildcards.sample]["sequencing_input"] == "tRNA" else
+            os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")
+        ),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
-        model=config["base_calling_model"],
+        models=lambda wildcards: config["base_calling_models"][samples[wildcards.sample]["chemistry"]][samples[wildcards.sample]["sequencing_input"]],
         is_fast5=config["input_format"],
         raw_data_dir=get_basecalling_dir,
         temp_pod5=os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
+        if [[ "{params.models}" == *,* ]]; then
+            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+            export CUDA_VISIBLE_DEVICES
+        fi
 
-    dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
-    """
+        if [[ "{params.models}" == *,* ]]; then
+            for model in {params.models}; do
+                output_file="{rbc_outdir}/{wildcards.sample}/{wildcards.sample}.$(basename $model).unmapped.bam"
+                dorado basecaller {params.dorado_opts} -v $model {input} > $output_file
+            done
+        else
+            dorado basecaller {params.dorado_opts} -v {params.models} {input} > {output}
+        fi
+        """
+
 
 
 def get_optional_bam_inputs(wildcards):
@@ -89,30 +104,36 @@ rule bwa_idx:
 
 rule bwa_align:
     """
-  align reads to tRNA references with bwa mem
+  align reads to organism-specific tRNA references with bwa mem
+  processes each BAM file produced by rebasecalling with a different model separately
   """
     input:
-        reads=rules.ubam_to_fq.output,
+        reads=lambda wildcards: expand(
+            os.path.join(rbc_outdir, "{sample}", "{sample}.{model}.unmapped.bam"),
+            sample=wildcards.sample,
+            model=config["base_calling_models"][samples[wildcards.sample]["chemistry"]]["tRNA"]
+        ) if samples[wildcards.sample]["sequencing_input"] == "tRNA" else 
+        os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam"),
         idx=lambda wildcards: config["references"][samples[wildcards.sample]["organism"]],
     output:
-        bam=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam"),
-        bai=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam.bai"),
+        bam=os.path.join(outdir, "bams", "{sample}", "{model}", "{sample}.{model}.bwa.unfiltered.bam"),
+        bai=os.path.join(outdir, "bams", "{sample}", "{model}", "{sample}.{model}.bwa.unfiltered.bam.bai"),
     params:
-        index=config["fasta"],
+        index=lambda wildcards: config["references"][samples[wildcards.sample]["organism"]],
         bwa_opts=config["opts"]["bwa"],
     log:
-        os.path.join(outdir, "logs", "bwa", "{sample}"),
+        os.path.join(outdir, "logs", "bwa", "{sample}", "{model}"),
     threads: 12
     shell:
         """
-    bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-        | samtools view -F 4 -h \
-        | awk '($1 ~ /^@/ || $4 <= 25)' \
-        | samtools view -Sb - \
-        | samtools sort -o {output.bam}
-
-    samtools index {output.bam}
-    """
+        bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
+            | samtools view -F 4 -h \
+            | awk '($1 ~ /^@/ || $4 <= 25)' \
+            | samtools view -Sb - \
+            | samtools sort -o {output.bam}
+        
+        samtools index {output.bam}
+        """
 
 
 rule cca_classify:
@@ -162,27 +183,29 @@ rule cca_classify:
 
 rule transfer_bam_tags:
     """
-  creates final bam with classified reads MM and ML tags and table with charging probability per read
-  """
+    creates final BAM with classified reads MM and ML tags
+    processes each basecalling model separately for tRNA samples (which don't have charging info but may have mod calls)
+    """
     input:
-        source_bam=rules.cca_classify.output.mod_bam,
-        target_bam=rules.bwa_align.output.bam,
+        source_bam=lambda wildcards: os.path.join(outdir, "bams", "{sample}", "{model}", "{sample}.{model}.bwa.unfiltered.bam"),
+        target_bam=lambda wildcards: os.path.join(outdir, "bams", "{sample}", "{model}", "{sample}.{model}.bwa.unfiltered.bam"),
     output:
-        classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
-        classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
+        classified_bam=os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam"),
+        classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam.bai"),
     log:
-        os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
+        os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}", "{model}"),
     params:
         src=SCRIPT_DIR,
     shell:
         """
-    python {params.src}/transfer_tags.py \
-      -s {input.source_bam} \
-      -t {input.target_bam} \
-      -o {output.classified_bam}
+        python {params.src}/transfer_tags.py \
+          -s {input.source_bam} \
+          -t {input.target_bam} \
+          -o {output.classified_bam}
 
-    samtools index {output.classified_bam}
-    """
+        samtools index {output.classified_bam}
+        """
+
 
 
 rule get_cca_trna:
@@ -258,13 +281,13 @@ rule align_stats:
   extract alignment stats
   """
     input:
-        unmapped=get_optional_bam_inputs,
-        aligned=rules.bwa_align.output.bam,
-        classified=rules.transfer_bam_tags.output.classified_bam,
+         unmapped=lambda wildcards: os.path.join(rbc_outdir, "{sample}", "{model}", "{sample}.{model}.unmapped.bam"),
+        aligned=lambda wildcards: os.path.join(outdir, "bams", "{sample}", "{model}", "{sample}.{model}.bwa.unfiltered.bam"),
+        classified=lambda wildcards: os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam"),
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}", "{sample}.align_stats.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.align_stats.tsv.gz"),
     log:
-        os.path.join(outdir, "logs", "stats", "{sample}.align_stats"),
+        os.path.join(outdir, "logs", "stats", "{sample}", "{model}.align_stats"),
     params:
         src=SCRIPT_DIR,
     shell:
@@ -280,22 +303,21 @@ rule align_stats:
 
 
 rule bam_to_coverage:
+    """
+    compute coverage, treating each basecalling model separately for tRNA-seq
+    """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=lambda wildcards: os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam"),
+        bai=lambda wildcards: os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam.bai"),
     output:
-        counts_tmp=temp(
-            os.path.join(outdir, "tables", "{sample}", "{sample}.counts.bg")
-        ),
-        cpm_tmp=temp(os.path.join(outdir, "tables", "{sample}", "{sample}.cpm.bg")),
-        counts=protected(
-            os.path.join(outdir, "tables", "{sample}", "{sample}.counts.bg.gz")
-        ),
-        cpm=protected(os.path.join(outdir, "tables", "{sample}", "{sample}.cpm.bg.gz")),
+        counts_tmp=temp(os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.counts.bg")),
+        cpm_tmp=temp(os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.cpm.bg")),
+        counts=protected(os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.counts.bg.gz")),
+        cpm=protected(os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.cpm.bg.gz")),
     params:
         bg_opts=config["opts"]["coverage"],
     log:
-        os.path.join(outdir, "logs", "bg", "{sample}.txt"),
+        os.path.join(outdir, "logs", "bg", "{sample}", "{model}.txt"),
     threads: 4
     shell:
         """
@@ -323,16 +345,16 @@ rule bam_to_coverage:
 
 rule remora_signal_stats:
     """
-  run remora to get signal stats
+  run remora to get signal stats (separate treatment of each basecalling model where relevant)
   """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
-        pod5=rules.merge_pods.output,
+        bam=lambda wildcards: os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam"),
+        bai=lambda wildcards: os.path.join(outdir, "classified_bams", "{sample}", "{model}", "{sample}.{model}.bam.bai"),
+        pod5=lambda wildcards: os.path.join(rbc_outdir, "{sample}", "{model}", "{sample}.{model}.pod5"),
     output:
-        tsv=os.path.join(outdir, "tables", "{sample}", "{sample}.remora.tsv.gz"),
+        tsv=os.path.join(outdir, "tables", "{sample}", "{model}", "{sample}.{model}.remora.tsv.gz"),
     log:
-        os.path.join(outdir, "logs", "remora", "{sample}"),
+        os.path.join(outdir, "logs", "remora", "{sample}", "{model}.log"),
     params:
         src=SCRIPT_DIR,
         kmer=config["remora_kmer_table"],
