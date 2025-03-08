@@ -36,7 +36,6 @@ def get_metric_data(
     signal_norm_method="norm",
     scale_iters_opt=0,
 ):
-
     s_name = sample_name
     ref_chr = chrom
     ref_strand = strand
@@ -69,7 +68,6 @@ def get_metric_data(
 
 
 def iter_metrics(sample_name, samples_metrics, all_bam_reads, ref_reg):
-
     for metrics, reads in zip(samples_metrics, all_bam_reads):
         n_reads, n_pos = next(iter(metrics.values())).shape
 

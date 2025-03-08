@@ -4,7 +4,6 @@ import sys
 
 
 def get_charging_stats(fn):
-
     fo = pysam.AlignmentFile(fn)
     read_counts = {}
     for read in fo:
@@ -18,7 +17,6 @@ def get_charging_stats(fn):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="""
         Generate a table of read counts and percent aminoacylation. 

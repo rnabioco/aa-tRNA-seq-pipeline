@@ -185,7 +185,6 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="""
         Collect read and alignment statistics from unmapped, mapped, and further processed BAM files.

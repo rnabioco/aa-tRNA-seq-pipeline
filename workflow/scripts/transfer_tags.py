@@ -9,13 +9,11 @@ import pysam
 
 
 def transfer_tags(source_bam, target_bam, output_bam):
-    
-    with(
+    with (
         pysam.AlignmentFile(source_bam, "rb") as source,
         pysam.AlignmentFile(target_bam, "rb") as target,
-        pysam.AlignmentFile(output_bam, "wb", template=target) as output
+        pysam.AlignmentFile(output_bam, "wb", template=target) as output,
     ):
-
         # Create a dictionary to store ML and MM tags from the source BAM based on read IDs
         source_tags = {}
         for read in source:
