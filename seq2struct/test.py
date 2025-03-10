@@ -1,35 +1,45 @@
 import csv
+import os
 import gzip
 from Bio import SeqIO
 
-## TODO
-# make sure the files have adapters (returning correctly)
-# make sure the NULL is explained by the sequencing adapters.
-
-def add_adapters(infile, out_file):
+def add_adapters(infile, is_gzipped=False):
     """ 
-    Keep headers the same so it is easy to match to reference file.
-    add adapters
-    Replace old AFA file with new AFA file.
+    Keep headers the same but add adapters to sequences.
+    Preserves the original file extension.
     """
-    with open(infile) as infile, open(out_file, 'w') as outfile:
+    # Extract base name and extension
+    base_name, extension = os.path.splitext(os.path.basename(infile))
+    if extension == '.gz':
+        base_name, extension = os.path.splitext(base_name)
+    
+    # Generate output filename with original extension
+    out_file = f"{base_name}_modified{extension}"
+    
+    # Handle gzipped or regular files
+    open_func = gzip.open if is_gzipped else open
+    mode = 'rt' if is_gzipped else 'r'
+    
+    with open_func(infile, mode) as infile, open(out_file, 'w') as outfile:
         for record in SeqIO.parse(infile, "fasta"):
             # Keep header the same
             header = record.description
-
-            # Add adapters to afa file sequence
-            modified_seq = f'CCUAAGAGCAAGAAGAAGCCUGGN{record.seq}GGCUUCUUCUUGCUCUUAGGAAAAAAAAAA'
+            
+            modified_seq = f'CCTAAGAGCAAGAAGAAGCCTGGN{record.seq}GGCTTCTTCTTGCTCTTAGGAAAAAAAAAA'
             
             # Write to new file
             outfile.write(f">{header}\n{modified_seq}\n")
     
-    return outfile
+    return out_file
 
-def header_seq_dictonary(file_name):
+def header_seq_dictionary(file_name, is_gzipped=False):
     """Reads a FASTA file (gzipped or plain) and returns sequences and headers."""
     ref_sequences, ref_headers = {}, []
-
-    with open(file_name, 'rt') as file:
+    
+    open_func = gzip.open if is_gzipped else open
+    mode = 'rt' if is_gzipped else 'r'
+    
+    with open_func(file_name, mode) as file:
         seq_id = None
         for line in file:
             line = line.strip()
@@ -42,54 +52,90 @@ def header_seq_dictonary(file_name):
 
     return ref_sequences, ref_headers
 
-def create_mapping(ref_seq, afa_seq):
-    """Create a mapping of annotation sequence positions to reference sequence positions."""
+def create_mapping(ref_seq, struct_seq):
+    """
+    Create a bidirectional mapping between reference sequence and structural sequence.
+    Also track the actual nucleotides at each position.
+    Skip positions where the reference has a gap ('-' or '.').
+    """
+    # Keep track of both nucleotides and positions
     mapping = {}
-    ref_index = 0  # Tracks position in ref_seq
-
-    for afa_index, afa_nuc in enumerate(afa_seq):
-        if afa_nuc != '-':
-            while ref_index < len(ref_seq) and ref_seq[ref_index] == '-':
-                ref_index += 1  
-
+    ref_index = 0  # Position in reference sequence (0-indexed)
+    ref_pos_counter = 1  # Actual position counter (1-indexed, skips gaps)
+    
+    for struct_index, struct_nuc in enumerate(struct_seq):
+        if struct_nuc not in ['-', '.']:  # If not a gap in structural sequence
+            # Skip gaps in reference sequence
+            while ref_index < len(ref_seq) and (ref_seq[ref_index] == '-' or ref_seq[ref_index] == '.'):
+                ref_index += 1
+                
             if ref_index < len(ref_seq):
-                mapping[afa_index + 1] = ref_index + 1
-                ref_index += 1  # Move to the next ref_seq position
+                # Store all relevant information for this position
+                mapping[struct_index + 1] = {
+                    'ref_pos': ref_pos_counter,
+                    'ref_nt': ref_seq[ref_index] if ref_index < len(ref_seq) else None,
+                    'struct_nt': struct_nuc
+                }
+                ref_index += 1
+                ref_pos_counter += 1  # Only increment position counter for non-gap characters
             else:
-                mapping[afa_index + 1] = None
+                # Reached end of reference sequence or part of the adapter
+                mapping[struct_index + 1] = {
+                    'ref_pos': None,
+                    'ref_nt': None,
+                    'struct_nt': struct_nuc
+                }
         else:
-            mapping[afa_index + 1] = None
+            # Gap in structural sequence
+            mapping[struct_index + 1] = {
+                'ref_pos': None,
+                'ref_nt': None,
+                'struct_nt': struct_nuc
+            }
 
     return mapping
 
 def process(fasta_file, fsa_file, output_file):
     """Process sequences and write mappings to a TSV file."""
-    # 1. add adpaters to both the fasta and afa sequences
-    fasta_file = add_adapters(fasta_file)
-    fsa_file = add_adapters(fsa_file)
+    # 1. Determine if files are gzipped
+    fasta_is_gzipped = fasta_file.endswith('.gz')
+    fsa_is_gzipped = fsa_file.endswith('.gz')
+    
+    # 2. Add adapters to both files
+    modified_fasta = add_adapters(fasta_file, fasta_is_gzipped)
+    modified_fsa = add_adapters(fsa_file, fsa_is_gzipped)
 
-    # 2. create a dictionary for reference file and afa file containing 
-    # headers (keys) and sequences (dictionary)
-    ref_seqs, ref_headers = header_seq_dictonary(fasta_file)
-    afa_seqs, afa_headers = header_seq_dictonary(fsa_file)
+    # 3. Create dictionaries for reference and structural files
+    ref_seqs, ref_headers = header_seq_dictionary(modified_fasta, False)
+    struct_seqs, struct_headers = header_seq_dictionary(modified_fsa, False)
 
-    # 3. write the tsv file using the create_mappings function
+    # 4. Write the tsv file with new format
     with open(output_file, 'w', newline='') as file:
         writer = csv.writer(file, delimiter='\t')
-        writer.writerow(['ref_id', 'afa_ref', 'afa_nt', 'afa_pos', 'struct_pos'])
+        writer.writerow(['ref_id', 'struct_id', 'ref_nt', 'struct_nt', 'ref_pos', 'struct_pos'])
 
-        for ann_id in afa_headers:
-            matching_refs = [ref_id for ref_id in ref_seqs if ref_id == ann_id]
+        for struct_id in struct_headers:
+            matching_refs = [ref_id for ref_id in ref_seqs if ref_id == struct_id]
 
             for ref_id in matching_refs:
-                mapping = create_mapping(ref_seqs[ref_id], afa_seqs[ann_id])
+                mapping = create_mapping(ref_seqs[ref_id], struct_seqs[struct_id])
 
-                for ann_index, ann_nuc in enumerate(afa_seqs[ann_id]):
-                    writer.writerow([ref_id, ann_id, ann_nuc, ann_index + 1, mapping.get(ann_index + 1, '')])
+                for struct_pos in sorted(mapping.keys()):
+                    map_data = mapping[struct_pos]
+                    writer.writerow([
+                        ref_id, 
+                        struct_id, 
+                        map_data['ref_nt'] or '', 
+                        map_data['struct_nt'], 
+                        map_data['ref_pos'] or '', 
+                        struct_pos
+                    ])
 
 # Files:
-fasta_file = "test_data/ecoli-t4-trna.fasta.gz"
+fasta_file = "test_data/ecoli-t4-trna-ref.fasta.gz"
 fsa_file = "test_data/ecoli-t4-trna.afa"
 output_file = "test-seq2struct.tsv"
 
 process(fasta_file, fsa_file, output_file)
+
+## this works but only has the charged adapters. the 5' is the same length but the 3' is different lengths. i think
