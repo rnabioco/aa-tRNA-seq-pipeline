@@ -25,5 +25,5 @@ jobs:
         with:
           directory: '.test'
           snakefile: 'workflow/Snakefile'
-          args: '-n --configfile config/config-test.yaml --use-conda --conda-cleanup-pkgs cache'
+          args: '-n --configfile config/config-test.yml --use-conda --conda-cleanup-pkgs cache'
           show-disk-usage-on-error: true
