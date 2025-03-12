@@ -1,0 +1,29 @@
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+ 
+  name: snakemake-test-action.yaml
+
+  permissions: read-all
+
+  jobs:
+    snakemake-dry-run:
+      runs-on: ubuntu-latest
+          
+      steps:
+        - uses: actions/checkout@v4
+
+        - name: Download test data ⬇️
+          working-directory: ./.test
+          run: |
+            bash download_test_data.sh
+                
+        - name: Testing
+          uses: snakemake/snakemake-github-action@v1
+          with:
+            directory: '.test'
+            snakefile: 'workflow/Snakefile'
+            args: '-n --configfile config/config-test.yaml --use-conda --conda-cleanup-pkgs cache'
+            show-disk-usage-on-error: true
