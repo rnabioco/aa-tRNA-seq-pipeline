@@ -4,6 +4,16 @@ from snakemake.utils import min_version
 
 min_version("8.0")
 
+# Add a onstart handler to update the PATH environment variable
+DORADO_VERSION = config["dorado_version"]
+DORADO_DIR = "resources/bin/dorado"
+
+onstart:
+    import os
+    dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
+    os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
+    shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
+
 
 configfile: "config/config-base.yml"
 
