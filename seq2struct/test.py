@@ -132,9 +132,9 @@ def process(fasta_file, fsa_file, output_file):
                     ])
 
 # Files:
-fasta_file = "test_data/ecoli-t4-trna-ref.fasta.gz"
-fsa_file = "test_data/ecoli-t4-trna.afa"
-output_file = "test-seq2struct.tsv"
+fasta_file = "test_data/ec-t4-trna.fasta"
+fsa_file = "test_data/ec-t4-trna.afa"
+output_file = "test_result/test-seq2struct.tsv"
 
 process(fasta_file, fsa_file, output_file)
 
