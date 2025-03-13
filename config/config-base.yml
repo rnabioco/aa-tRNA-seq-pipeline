@@ -25,7 +25,7 @@ dorado_model: rna004_130bps_sup@v5.1.0
 # additional options for particular commands
 opts:
     # additional options for dorado basecalling e.g
-    dorado: " --emit-moves "
+    dorado: " --emit-moves --modified-bases pseU m5C inosine_m6A"
 
     # additional options for bwa alignment
     # based on Novoa lab optimising bwa for tRNA alignment
