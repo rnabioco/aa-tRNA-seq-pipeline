@@ -91,20 +91,20 @@ rule dorado_model:
         touch {output}/.downloaded
         """
 
+
 rule setup_modkit:
     """
     Install modkit from source using cargo --git
     """
     output:
-        modkit_bin = f"{MODKIT_DIR}/bin/modkit"
+        modkit_bin=f"{MODKIT_DIR}/bin/modkit",
     params:
-        modkit_dir = MODKIT_DIR,
-        modkit_repository = "https://github.com/nanoporetech/modkit",
-        modkit_version = MODKIT_VERSION
+        modkit_dir=MODKIT_DIR,
+        modkit_repository="https://github.com/nanoporetech/modkit",
+        modkit_version=MODKIT_VERSION,
     log:
-        os.path.join(outdir, "logs", "setup_modkit.log")
-    threads:
-        4
+        os.path.join(outdir, "logs", "setup_modkit.log"),
+    threads: 4
     shell:
         """
         # Create directory structure if it doesn't exist
