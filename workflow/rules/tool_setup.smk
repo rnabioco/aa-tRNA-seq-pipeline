@@ -122,6 +122,7 @@ rule setup_modkit:
 
         # Install modkit using cargo with the specified version
         echo "Installing modkit from source (version {params.modkit_version})..." >> {log} 2>&1
+        export CARGO_NET_GIT_FETCH_WITH_CLI=true
         cargo install --git {params.modkit_repository} \
                      --tag {params.modkit_version} \
                      --root {params.modkit_dir} \
