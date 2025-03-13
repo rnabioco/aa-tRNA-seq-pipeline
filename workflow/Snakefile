@@ -4,8 +4,17 @@ from snakemake.utils import min_version
 
 min_version("8.0")
 
-
 configfile: "config/config-base.yml"
+
+# Add a onstart handler to update the PATH environment variable
+DORADO_VERSION = config["dorado_version"]
+DORADO_DIR = "resources/dorado"
+
+onstart:
+    import os
+    dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
+    os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
+    shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
 
 
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
@@ -14,6 +23,7 @@ PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"
+include: "rules/basecaller.smk"
 
 
 report_metadata()

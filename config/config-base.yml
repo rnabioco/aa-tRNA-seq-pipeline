@@ -2,7 +2,7 @@
 # this is included in the main Snakefile
 
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
-base_calling_model: "resources/models/rna004_130bps_sup@v5.0.0"
+base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
 
 # either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
 input_format: "POD5"
@@ -17,6 +17,10 @@ remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
 
 # read classification model - remora trained model to classify charged vs uncharged reads
 remora_cca_classifier: "resources/models/cca_classifier.pt"
+
+# TODO: allow multiple versions
+dorado_version: 0.9.1
+dorado_model: rna004_130bps_sup@v5.1.0
 
 # additional options for particular commands
 opts:
