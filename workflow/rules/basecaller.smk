@@ -60,17 +60,33 @@ rule setup_dorado:
 
 rule dorado_model:
     """
-    download dorado base-calling model
+    Download dorado base-calling model
     """
     output:
-        # Create a dummy flag file to track completion
-        touch(os.path.join("resources/models", f"{config['dorado_model']}.done")),
+        directory(os.path.join("resources", "models", config["dorado_model"])),
     log:
-        os.path.join(outdir, "logs", "dorado"),
+        os.path.join(outdir, "logs", "dorado_model.log"),
     params:
         model=config["dorado_model"],
-        model_dir=os.path.join("resources/models"),
+        model_dir=os.path.join("resources", "models"),
     shell:
         """
+        mkdir -p {params.model_dir}
+
+        # Run Dorado download
         dorado download --model {params.model} --models-directory {params.model_dir} > {log} 2>&1
+
+        # Create a marker file if needed
+        if [ ! -d "{output}" ]; then
+            echo "Error: Model directory not created: {output}" >> {log}
+            exit 1
+        fi
+
+        # List the contents of the model directory to help with debugging
+        echo "Contents of {output}:" >> {log}
+        ls -la {output} >> {log} 2>&1
+
+        # Touch a marker file in case the download doesn't create any files
+        # This ensures the output directory is not empty
+        touch {output}/.downloaded
         """
