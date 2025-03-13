@@ -90,3 +90,50 @@ rule dorado_model:
         # This ensures the output directory is not empty
         touch {output}/.downloaded
         """
+
+
+rule setup_modkit:
+    """
+    Install modkit from source using cargo --git
+    """
+    output:
+        modkit_bin=f"{MODKIT_DIR}/bin/modkit",
+    params:
+        modkit_dir=MODKIT_DIR,
+        modkit_repository="https://github.com/nanoporetech/modkit",
+        modkit_version=MODKIT_VERSION,
+    log:
+        os.path.join(outdir, "logs", "setup_modkit.log"),
+    threads: 4
+    shell:
+        """
+        # Create directory structure if it doesn't exist
+        mkdir -p {params.modkit_dir}
+
+        # Install Rust if not already installed
+        if ! command -v rustc &> /dev/null; then
+            echo "Rust not found, installing..." >> {log} 2>&1
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y >> {log} 2>&1
+            source "$HOME/.cargo/env"
+        fi
+
+        # Make sure cargo is available in PATH
+        export PATH="$HOME/.cargo/bin:$PATH"
+
+        # Install modkit using cargo with the specified version
+        echo "Installing modkit from source (version {params.modkit_version})..." >> {log} 2>&1
+        cargo install --git {params.modkit_repository} \
+                     --tag {params.modkit_version} \
+                     --root {params.modkit_dir} \
+                     --jobs {threads} >> {log} 2>&1
+
+        # Verify installation
+        if [ -f "{output.modkit_bin}" ]; then
+            echo "modkit successfully installed at {output.modkit_bin}" >> {log} 2>&1
+            # Display version information
+            {output.modkit_bin} --version >> {log} 2>&1
+        else
+            echo "Error: modkit installation failed!" >> {log} 2>&1
+            exit 1
+        fi
+        """
