@@ -6,3 +6,4 @@ logs
 .temp_dorado_model*
 .vscode
 results/
+resources/dorado/*

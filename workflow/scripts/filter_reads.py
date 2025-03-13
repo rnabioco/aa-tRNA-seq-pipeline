@@ -73,7 +73,6 @@ class FilterStats:
 
 
 def count_adapter_edits(aln, ref_start, ref_end):
-
     # use get_aligned_pairs to get the aligned positions
     # count number of mismatches, deletions and insertions
     # in the adapter region
@@ -97,7 +96,6 @@ def count_adapter_edits(aln, ref_start, ref_end):
 
     in_adapter = False
     for query_pos, ref_pos, seq in aligned_pairs:
-
         if ref_pos is not None and ref_pos >= ref_end:
             break
 
@@ -122,7 +120,6 @@ def count_adapter_edits(aln, ref_start, ref_end):
 
 
 def compatible_secondary_alignments(aln, trna_ref_dict, isodecoder_ref_dict):
-
     # read doesn't have multiple alignments (at least not in the XA tag)
     # likely due to a larger number of secondary alignments than -h setting in bwa mem
     if not aln.has_tag("XA"):
@@ -150,7 +147,6 @@ def compatible_secondary_alignments(aln, trna_ref_dict, isodecoder_ref_dict):
 
 
 def filter_bam(args):
-
     five_p_truncation = args.five_p_truncation
     p3_truncation_max = args.three_p_truncation
     min_mapq = args.min_mapq
@@ -264,7 +260,6 @@ def filter_bam(args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="""
         Filter reads in a BAM file according to the indicated criteria.
