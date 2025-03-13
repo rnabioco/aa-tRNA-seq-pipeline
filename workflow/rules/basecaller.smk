@@ -1,5 +1,6 @@
 # Determine OS-specific and architecture-specific Dorado URL
 import platform
+
 system = platform.system().lower()
 machine = platform.machine().lower()
 
@@ -23,13 +24,14 @@ else:
 
 DORADO_URL = f"https://cdn.oxfordnanoportal.com/software/analysis/dorado-{DORADO_VERSION}-{os_suffix}.{file_ext}"
 
+
 rule setup_dorado:
     output:
-        dorado_bin = f"{DORADO_DIR}/bin/dorado"
+        dorado_bin=f"{DORADO_DIR}/bin/dorado",
     params:
-        dorado_url = DORADO_URL,
-        dorado_dir = DORADO_DIR,
-        file_ext = file_ext
+        dorado_url=DORADO_URL,
+        dorado_dir=DORADO_DIR,
+        file_ext=file_ext,
     shell:
         """
         # Create directory structure if it doesn't exist
@@ -55,18 +57,19 @@ rule setup_dorado:
         chmod +x {output.dorado_bin}
         """
 
+
 rule dorado_model:
     """
     download dorado base-calling model
     """
     output:
         # Create a dummy flag file to track completion
-        touch(os.path.join("resources/models", f"{config['dorado_model']}.done"))
+        touch(os.path.join("resources/models", f"{config['dorado_model']}.done")),
     log:
-        os.path.join(outdir, "logs", "dorado")
+        os.path.join(outdir, "logs", "dorado"),
     params:
-        model = config["dorado_model"],
-        model_dir = os.path.join("resources/models")
+        model=config["dorado_model"],
+        model_dir=os.path.join("resources/models"),
     shell:
         """
         dorado download --model {params.model} --models-directory {params.model_dir} > {log} 2>&1
