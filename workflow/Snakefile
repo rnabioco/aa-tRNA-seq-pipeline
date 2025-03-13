@@ -4,7 +4,9 @@ from snakemake.utils import min_version
 
 min_version("8.0")
 
+
 configfile: "config/config-base.yml"
+
 
 # Add a onstart handler to update the PATH environment variable
 DORADO_VERSION = config["dorado_version"]
@@ -12,8 +14,10 @@ DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
 MODKIT_VERSION = config["modkit_version"]
 MODKIT_DIR = f"resources/tools/modkit/{MODKIT_VERSION}"
 
+
 onstart:
     import os
+
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
     modkit_bin_path = os.path.abspath(f"{MODKIT_DIR}/bin")
     os.environ["PATH"] = f"{dorado_bin_path}:{modkit_bin_path}:{os.environ['PATH']}"
