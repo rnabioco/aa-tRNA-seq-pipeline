@@ -30,7 +30,7 @@ PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
 include: "rules/common.smk"
 include: "rules/aatrnaseq.smk"
-include: "rules/basecaller.smk"
+include: "rules/tool_setup.smk"
 
 
 report_metadata()
