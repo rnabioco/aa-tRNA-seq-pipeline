@@ -137,5 +137,3 @@ fsa_file = "test_data/ec-t4-trna.afa"
 output_file = "test_result/test-seq2struct.tsv"
 
 process(fasta_file, fsa_file, output_file)
-
-## this works but only has the charged adapters. the 5' is the same length but the 3' is different lengths. i think
