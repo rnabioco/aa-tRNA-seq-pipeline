@@ -8,7 +8,7 @@ rule merge_pods:
     output:
         os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
     log:
-        os.path.join(outdir, "logs", "merge_pods", "{sample}"),
+        os.path.join(outdir, "logs", "01_merge_pods", "{sample}"),
     shell:
         """
       pod5 merge -f -o {output} {input}
@@ -25,7 +25,7 @@ rule rebasecall:
     output:
         protected(os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")),
     log:
-        os.path.join(outdir, "logs", "rebasecall", "{sample}"),
+        os.path.join(outdir, "logs", "02_rebasecall", "{sample}"),
     params:
         model=config["base_calling_model"],
         raw_data_dir=get_basecalling_dir,
@@ -42,17 +42,12 @@ rule rebasecall:
     """
 
 
-def get_optional_bam_inputs(wildcards):
-    sample = wildcards.sample
-    return os.path.join(rbc_outdir, sample, sample + ".unmapped.bam")
-
-
 rule ubam_to_fq:
     """
   extract reads from bam into FASTQ format for alignment
   """
     input:
-        get_optional_bam_inputs,
+        rules.rebasecall.output,
     output:
         os.path.join(outdir, "fastqs", "{sample}.fastq.gz"),
     log:
@@ -240,7 +235,7 @@ rule align_stats:
   extract alignment stats
   """
     input:
-        unmapped=get_optional_bam_inputs,
+        unmapped=rules.rebasecall.output,
         aligned=rules.bwa_align.output.bam,
         classified=rules.transfer_bam_tags.output.classified_bam,
     output:
