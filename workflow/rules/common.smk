@@ -58,27 +58,16 @@ def report_metadata():
 
 def find_raw_inputs(sample_dict):
     """
-    parse through directories listed in samples.tsv and identify fast5 or pod5 files to process
+    parse through directories listed in samples.tsv and identify pod5 files to process
     store input files and uuid base file names in dictionary for each sample
     """
     POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
-    FAST5_DIRS = ["fast5_pass", "fast5_fail"]
-    fmt = config["input_format"]
-
-    data_subdirs = []
-    if fmt == "POD5":
-        data_subdirs = POD5_DIRS
-        ext = ".pod5"
-    elif fmt == "FAST5":
-        data_subdirs = FAST5_DIRS
-        ext = ".fast5"
-    else:
-        sys.exit("input_format config option must be either FAST5, or POD5")
+    ext = ".pod5"
 
     for sample, info in sample_dict.items():
         raw_fls = []
         for path in info["path"]:
-            for subdir in data_subdirs:
+            for subdir in POD5_DIRS:
                 data_path = os.path.join(path, subdir, "*" + ext)
                 fls = glob.glob(data_path)
                 raw_fls += fls

@@ -6,7 +6,8 @@ Edit config.yml to specify the following parameters.
   TSV file should have (1) a unique id for the sample and (2 a path to the sequencing run folder which has `pod5_pass`, `pod5`, `pod5_fail`, `fast5_pass`, or `fast5_fail` subdirectories containing raw data.
   The pipeline will recursively search for POD5 files to process within the specified directory.
 
-- `output_directory`: A path to an output directory for files produced by pipeline.
+  - a unique id for the sample
+  - a path to the sequencing run folder with `pod5_pass` and `pod5_fail` subdirectories containing raw data.
 
 - `base_calling_model`: Path to the dorado basecalling model to use for rebasecalling. We use `rna004_130bps_sup@v5.0.0` for now, will evaluate newer model soon.
 

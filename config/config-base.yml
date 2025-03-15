@@ -4,9 +4,6 @@
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
 base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
 
-# either FAST5 or POD5, if FAST5 then these files will be converted to pod5 before rebasecalling
-input_format: "POD5"
-
 # path to fasta file to use for bwa alignment.
 # a BWA index will be built if it does not exist for this fasta file
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
