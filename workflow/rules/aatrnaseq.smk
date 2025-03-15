@@ -28,7 +28,6 @@ rule rebasecall:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
         model=config["base_calling_model"],
-        is_fast5=config["input_format"],
         raw_data_dir=get_basecalling_dir,
         temp_pod5=os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
@@ -45,11 +44,7 @@ rule rebasecall:
 
 def get_optional_bam_inputs(wildcards):
     sample = wildcards.sample
-
-    if config["input_format"] == "BAM":
-        return samples[sample]["raw_files"]
-    else:
-        return os.path.join(rbc_outdir, sample, sample + ".unmapped.bam")
+    return os.path.join(rbc_outdir, sample, sample + ".unmapped.bam")
 
 
 rule ubam_to_fq:
