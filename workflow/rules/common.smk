@@ -62,6 +62,7 @@ def find_raw_inputs(sample_dict):
     store input files and uuid base file names in dictionary for each sample
     """
     POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
+    ext = ".pod5"
 
     for sample, info in sample_dict.items():
         raw_fls = []
