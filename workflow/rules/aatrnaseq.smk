@@ -9,9 +9,10 @@ rule merge_pods:
         os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "01_merge_pods", "{sample}"),
+    threads: 12
     shell:
         """
-      pod5 merge -f -o {output} {input}
+      pod5 merge -t {threads} -f -o {output} {input}
     """
 
 
