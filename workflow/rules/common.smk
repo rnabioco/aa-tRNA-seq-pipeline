@@ -120,6 +120,8 @@ def pipeline_outputs():
 
     outs += [os.path.join("resources/models", config["dorado_model"])]
 
+    outs += [f"{MODKIT_DIR}/bin/modkit"]
+
     if (
         "remora_kmer_table" in config
         and config["remora_kmer_table"] != ""

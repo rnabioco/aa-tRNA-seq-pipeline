@@ -15,14 +15,16 @@ remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
 # read classification model - remora trained model to classify charged vs uncharged reads
 remora_cca_classifier: "resources/models/cca_classifier.pt"
 
-# TODO: allow multiple versions
+# software tools
 dorado_version: 0.9.1
 dorado_model: rna004_130bps_sup@v5.1.0
+# note "v"
+modkit_version: 0.4.3
 
 # additional options for particular commands
 opts:
     # additional options for dorado basecalling e.g
-    dorado: " --emit-moves "
+    dorado: " --emit-moves --modified-bases pseU m5C inosine_m6A"
 
     # additional options for bwa alignment
     # based on Novoa lab optimising bwa for tRNA alignment
