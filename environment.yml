@@ -11,6 +11,7 @@ dependencies:
   - samtools
   - bwa
   - deeptools
+  - bedtools
   - snakemake
   - snakefmt
   - gitpython
