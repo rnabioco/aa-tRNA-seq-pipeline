@@ -107,57 +107,18 @@ rule setup_modkit:
         os.path.join(outdir, "logs", "setup_modkit.log"),
     shell:
         """
-        # Create directory structure if it doesn't exist
-        mkdir -p {params.modkit_dir}/bin
-
-        # Detect OS and architecture
-        OS=$(uname -s)
-        ARCH=$(uname -m)
-
-        if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
-            echo "Installing modkit from pre-built binary for Linux x86_64..." >> {log} 2>&1
-
-            # Download the tarball
-            echo "Downloading from {params.linux_binary_url}..." >> {log} 2>&1
-            curl -L -o modkit.tar.gz {params.linux_binary_url} >> {log} 2>&1
-
-            # Extract the binary
-            tar -xzf modkit.tar.gz >> {log} 2>&1
-
-            # Move the binary to the destination
-            mv modkit {output.modkit_bin} >> {log} 2>&1
-
-            # Clean up
-            rm modkit.tar.gz >> {log} 2>&1
-        else
-            echo "Pre-built binary not available for $OS $ARCH, building from source..." >> {log} 2>&1
-
-            # Install Rust if not already installed
-            if ! command -v rustc &> /dev/null; then
-                echo "Rust not found, installing..." >> {log} 2>&1
-                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y >> {log} 2>&1
-                source "$HOME/.cargo/env"
-            fi
-
-            # Make sure cargo is available in PATH
-            export PATH="$HOME/.cargo/bin:$PATH"
-
-            # Install modkit using cargo with the specified version
-            echo "Installing modkit from source (version {params.modkit_version})..." >> {log} 2>&1
-            export CARGO_NET_GIT_FETCH_WITH_CLI=true
-            cargo install --git {params.modkit_repository} \\
-                         --tag v{params.modkit_version} \\
-                         --root {params.modkit_dir} \\
-                         --jobs 4 >> {log} 2>&1
+        if ! command -v rustc &> /dev/null; then
+            echo "Rust not found, installing..." >> {log} 2>&1
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y >> {log} 2>&1
+            source "$HOME/.cargo/env"
         fi
 
-        # Verify installation
-        if [ -f "{output.modkit_bin}" ]; then
-            echo "modkit successfully installed at {output.modkit_bin}" >> {log} 2>&1
-            chmod +x {output.modkit_bin}
-            {output.modkit_bin} --version >> {log} 2>&1
-        else
-            echo "Error: modkit installation failed!" >> {log} 2>&1
-            exit 1
-        fi
+        export PATH="$HOME/.cargo/bin:$PATH"
+
+        export CARGO_NET_GIT_FETCH_WITH_CLI=true
+        cargo install --git {params.modkit_repository} \\
+                     --tag v{params.modkit_version} \\
+                     --root {params.modkit_dir} \\
+                     --jobs 4 >> {log} 2>&1
+
         """
