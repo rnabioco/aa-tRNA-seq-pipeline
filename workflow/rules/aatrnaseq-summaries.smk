@@ -189,12 +189,15 @@ rule modkit_pileup:
         ),
     log:
         os.path.join(outdir, "logs", "modkit", "pileup", "{sample}"),
+    params:
+        fa=config["fasta"]
     shell:
         """
     modkit pileup \
-        --bgzf \
-        --log-filepath {log}
-        {input.bam} {output.bed}
+        --log-filepath {log} \
+        --ref {params.fa} \
+        {input.bam} - \
+        | gzip -9 -c > {output.bed}
     """
 
 
