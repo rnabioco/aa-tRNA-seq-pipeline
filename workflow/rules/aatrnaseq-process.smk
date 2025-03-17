@@ -10,7 +10,7 @@ rule merge_pods:
     input:
         get_raw_inputs,
     output:
-        os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
+        os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "merge_pods", "{sample}"),
     threads: 12
@@ -28,13 +28,13 @@ rule rebasecall:
     input:
         rules.merge_pods.output,
     output:
-        protected(os.path.join(rbc_outdir, "{sample}", "{sample}.unmapped.bam")),
+        protected(os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
         model=config["base_calling_model"],
         raw_data_dir=get_basecalling_dir,
-        temp_pod5=os.path.join(rbc_outdir, "{sample}", "{sample}.pod5"),
+        temp_pod5=os.path.join(outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
     shell:
         """
@@ -54,7 +54,7 @@ rule ubam_to_fastq:
     input:
         rules.rebasecall.output,
     output:
-        os.path.join(outdir, "fastqs", "{sample}.fastq.gz"),
+        os.path.join(outdir, "fq", "{sample}.fq.gz"),
     log:
         os.path.join(outdir, "logs", "ubam_to_fq", "{sample}"),
     shell:
@@ -84,8 +84,8 @@ rule bwa_align:
         reads=rules.ubam_to_fastq.output,
         idx=rules.bwa_idx.output,
     output:
-        bam=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam"),
-        bai=os.path.join(outdir, "bams", "{sample}", "{sample}.bwa.unfiltered.bam.bai"),
+        bam=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
+        bai=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
     params:
         index=config["fasta"],
         bwa_opts=config["opts"]["bwa"],
@@ -112,12 +112,11 @@ rule classify_charging:
         pod5=rules.merge_pods.output,
         bam=rules.bwa_align.output.bam,
     output:
-        mod_bam=os.path.join(outdir, "mod_bams", "{sample}_mod.bam"),
-        mod_bam_bai=os.path.join(outdir, "mod_bams", "{sample}_mod.bam.bai"),
-        txt=os.path.join(outdir, "mod_bams", "{sample}.txt"),
-        temp_sorted_bam=temp(os.path.join(outdir, "mod_bams", "{sample}_mod.bam.tmp")),
+        charging_bam=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam"),
+        charging_bam_bai=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.bai"),
+        temp_sorted_bam=temp(os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.tmp")),
     log:
-        os.path.join(outdir, "logs", "classify_chargin", "{sample}"),
+        os.path.join(outdir, "logs", "classify_charging", "{sample}"),
     params:
         model=config["remora_cca_classifier"],
     shell:
@@ -129,16 +128,16 @@ rule classify_charging:
 
     remora infer from_pod5_and_bam {input.pod5} {input.bam} \
       --model {params.model} \
-      --out-bam {output.mod_bam} \
-      --log-filename {output.txt} \
+      --out-bam {output.charging_bam} \
+      --log-filename {log} \
       --reference-anchored \
       --device 0
 
     # sort the result
-    samtools sort {output.mod_bam} > {output.temp_sorted_bam}
-    cp {output.temp_sorted_bam} {output.mod_bam}
+    samtools sort {output.charging_bam} > {output.temp_sorted_bam}
+    cp {output.temp_sorted_bam} {output.charging_bam}
 
-    samtools index {output.mod_bam}
+    samtools index {output.charging_bam}
     """
 
 
@@ -147,11 +146,11 @@ rule transfer_bam_tags:
   creates final bam with classified reads MM and ML tags and table with charging probability per read
   """
     input:
-        source_bam=rules.classify_charging.output.mod_bam,
+        source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.bwa_align.output.bam,
     output:
-        classified_bam=os.path.join(outdir, "classified_bams", "{sample}.bam"),
-        classified_bam_bai=os.path.join(outdir, "classified_bams", "{sample}.bam.bai"),
+        classified_bam=os.path.join(outdir, "bam", "final", "{sample}.bam"),
+        classified_bam_bai=os.path.join(outdir, "bam", "final", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
     params:

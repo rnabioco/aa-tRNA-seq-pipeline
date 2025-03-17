@@ -82,7 +82,6 @@ def find_raw_inputs(sample_dict):
 
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
-rbc_outdir = os.path.join(outdir, "rbc_bams")
 
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
