@@ -28,7 +28,9 @@ rule rebasecall:
     input:
         rules.merge_pods.output,
     output:
-        protected(os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")),
+        protected(
+            os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")
+        ),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
@@ -56,7 +58,7 @@ rule ubam_to_fastq:
     output:
         os.path.join(outdir, "fq", "{sample}.fq.gz"),
     log:
-        os.path.join(outdir, "logs", "ubam_to_fq", "{sample}"),
+        os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
         """
     samtools fastq -T "*" {input} | gzip > {output}
@@ -90,7 +92,7 @@ rule bwa_align:
         index=config["fasta"],
         bwa_opts=config["opts"]["bwa"],
     log:
-        os.path.join(outdir, "logs", "bwa", "{sample}"),
+        os.path.join(outdir, "logs", "bwa_align", "{sample}"),
     threads: 12
     shell:
         """
@@ -113,8 +115,12 @@ rule classify_charging:
         bam=rules.bwa_align.output.bam,
     output:
         charging_bam=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam"),
-        charging_bam_bai=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.bai"),
-        temp_sorted_bam=temp(os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.tmp")),
+        charging_bam_bai=os.path.join(
+            outdir, "bam", "charging", "{sample}.charging.bam.bai"
+        ),
+        temp_sorted_bam=temp(
+            os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.tmp")
+        ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
     params:
@@ -144,6 +150,9 @@ rule classify_charging:
 rule transfer_bam_tags:
     """
   creates final bam with classified reads MM and ML tags and table with charging probability per read
+
+  MM/ML tags from the charging classification are transferred to CM/CL so as not to interfere with
+  base modifications.
   """
     input:
         source_bam=rules.classify_charging.output.charging_bam,

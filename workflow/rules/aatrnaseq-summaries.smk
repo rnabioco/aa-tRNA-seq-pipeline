@@ -15,6 +15,7 @@ rule get_cca_trna:
     shell:
         """
     python {params.src}/get_charging_table.py \
+      --tag CL \
       {input.bam} \
       {output.charging_tab}
     """
@@ -190,7 +191,7 @@ rule modkit_pileup:
     log:
         os.path.join(outdir, "logs", "modkit", "pileup", "{sample}"),
     params:
-        fa=config["fasta"]
+        fa=config["fasta"],
     shell:
         """
     modkit pileup \
