@@ -158,9 +158,11 @@ rule transfer_bam_tags:
     shell:
         """
     python {params.src}/transfer_tags.py \
-      -s {input.source_bam} \
-      -t {input.target_bam} \
-      -o {output.classified_bam}
+      --tags ML MM \
+      --rename ML=CL MM=CM \
+      --source {input.source_bam} \
+      --target {input.target_bam} \
+      --output {output.classified_bam}
 
     samtools index {output.classified_bam}
     """
