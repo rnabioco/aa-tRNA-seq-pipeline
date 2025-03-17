@@ -45,7 +45,8 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES
     fi
 
-    dorado basecaller {params.dorado_opts} {params.model} {input} > {output}
+    # TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
+    dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
     """
 
 
