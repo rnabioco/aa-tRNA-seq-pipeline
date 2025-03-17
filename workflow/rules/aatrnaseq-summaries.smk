@@ -214,12 +214,43 @@ rule modkit_extract_calls:
         ),
     log:
         os.path.join(outdir, "logs", "modkit", "extract_calls", "{sample}"),
+    params:
+        fa=config["fasta"],
     shell:
         """
     modkit extract calls \
         --bgzf \
+        --reference {params.fa} \
         --log-filepath {log} \
-        --edge-filter 20 \
+        # TODO: inspect edge filter settings
+        --edge-filter 10 \
+        --mapped --pass \
+        {input.bam} {output.tsv}
+    """
+
+
+rule modkit_extract_full:
+    """
+    """
+    input:
+        bam=rules.transfer_bam_tags.output.classified_bam,
+        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+    output:
+        tsv=os.path.join(
+            outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
+    params:
+        fa=config["fasta"],
+    shell:
+        """
+    modkit extract full \
+        --bgzf \
+        --reference {params.fa} \
+        --log-filepath {log} \
+        # TODO: inspect edge filter settings
+        --edge-filter 10 \
         --mapped --pass \
         {input.bam} {output.tsv}
     """
