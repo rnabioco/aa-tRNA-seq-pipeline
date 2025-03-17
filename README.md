@@ -1,18 +1,18 @@
 # aa-tRNA-seq-pipeline
 
-A pipeline to process ONT aa-tRNA-seq data built using snakemake.
+A Snakemake pipeline to process ONT aa-tRNA-seq data.
 
 Downstream analysis to generate figures for the initial preprint can be found at: [https://github.com/rnabioco/aa-tRNA-seq](https://github.com/rnabioco/aa-tRNA-seq)
 
 ## Usage
 
-The pipeline can be configued by editing the `config/config.yml` file. The config file specifications will
+The pipeline can be configured by editing the `config/config.yml` file. The config file specifications will
 run a small example dataset through the pipeline. To download these data files:
 
 ```
-git clone https://github.com/rnabioco/AAtRNAseqPipe.git
+git clone https://github.com/rnabioco/aa-tRNA-seq-pipeline.git
 
-# download test data 
+# download test data
 bash .test/dl_data.sh
 ```
 
@@ -20,18 +20,25 @@ Set up a conda environment:
 
 ```bash
 mamba env create -f environment.yml
-conda activate aatrnaseqpipe 
+mamba activate aatrnaseqpipe
+```
+
+Set up the dorado and modkit resources. This will install the tools in the `resources/tools` directory,
+so only need to be done once during the first run of the pipeline.
+
+```
+snakemake setup_dorado dorado_model setup_modkit
 ```
 
 Test the pipeline by invoking a dry-run snakemake in the pipeline root directory:
 
 ```
-snakemake -n -c 1 -p
+snakemake -np --configfile=config/config-test.yml
 ```
 
 ## Configuration
 
-To use on your own samples, edit `config.yml` and `samples.tsv`  in  `config/`. 
+To use on your own samples, edit `config.yml` and `samples.tsv`  in  `config/`.
 
 See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
 
@@ -53,7 +60,3 @@ A few notes about Remora classification for charged vs. uncharged tRNA reads
 ## Cluster execution
 
 The pipeline includes a `run.sh` script optimized for the LSF scheduler. For more details on configuring for HPC jobs, see `cluster/config.yaml`.
-
-## Notes
-
-The dorado basecaller can be installed using pre-built binaries available from [github](https://github.com/nanoporetech/dorado?tab=readme-ov-file#installation). The conda `environment.yml` installs dorado 0.7.2 from an unsupported (by ONT) channel.
