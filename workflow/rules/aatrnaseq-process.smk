@@ -45,7 +45,7 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES
     fi
 
-    dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
+    dorado basecaller {params.dorado_opts} {params.model} {input} > {output}
     """
 
 
