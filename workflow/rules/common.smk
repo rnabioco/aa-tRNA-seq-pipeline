@@ -144,6 +144,13 @@ def pipeline_outputs():
         sample=samples.keys(),
     )
 
+    outs += expand(
+        os.path.join(
+            outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
+        ),
+        sample=samples.keys(),
+    )
+
     outs += [f"{DORADO_DIR}/bin/dorado"]
 
     outs += [os.path.join("resources/models", config["dorado_model"])]
