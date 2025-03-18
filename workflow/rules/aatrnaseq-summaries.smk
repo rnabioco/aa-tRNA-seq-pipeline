@@ -240,6 +240,7 @@ rule modkit_extract_full:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
         ),
+    threads: 12
     log:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
@@ -248,9 +249,10 @@ rule modkit_extract_full:
         """
     modkit extract full \
         --bgzf \
+        --threads 12 \
         --reference {params.fa} \
         --log-filepath {log} \
         --edge-filter 10 \
-        --mapped --pass \
+        --mapped \
         {input.bam} {output.tsv}
     """
