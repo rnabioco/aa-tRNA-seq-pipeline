@@ -204,6 +204,7 @@ rule modkit_pileup:
 
 rule modkit_extract_calls:
     """
+    TODO: inspect edge filter settings
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
@@ -222,7 +223,6 @@ rule modkit_extract_calls:
         --bgzf \
         --reference {params.fa} \
         --log-filepath {log} \
-        # TODO: inspect edge filter settings
         --edge-filter 10 \
         --mapped --pass \
         {input.bam} {output.tsv}
@@ -231,6 +231,7 @@ rule modkit_extract_calls:
 
 rule modkit_extract_full:
     """
+    TODO: inspect edge filter settings
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
@@ -249,7 +250,6 @@ rule modkit_extract_full:
         --bgzf \
         --reference {params.fa} \
         --log-filepath {log} \
-        # TODO: inspect edge filter settings
         --edge-filter 10 \
         --mapped --pass \
         {input.bam} {output.tsv}

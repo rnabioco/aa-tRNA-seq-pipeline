@@ -23,7 +23,8 @@ rule merge_pods:
 rule rebasecall:
     """
   rebasecall using different accuracy model
-  requires a GPU
+
+  TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
   """
     input:
         rules.merge_pods.output,
@@ -45,7 +46,6 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES
     fi
 
-    # TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
     dorado basecaller {params.dorado_opts} -v {params.model} {input} > {output}
     """
 
