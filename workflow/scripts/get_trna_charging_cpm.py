@@ -1,15 +1,21 @@
 #! /usr/bin/env python
 
 """
-and collapses the output of running a Remora CCA model and extracting
+Collapses the output of running a Remora CCA model and extracting
 per-read information on charging likelihood into an ML tag into
 per-isodecoder counts (and CPM-normalized counts) of charged and uncharged
 tRNAs as determined by the model with a ML >= 200 threshold.
 
-tRNA-AA-anticodon-family-species-chargingref are all preserved from BWA alignment,
+TODO: we should compute this directly from the final BAM file, which
+    contains the same charging information in the `CL` tag; no need to write out
+    the intermediate per-read charging info. Also, `per_read_charging()`
+    does not reflect what this script actuall does. Should be `aggregate_trna_charging()`
+    or similar.
+
+tRNA-AA-anticodon-family-species-ref are all preserved from BWA alignment,
 and can be further collapsed as desired in downstream analysis
 
-CPM normalization reflects counts per million reads that passed alingnment and
+CPM normalization reflects counts per million reads that passed alignment and
 the filtering parameters for Remora classification; these are full length tRNA
 """
 
@@ -23,7 +29,7 @@ def per_read_charging(input, output, threshold):
 
     # Categorize tRNAs as charged or uncharged
     df["status"] = df["charging_likelihood"].apply(
-        lambda x: "charged" if x >= threshold else "uncharged"
+        lambda x: "counts_charged" if x >= threshold else "counts_uncharged"
     )
 
     # Group by tRNA and status to get counts
@@ -33,8 +39,8 @@ def per_read_charging(input, output, threshold):
     total_reads = len(df)
 
     # Normalize counts by CPM
-    count_data["charged_CPM"] = (count_data["charged"] / total_reads) * 1e6
-    count_data["uncharged_CPM"] = (count_data["uncharged"] / total_reads) * 1e6
+    count_data["cpm_charged"] = (count_data["counts_charged"] / total_reads) * 1e6
+    count_data["cpm_uncharged"] = (count_data["counts_uncharged"] / total_reads) * 1e6
 
     if output.endswith(".gz"):
         output_file = gzip.open(output, "wt")
