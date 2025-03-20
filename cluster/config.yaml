@@ -34,6 +34,8 @@ set-resources:
   - classify_charging:mem_mb=24
   - remora_signal_stats:mem_mb=24
   - bwa_align:mem_mb=24
+  - modkit_extract_calls:mem_mb=24
+  - modkit_extract_full:mem_mb=24
 
 
 printshellcmds: True
