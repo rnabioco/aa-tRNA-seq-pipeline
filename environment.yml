@@ -6,7 +6,7 @@ channels:
 
 dependencies:
   - pysam
-  - numpy
+  - numpy < 2
   - pandas
   - samtools
   - bwa
