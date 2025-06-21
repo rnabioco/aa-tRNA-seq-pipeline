@@ -22,8 +22,10 @@ modkit_version: 0.4.3
 
 # additional options for particular commands
 opts:
-    # additional options for dorado basecalling e.g
-    dorado: " --emit-moves --modified-bases pseU m5C inosine_m6A"
+    # additional options for dorado basecalling
+    # XXX place modified bases first as the arg parser gets confused
+    # XXX add `-v` for verbose logging
+    dorado: " --modified-bases pseU m5C inosine_m6A --emit-moves "
 
     # additional options for bwa alignment
     # based on Novoa lab optimising bwa for tRNA alignment
