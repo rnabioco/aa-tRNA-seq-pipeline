@@ -7,3 +7,5 @@ logs
 .vscode
 results/
 resources/tools/*
+*.bam
+*.pod5
