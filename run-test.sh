@@ -9,4 +9,4 @@ mkdir -p .test/logs
 
 snakemake \
   --configfile=config/config-test.yml \
-  --profile cluster
+  --profile=cluster/lsf

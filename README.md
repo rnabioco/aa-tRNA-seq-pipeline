@@ -19,7 +19,7 @@ bash .test/dl_data.sh
 Set up a conda environment:
 
 ```bash
-mamba env create -f environment.yml
+mamba env create -f workflow/envs/aatrnaseqpipe-env.yml
 mamba activate aatrnaseqpipe
 ```
 
@@ -33,7 +33,7 @@ snakemake setup_dorado dorado_model setup_modkit
 Test the pipeline by invoking a dry-run snakemake in the pipeline root directory:
 
 ```
-snakemake -np --configfile=config/config-test.yml
+snakemake -n --configfile=config/config-test.yml
 ```
 
 ## Configuration
