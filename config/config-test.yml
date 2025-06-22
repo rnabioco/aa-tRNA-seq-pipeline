@@ -11,4 +11,4 @@
 samples: config/samples-test.tsv
 
 # output directory for files produced by pipline
-output_directory: ".test/outputs"
+output_directory: ".tests/outputs"

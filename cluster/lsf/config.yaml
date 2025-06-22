@@ -1,13 +1,13 @@
 executor: lsf
 jobs: 300
 
-# note that GB values should be passed to mem_mb
+# N.B. GB values should be passed to mem_mb
 default-resources:
   - 'mem_mb=8'
   - 'lsf_queue=rna'
+  - 'lsf_project=aatrnaseq'
   - 'lsf_extra=""'
 
-# amc-bodhi has 12 GPUs
 resources:
   - ngpu=12
 
