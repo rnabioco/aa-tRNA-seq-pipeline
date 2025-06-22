@@ -8,7 +8,7 @@ import pysam
 import numpy as np
 import polars as pl
 
-import remora
+import logging
 from remora import io, refine_signal_map, util
 
 #######
@@ -19,8 +19,7 @@ from remora import io, refine_signal_map, util
 #######
 
 # silence Remora DEBUG messages
-# logging.getLogger("Remora").setLevel(logging.DEBUG)
-
+logging.getLogger("Remora").setLevel(logging.INFO)
 
 def get_metric_data(
     bam_fh,
@@ -183,11 +182,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="""
         Extract signal metrics using the Remora API. Output will be generated
-        across all regions with read coverage, restricting to reads mapped on 
-        the positive strand, as it is expected that the reads are aligned 
+        across all regions with read coverage, restricting to reads mapped on
+        the positive strand, as it is expected that the reads are aligned
         against transcripts rather than a genome reference. Output can be restricted
         to a specific region using the --region option, or to a set of regions
-        using the --bed option. 
+        using the --bed option.
         The output is TSV text with the following columns:
         Sample\tContig\tReference_Position\tRead_id\tMetric1\tMetric2\tMetric3\t...
         The Reference_Position is 1-based.
@@ -213,7 +212,7 @@ if __name__ == "__main__":
         help="""
         Window size used for signal extraction. Regions will be chunked into windows of this length prior
         to processing. Use this option if you want to extract data from large regions (e.g. regions >> than the read length).
-        Without this option the entire region will be processed at once, which for e.g. chromosomes or long RNAs 
+        Without this option the entire region will be processed at once, which for e.g. chromosomes or long RNAs
         would use excessive memory. Set this to the median of the read lengths in the dataset. Setting to 0 disables this
         option, which is the default. Default: 0
         """,
