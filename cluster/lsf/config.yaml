@@ -1,0 +1,30 @@
+executor: lsf
+jobs: 300
+
+# note that GB values should be passed to mem_mb
+default-resources:
+  - 'mem_mb=8'
+  - 'lsf_queue=rna'
+  - 'lsf_extra=""'
+
+# amc-bodhi has 12 GPUs
+resources:
+  - ngpu=12
+
+# set rule specific requirements
+set-resources:
+  - rebasecall:lsf_queue="gpu"
+  - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
+  - rebasecall:ngpu=1
+  - rebasecall:mem_mb=24
+  - classify_charging:lsf_queue="gpu"
+  - classify_charging:lsf_extra="-gpu num=1:j_exclusive=yes"
+  - classify_charging:ngpu=1
+  - classify_charging:mem_mb=24
+  - remora_signal_stats:mem_mb=24
+  - bwa_align:mem_mb=24
+  - modkit_extract_calls:mem_mb=96
+
+printshellcmds: True
+show-failed-logs: True
+latency-wait: 15
