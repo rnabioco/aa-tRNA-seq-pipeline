@@ -6,7 +6,6 @@ import logging
 import pod5
 import pysam
 import numpy as np
-import polars as pl
 
 import logging
 from remora import io, refine_signal_map, util
