@@ -1,5 +1,8 @@
 # aa-tRNA-seq-pipeline
 
+[![CI](https://github.com/rnabioco/aa-tRNA-seq-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/rnabioco/aa-tRNA-seq-pipeline/actions/workflows/ci.yml)
+[![Lint](https://github.com/rnabioco/aa-tRNA-seq-pipeline/actions/workflows/lint.yml/badge.svg)](https://github.com/rnabioco/aa-tRNA-seq-pipeline/actions/workflows/lint.yml)
+
 A Snakemake pipeline to process ONT aa-tRNA-seq data.
 
 Downstream analysis to generate figures for the initial preprint can be found at: [https://github.com/rnabioco/aa-tRNA-seq](https://github.com/rnabioco/aa-tRNA-seq)
