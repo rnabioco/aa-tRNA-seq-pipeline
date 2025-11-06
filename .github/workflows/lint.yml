@@ -1,0 +1,97 @@
+name: Lint
+
+on:
+  push:
+    branches: [main, master, develop, claude/**]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  snakemake-lint:
+    name: Snakemake Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Snakemake
+        run: |
+          pip install snakemake snakefmt
+
+      - name: Run snakefmt check
+        run: |
+          snakefmt --check workflow/
+
+  python-lint:
+    name: Python Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install linting tools
+        run: |
+          pip install black flake8 pylint
+
+      - name: Run black check
+        continue-on-error: true
+        run: |
+          black --check workflow/scripts/ || echo "Black formatting issues found (non-blocking)"
+
+      - name: Run flake8
+        continue-on-error: true
+        run: |
+          flake8 workflow/scripts/ --max-line-length=100 --ignore=E203,W503 || echo "Flake8 issues found (non-blocking)"
+
+  markdown-lint:
+    name: Markdown Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install markdownlint
+        run: |
+          npm install -g markdownlint-cli
+
+      - name: Run markdownlint
+        continue-on-error: true
+        run: |
+          markdownlint '**/*.md' --ignore node_modules || echo "Markdown linting issues found (non-blocking)"
+
+  yaml-lint:
+    name: YAML Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+
+      - name: Run yamllint
+        continue-on-error: true
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}, document-start: disable}}" config/ .github/ || echo "YAML linting issues found (non-blocking)"

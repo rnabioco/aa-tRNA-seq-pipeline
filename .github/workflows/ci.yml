@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop, claude/**]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  syntax-check:
+    name: Snakemake Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: aatrnaseqpipe
+          use-mamba: true
+
+      - name: Cache conda environment
+        uses: actions/cache@v3
+        with:
+          path: /usr/share/miniconda3/envs/aatrnaseqpipe
+          key: conda-${{ runner.os }}-${{ hashFiles('workflow/envs/aatrnaseqpipe-env.yml') }}
+
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: |
+          mamba env update -n aatrnaseqpipe -f workflow/envs/aatrnaseqpipe-env.yml
+
+      - name: Verify Snakemake installation
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          snakemake --version
+
+      - name: Snakemake dry-run (syntax check)
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          snakemake -n --configfile=config/config-test.yml
+
+  pipeline-test:
+    name: Pipeline Integration Test
+    runs-on: ubuntu-latest
+    needs: syntax-check
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          activate-environment: aatrnaseqpipe
+          use-mamba: true
+
+      - name: Cache conda environment
+        uses: actions/cache@v3
+        with:
+          path: /usr/share/miniconda3/envs/aatrnaseqpipe
+          key: conda-${{ runner.os }}-${{ hashFiles('workflow/envs/aatrnaseqpipe-env.yml') }}
+
+      - name: Install dependencies
+        shell: bash -l {0}
+        run: |
+          mamba env update -n aatrnaseqpipe -f workflow/envs/aatrnaseqpipe-env.yml
+
+      - name: Download test data
+        shell: bash -l {0}
+        run: |
+          bash .tests/dl_test_data.sh
+
+      - name: Setup dorado
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          snakemake setup_dorado --cores 1 --configfile=config/config-test.yml
+
+      - name: Download dorado model
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          snakemake dorado_model --cores 1 --configfile=config/config-test.yml
+
+      - name: Setup modkit
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          snakemake setup_modkit --cores 1 --configfile=config/config-test.yml
+
+      - name: Run pipeline test (non-GPU rules only)
+        shell: bash -l {0}
+        run: |
+          conda activate aatrnaseqpipe
+          # Run merge_pods rule as a basic test (doesn't require GPU)
+          snakemake merge_pods --cores 2 --configfile=config/config-test.yml
+
+      - name: Validate outputs
+        shell: bash -l {0}
+        run: |
+          # Check that expected output files were created
+          if [ ! -d ".tests/outputs" ]; then
+            echo "Error: Output directory not created"
+            exit 1
+          fi
+          echo "Pipeline test completed successfully"
+
+  config-validation:
+    name: Configuration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check config files syntax
+        run: |
+          # Validate YAML syntax
+          python3 -c "import yaml; yaml.safe_load(open('config/config-base.yml'))"
+          python3 -c "import yaml; yaml.safe_load(open('config/config-test.yml'))"
+          python3 -c "import yaml; yaml.safe_load(open('config/config-preprint.yml'))"
+          echo "All config files are valid YAML"
+
+      - name: Check samples files
+        run: |
+          # Validate samples TSV files exist and have content
+          if [ ! -f "config/samples-test.tsv" ]; then
+            echo "Error: samples-test.tsv not found"
+            exit 1
+          fi
+          if [ ! -s "config/samples-test.tsv" ]; then
+            echo "Error: samples-test.tsv is empty"
+            exit 1
+          fi
+          echo "Sample files validated"
+
+      - name: Check required directories
+        run: |
+          # Check that required directories exist
+          directories=("workflow" "workflow/rules" "workflow/scripts" "config" "resources" "cluster")
+          for dir in "${directories[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "Error: Required directory $dir not found"
+              exit 1
+            fi
+          done
+          echo "All required directories exist"
