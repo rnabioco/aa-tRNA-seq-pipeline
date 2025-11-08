@@ -1,0 +1,111 @@
+#!/bin/bash
+# Claude Code Session Start Hook
+# This script runs automatically when starting a Claude Code session
+# It verifies the development environment is properly configured
+
+set -e
+
+echo "=========================================="
+echo "🧬 aa-tRNA-seq-pipeline Development Setup"
+echo "=========================================="
+
+# Function to print colored output
+print_status() {
+    echo "✓ $1"
+}
+
+print_error() {
+    echo "✗ $1"
+}
+
+print_info() {
+    echo "ℹ $1"
+}
+
+# Check if conda is available
+if ! command -v conda &> /dev/null && ! command -v mamba &> /dev/null; then
+    print_error "Conda/Mamba not found. Please install miniforge or miniconda."
+    exit 1
+fi
+print_status "Conda/Mamba available"
+
+# Check if environment exists
+if conda env list | grep -q "aatrnaseqpipe"; then
+    print_status "Environment 'aatrnaseqpipe' exists"
+else
+    print_info "Environment 'aatrnaseqpipe' not found. Creating it now..."
+    mamba env create -f workflow/envs/aatrnaseqpipe-env.yml || {
+        print_error "Failed to create environment"
+        exit 1
+    }
+    print_status "Environment created successfully"
+fi
+
+# Activate environment if not already activated
+if [[ "${CONDA_DEFAULT_ENV}" != "aatrnaseqpipe" ]]; then
+    print_info "Activating aatrnaseqpipe environment..."
+    eval "$(conda shell.bash hook)"
+    conda activate aatrnaseqpipe || {
+        print_error "Failed to activate environment. Please run: mamba activate aatrnaseqpipe"
+        exit 1
+    }
+    print_status "Environment activated"
+else
+    print_status "Environment 'aatrnaseqpipe' already activated"
+fi
+
+# Verify Snakemake installation
+if command -v snakemake &> /dev/null; then
+    SNAKEMAKE_VERSION=$(snakemake --version)
+    print_status "Snakemake ${SNAKEMAKE_VERSION} installed"
+else
+    print_error "Snakemake not found in environment"
+    exit 1
+fi
+
+# Quick config validation
+echo ""
+echo "Validating configuration files..."
+if python3 -c "import yaml; yaml.safe_load(open('config/config-base.yml'))" 2>/dev/null && \
+   python3 -c "import yaml; yaml.safe_load(open('config/config-test.yml'))" 2>/dev/null; then
+    print_status "Config files are valid"
+else
+    print_error "Config file validation failed"
+    exit 1
+fi
+
+# Check if pre-commit is installed
+if command -v pre-commit &> /dev/null; then
+    print_status "Pre-commit hooks available"
+    if [ ! -f .git/hooks/pre-commit ]; then
+        print_info "Installing pre-commit hooks..."
+        pre-commit install
+        print_status "Pre-commit hooks installed"
+    fi
+else
+    print_info "Pre-commit not installed. Install with: pip install pre-commit"
+fi
+
+# Quick syntax check
+echo ""
+echo "Running Snakemake syntax check..."
+if snakemake -n --configfile=config/config-test.yml > /dev/null 2>&1; then
+    print_status "Snakemake syntax check passed"
+else
+    print_error "Snakemake syntax check failed. Run for details: snakemake -n --configfile=config/config-test.yml"
+fi
+
+echo ""
+echo "=========================================="
+echo "✓ Development environment ready!"
+echo "=========================================="
+echo ""
+echo "Available commands:"
+echo "  • Run local tests:  bash .tests/run_local_tests.sh"
+echo "  • Syntax check:     snakemake -n --configfile=config/config-test.yml"
+echo "  • Dry run:          snakemake -n --cores 1 --configfile=config/config-test.yml"
+echo "  • Format code:      pre-commit run --all-files"
+echo "  • Full test setup:  bash .tests/dl_test_data.sh"
+echo ""
+echo "Documentation: See CLAUDE.md for project details"
+echo ""
