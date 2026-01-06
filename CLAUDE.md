@@ -170,3 +170,78 @@ Rules requiring GPU (rebasecall, classify_charging) must set:
 - CUDA_VISIBLE_DEVICES is passed through to dorado if set
 - Pod5 files are searched recursively in pod5_pass/pod5_fail/pod5 subdirectories
 - The ML threshold for charging classification is currently hardcoded in the `get_cca_trna_cpm` rule
+=======
+Snakemake pipeline for analyzing Oxford Nanopore direct RNA sequencing of aminoacylated tRNAs (aa-tRNA-seq). The pipeline rebasecalls POD5 files, aligns reads to tRNA references, and uses a Remora ML model to classify whether tRNAs are charged (aminoacylated) or uncharged based on nanopore signal patterns at the CCA 3' end.
+
+## Common Commands
+
+### Environment Setup
+```bash
+pixi install
+```
+
+### First-Time Setup
+```bash
+pixi run setup-tools    # Download Dorado and Modkit
+pixi run dl-test-data   # Download test data
+```
+
+### Run Pipeline
+```bash
+pixi run dry-run        # Dry run with test config
+pixi run test           # Run locally with test data (4 cores)
+pixi run test-lsf       # Run test pipeline on LSF cluster
+pixi run run-preprint   # Run preprint pipeline on cluster
+```
+
+### Development
+```bash
+pixi run fmt            # Format Snakemake files
+pixi run dag            # Generate workflow DAG image
+```
+
+### Direct Snakemake Commands
+```bash
+pixi run snakemake --configfile=config/config-test.yml --cores 8
+```
+
+## Architecture
+
+### Pipeline Flow
+```
+POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
+classify_charging (Remora) → transfer_bam_tags → Summary tables
+```
+
+### Directory Structure
+- `workflow/Snakefile` - Main entry point, imports rule files
+- `workflow/rules/` - Modular Snakemake rules:
+  - `common.smk` - Utility functions (parse_samples, find_raw_inputs, pipeline_outputs)
+  - `tool_setup.smk` - Download Dorado and Modkit
+  - `aatrnaseq-process.smk` - Core processing (8 rules: merge, basecall, align, classify)
+  - `aatrnaseq-summaries.smk` - Analysis outputs (11 rules: charging tables, coverage, modkit)
+- `workflow/scripts/` - Python scripts for data processing (use pysam, pandas)
+- `config/` - YAML configs and sample TSV files
+- `cluster/lsf/` and `cluster/generic/` - HPC cluster profiles
+- `resources/` - Reference sequences, kmer tables, trained models
+
+### Configuration
+- `config/config-base.yml` - Default parameters (inherited by other configs)
+- `config/config-test.yml` - Test data configuration
+- Sample files are TSV with columns: `sample_id` and `run_directory`
+
+### Key Biological Concepts
+- **ML/CL tags**: BAM tags containing Remora model likelihood scores (0-255)
+- **Charging threshold**: ML ≥ 200 = charged (aminoacylated), < 200 = uncharged
+- **Full-length filtering**: Only tRNAs with complete 3' CCA sequence retained
+- Reference: `sacCer3-mature-tRNAs-dual-adapt-v2.fa` (S. cerevisiae tRNAs with adapters)
+
+### GPU Rules
+Rules `rebasecall` and `classify_charging` require GPU access. Configure via cluster profile.
+
+### Output Location
+Outputs go to directory specified by `output_dir` in config. Test outputs: `.tests/outputs/`
+Key outputs per sample:
+- `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
+- `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
+- `bam/final/{sample}.bam` - Final BAM with CL/CM charging tags
