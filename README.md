@@ -47,9 +47,46 @@ See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-
 
 ## Workflow
 
-![Workflow DAG](https://github.com/rnabioco/aa-tRNA-seq-pipeline/blob/main/workflow/workflow_dag.png)
+```mermaid
+flowchart TD
+    subgraph Input
+        POD5[POD5 files]
+    end
 
-Given a directory of pod5 files, this pipeline merges all files from each sample into a single pod5, rebasecalls them to generate an unmapped bam with move table information (for downstream use by Remora), converts the bam into a fastq, and aligns that fastq to a reference containing tRNA + adapter sequences with BWA MEM. The resulting data (pod5s and aligned reads) are then fed to a model trained using Remora to classify charged vs. uncharged reads in the rule `cca_classify`, generating numeric values indicating the likelihood of a read being aminoacylated in the `ML` tag of the BAM file. For classifying charged vs. uncharged reads, we treat ML values of 200-255 as aminoacylated in downstream steps, and values <200 as uncharged. This can be altered by adjusting the `ml-threshold` parameter in the rule `get_cca_trna_cpm`.
+    subgraph Processing
+        A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
+        B --> C[ubam_to_fastq]
+        C --> D[bwa_align<br/>tRNA + adapter reference]
+        D --> E[filter_reads<br/>full-length tRNAs only]
+    end
+
+    subgraph Classification
+        E --> F[classify_charging<br/>Remora ML model]
+        B -.-> F
+        A -.-> F
+        F --> G[transfer_bam_tags]
+    end
+
+    subgraph Outputs
+        G --> H[charging_prob<br/>per-read ML scores]
+        G --> I[get_cca_trna_cpm<br/>CPM counts]
+        G --> J[bcerror<br/>basecalling errors]
+        G --> K[align_stats]
+        G --> L[modkit pileups]
+    end
+
+    POD5 --> A
+```
+
+Given a directory of POD5 files, this pipeline:
+
+1. **Merges** all POD5 files per sample into a single file
+2. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
+3. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
+4. **Filters** for full-length tRNA reads with proper adapter boundaries
+5. **Classifies** charged vs. uncharged reads using a Remora model trained on nanopore signal over the CCA 3' end
+
+The classification generates ML tag values (0-255) indicating the likelihood of aminoacylation. By default, ML values of 200-255 are treated as charged, and values <200 as uncharged. This threshold can be adjusted via the `ml-threshold` parameter in the `get_cca_trna_cpm` rule.
 
 The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`) and information on raw nanopore signal from Remora (`remora_signal_stats`).
 
