@@ -10,33 +10,24 @@ Downstream analysis to generate figures for the initial preprint can be found at
 ## Usage
 
 The pipeline can be configured by editing the `config/config.yml` file. The config file specifications will
-run a small example dataset through the pipeline. To download these data files:
-
-```
-git clone https://github.com/rnabioco/aa-tRNA-seq-pipeline.git
-
-# download test data
-bash .test/dl_data.sh
-```
-
-Set up a conda environment:
+run a small example dataset through the pipeline.
 
 ```bash
-mamba env create -f workflow/envs/aatrnaseqpipe-env.yml
-mamba activate aatrnaseqpipe
-```
+git clone https://github.com/rnabioco/aa-tRNA-seq-pipeline.git
+cd aa-tRNA-seq-pipeline
 
-Set up the dorado and modkit resources. This will install the tools in the `resources/tools` directory,
-so only need to be done once during the first run of the pipeline.
+# Install environment
+pixi install
 
-```
-snakemake setup_dorado dorado_model setup_modkit
-```
+# Download test data and setup tools (first time only)
+pixi run dl-test-data
+pixi run setup-tools
 
-Test the pipeline by invoking a dry-run snakemake in the pipeline root directory:
+# Dry run
+pixi run dry-run
 
-```
-snakemake -n --configfile=config/config-test.yml
+# Run pipeline locally with test data
+pixi run test
 ```
 
 ## Configuration
@@ -99,4 +90,14 @@ A few notes about Remora classification for charged vs. uncharged tRNA reads
 
 ## Cluster execution
 
-The pipeline includes a `run.sh` script optimized for the LSF scheduler. For more details on configuring for HPC jobs, see `cluster/config.yaml`.
+The pipeline includes cluster profiles for LSF and SLURM schedulers.
+
+```bash
+# Run test data on LSF cluster
+pixi run test-lsf
+
+# Run full preprint analysis on cluster
+pixi run run-preprint
+```
+
+For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/generic/config.yaml`.
