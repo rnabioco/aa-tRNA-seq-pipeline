@@ -11,7 +11,6 @@ samtools = "*"
 bwa = "*"
 bedtools = "*"
 deeptools = "*"
-
 # Python dependencies
 python = ">=3.10"
 pysam = "*"
@@ -19,14 +18,12 @@ numpy = "<2"
 pandas = "*"
 gitpython = "*"
 uv = "*"
-
 # Snakemake and workflow
 snakemake = ">=8.0"
 snakefmt = "*"
 snakemake-executor-plugin-lsf = "*"
 snakemake-executor-plugin-slurm = "*"
 snakemake-executor-plugin-cluster-generic = "*"
-
 # ONT tools
 pod5 = "*"
 
@@ -36,13 +33,11 @@ install-pip-deps = { cmd = "uv pip install git+https://github.com/nanoporetech/r
 # Setup tasks
 setup-tools = { cmd = "snakemake setup_dorado dorado_model setup_modkit", description = "Download Dorado and Modkit binaries" }
 dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Download test data" }
-
 # Pipeline execution
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }
 test = { cmd = "snakemake --configfile=config/config-test.yml --cores 4", description = "Run pipeline locally with test data" }
 test-lsf = { cmd = "snakemake --configfile=config/config-test.yml --profile=cluster/lsf", description = "Run test pipeline on LSF cluster" }
 run-preprint = { cmd = "snakemake --configfile=config/config-preprint.yml --profile=cluster/generic --rerun-incomplete", description = "Run preprint pipeline on cluster" }
-
 # Development
 fmt = { cmd = "snakefmt workflow/Snakefile workflow/rules/*.smk", description = "Format Snakemake files" }
 dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng > workflow/workflow_dag.png", description = "Generate workflow DAG image" }
