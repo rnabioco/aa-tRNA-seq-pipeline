@@ -27,7 +27,7 @@ rule rebasecall:
   TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
   """
     input:
-        rules.merge_pods.output,
+        get_sample_pod5,
     output:
         protected(
             os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")
@@ -112,7 +112,7 @@ rule classify_charging:
   run remora trained model to classify charged and uncharged reads
   """
     input:
-        pod5=rules.merge_pods.output,
+        pod5=get_sample_pod5,
         bam=rules.bwa_align.output.bam,
     output:
         charging_bam=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam"),

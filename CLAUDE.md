@@ -57,7 +57,8 @@ workflow/
 │   ├── common.smk                     # Sample parsing, helper functions, outputs definition
 │   ├── tool_setup.smk                 # Dorado and modkit installation
 │   ├── aatrnaseq-process.smk          # Core processing: pod5 merge → basecalling → alignment
-│   └── aatrnaseq-summaries.smk        # Summary statistics and output tables
+│   ├── aatrnaseq-summaries.smk        # Summary statistics and output tables
+│   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
 └── envs/
     └── aatrnaseqpipe-env.yml          # Conda environment
@@ -114,6 +115,59 @@ After classification, generates:
 - **opts.dorado**: Includes `--modified-bases pseU m5C inosine_m6A --emit-moves` for modification calling and move tables
 - **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
 - **ml-threshold**: Currently hardcoded in `get_cca_trna_cpm` rule (200-255 = charged, <200 = uncharged)
+
+## WarpDemuX Demultiplexing (Optional)
+
+The pipeline supports optional barcode demultiplexing using WarpDemuX for pooled/multiplexed sequencing runs.
+
+### Enabling Demultiplexing
+
+1. **Install demux environment**: `pixi install -e demux && pixi run -e demux install-warpdemux`
+2. **Create YAML sample file** with barcode assignments (see `config/samples-demux-example.yml`)
+3. **Enable in config**: Set `warpdemux.enabled: true`
+
+### Sample File Formats
+
+**TSV format (existing, no demux):**
+```
+sample1    /path/to/run1
+sample2    /path/to/run2
+```
+
+**YAML format (with demux):**
+```yaml
+runs:
+  - path: /path/to/pooled/run
+    barcode_kit: "WDX4_rna004_v1_0"
+    samples:
+      charged_sample: "barcode04"
+      uncharged_sample: "barcode05"
+```
+
+### Demux Data Flow
+
+When demux is enabled:
+```
+POD5 files (pooled) → merge_pods_for_demux (per run) → warpdemux →
+parse_warpdemux (create read ID lists) → split_pod5 (per sample) →
+[existing pipeline: rebasecall → align → classify_charging → ...]
+```
+
+### Running with Demux
+
+```bash
+# Dry run with demux config
+pixi run -e demux snakemake -n --configfile=config/config-demux-test.yml
+
+# Execute with demux
+pixi run -e demux snakemake --configfile=config/config-demux-test.yml --cores 8
+```
+
+### Key Files
+
+- `workflow/rules/warpdemux.smk` - Demux rules (conditionally loaded)
+- `config/samples-demux-example.yml` - Example YAML sample format
+- `config/config-demux-test.yml` - Test config with demux enabled
 
 ## Charged vs Uncharged Classification
 
