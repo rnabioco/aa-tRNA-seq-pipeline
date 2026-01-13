@@ -20,6 +20,24 @@ dorado_version: 0.9.1
 dorado_model: rna004_130bps_sup@v5.1.0
 modkit_version: 0.4.3
 
+# modkit threshold parameters for modification calling
+# optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
+# see https://github.com/comprna/modkitopt
+# these params improve F1 by 51% (m6A) and 1251% (pseU) compared to defaults
+modkit:
+    # global threshold for canonical base confidence
+    filter_threshold: 0.5
+    # per-modification pass thresholds (mod code or ChEBI ID : threshold)
+    #   a = N6-methyladenosine (m6A)
+    #   m = 5-methylcytosine (m5C)
+    #   17802 = pseudouridine (pseU)
+    #   17596 = inosine
+    mod_thresholds:
+        a: 0.99
+        m: 0.99
+        "17802": 0.995
+        "17596": 0.99
+
 # additional options for particular commands
 opts:
     # additional options for dorado basecalling

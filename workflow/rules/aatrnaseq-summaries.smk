@@ -192,11 +192,13 @@ rule modkit_pileup:
         os.path.join(outdir, "logs", "modkit", "pileup", "{sample}"),
     params:
         fa=config["fasta"],
+        threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
     modkit pileup \
         --log-filepath {log} \
         --ref {params.fa} \
+        {params.threshold_opts} \
         {input.bam} - \
         | gzip -9 -c > {output.bed}
     """
@@ -204,7 +206,7 @@ rule modkit_pileup:
 
 rule modkit_extract_calls:
     """
-    TODO: inspect edge filter settings
+    Extract per-read modification calls with optimized thresholds.
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
@@ -217,6 +219,7 @@ rule modkit_extract_calls:
         os.path.join(outdir, "logs", "modkit", "extract_calls", "{sample}"),
     params:
         fa=config["fasta"],
+        threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
     modkit extract calls \
@@ -225,13 +228,14 @@ rule modkit_extract_calls:
         --log-filepath {log} \
         --edge-filter 10 \
         --mapped --pass \
+        {params.threshold_opts} \
         {input.bam} {output.tsv}
     """
 
 
 rule modkit_extract_full:
     """
-    TODO: inspect edge filter settings
+    Extract full modification information with optimized thresholds.
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
@@ -245,6 +249,7 @@ rule modkit_extract_full:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
         fa=config["fasta"],
+        threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
     modkit extract full \
@@ -254,5 +259,6 @@ rule modkit_extract_full:
         --log-filepath {log} \
         --edge-filter 10 \
         --mapped \
+        {params.threshold_opts} \
         {input.bam} {output.tsv}
     """

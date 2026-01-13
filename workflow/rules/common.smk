@@ -183,3 +183,25 @@ def get_raw_inputs(wildcards):
 
 def get_basecalling_dir(wildcards):
     return samples[wildcards.sample]["path"]
+
+
+def get_modkit_threshold_opts():
+    """
+    Build modkit threshold options from config.
+    Uses optimized thresholds based on ModkitOpt (Sneddon et al. 2025).
+    See https://github.com/comprna/modkitopt for threshold optimization.
+    """
+    opts = []
+    modkit_config = config.get("modkit", {})
+    if modkit_config:
+        # Global filter threshold for canonical base confidence
+        filter_thresh = modkit_config.get("filter_threshold")
+        if filter_thresh is not None:
+            opts.append(f"--filter-threshold {filter_thresh}")
+        # Per-modification pass thresholds (mod code or ChEBI ID)
+        mod_thresholds = modkit_config.get("mod_thresholds", {})
+        if mod_thresholds:
+            for mod_code, threshold in mod_thresholds.items():
+                if threshold is not None:
+                    opts.append(f"--mod-thresholds {mod_code}:{threshold}")
+    return " ".join(opts)
