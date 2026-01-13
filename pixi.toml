@@ -62,8 +62,8 @@ ruptures = "*"
 catboost = "*"
 
 [feature.demux.tasks]
-install-warpdemux = { cmd = "uv pip install warpdemux", description = "Install WarpDemuX" }
-warpdemux = { cmd = "warpdemux", env = { LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
+install-warpdemux = { cmd = "[ -d resources/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/WarpDemuX && uv pip install -e resources/WarpDemuX", description = "Clone and install WarpDemuX" }
+warpdemux = { cmd = "warpdemux $@", env = { LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
 [environments]
