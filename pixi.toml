@@ -46,8 +46,12 @@ dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng >
 [feature.demux]
 platforms = ["linux-64"]
 
+[feature.demux.activation]
+scripts = ["scripts/demux-activate.sh"]
+
 [feature.demux.dependencies]
 # WarpDemuX dependencies
+libstdcxx-ng = ">=12"
 pytorch = "*"
 dtaidistance = "*"
 scikit-learn = "*"
