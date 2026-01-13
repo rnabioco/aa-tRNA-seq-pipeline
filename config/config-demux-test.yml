@@ -1,0 +1,18 @@
+# Test config for WarpDemuX demultiplexing
+#
+# This config enables WarpDemuX barcode demultiplexing.
+# Use with: pixi run -e demux snakemake -n --configfile=config/config-demux-test.yml
+
+# Sample file in YAML format with barcode assignments
+samples: config/samples-demux-test.yml
+
+# Output directory for files produced by pipeline
+output_directory: ".tests/outputs-demux"
+
+# Enable WarpDemuX demultiplexing
+# Using WDX4_tRNA_rna004_v1_0 for Nano-tRNAseq data
+warpdemux:
+    enabled: true
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    save_boundaries: true
+    threads: 8
