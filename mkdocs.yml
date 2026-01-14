@@ -46,9 +46,8 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
-      anchor_linenumbers: true
-      line_spans: __span
-      pygments_lang_class: true
+      auto_title: true
+      linenums: true
   - pymdownx.inlinehilite
   - pymdownx.tabbed:
       alternate_style: true
