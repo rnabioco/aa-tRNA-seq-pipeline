@@ -31,6 +31,9 @@ ont-modkit = "*"
 # Linting tools
 ruff = "*"
 yamllint = "*"
+# Testing
+pytest = "*"
+pytest-cov = "*"
 
 [activation]
 scripts = ["scripts/setup-env.sh"]
@@ -49,6 +52,10 @@ dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng >
 lint-snakefmt = { cmd = "snakefmt --check workflow/", description = "Check Snakemake formatting" }
 lint-python = { cmd = "ruff check workflow/scripts/ && ruff format --check workflow/scripts/", description = "Lint and check Python formatting" }
 lint-yaml = { cmd = "yamllint -d \"{extends: default, rules: {line-length: {max: 120}, document-start: disable}}\" config/ .github/", description = "Lint YAML files" }
+# Testing
+test-unit = { cmd = "pytest tests/unit/ -v --cov=workflow/scripts", description = "Run unit tests with coverage" }
+test-integration = { cmd = "pytest tests/integration/ -v", description = "Run integration tests" }
+test-all = { cmd = "pytest tests/ -v --cov=workflow/scripts", description = "Run all tests with coverage" }
 
 # WarpDemuX demultiplexing feature
 [feature.demux]
