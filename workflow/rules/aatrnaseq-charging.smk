@@ -7,7 +7,7 @@ rule get_cca_trna:
     extract and report charing probability (ML tag) per read
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
+        bam=rules.add_adapter_tags.output.bam,
     output:
         charging_tab=os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.charging_prob.tsv.gz"
