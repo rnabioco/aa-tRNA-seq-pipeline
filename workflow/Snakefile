@@ -20,8 +20,9 @@ onstart:
 
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
     modkit_bin_path = os.path.abspath(f"{MODKIT_DIR}/bin")
-    os.environ["PATH"] = f"{dorado_bin_path}:{modkit_bin_path}:{os.environ['PATH']}"
-    shell.prefix(f"export PATH={dorado_bin_path}:{modkit_bin_path}:$PATH; ")
+    pixi_bin_path = os.path.abspath(".pixi/envs/default/bin")
+    os.environ["PATH"] = f"{dorado_bin_path}:{modkit_bin_path}:{pixi_bin_path}:{os.environ['PATH']}"
+    shell.prefix(f"export PATH={dorado_bin_path}:{modkit_bin_path}:{pixi_bin_path}:$PATH; ")
 
 
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
@@ -32,6 +33,12 @@ include: "rules/common.smk"
 include: "rules/tool_setup.smk"
 include: "rules/aatrnaseq-process.smk"
 include: "rules/aatrnaseq-summaries.smk"
+
+
+# Conditionally include WarpDemuX demultiplexing rules
+if config.get("warpdemux", {}).get("enabled", False):
+
+    include: "rules/warpdemux.smk"
 
 
 report_metadata()

@@ -1,0 +1,31 @@
+# Example YAML sample file for WarpDemuX demultiplexing
+#
+# This format supports barcode-based sample demultiplexing using WarpDemuX.
+# Samples are organized by run directory, with barcode assignments for each sample.
+#
+# For Nano-tRNAseq data, use WDX4_tRNA_rna004_v1_0 (recommended) with barcodes:
+#   WDX_bc03, WDX_bc04, WDX_bc05, WDX_bc07
+#
+# ATTENTION: WarpDemuX-tRNA models do NOT work with Thomas splint adapter data.
+
+runs:
+  # Pooled Nano-tRNAseq run with barcoded samples
+  - path: /path/to/pooled/sequencing/run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"  # optional, uses config default if omitted
+    samples:
+      charged_sample: "barcode03"
+      uncharged_sample: "barcode04"
+      control_sample: "barcode05"
+      replicate_sample: "barcode07"
+
+  # Another pooled run (using default barcode_kit from config)
+  - path: /path/to/another/pooled/run
+    samples:
+      experimental_bc03: "barcode03"
+      experimental_bc04: "barcode04"
+
+  # Non-multiplexed run (no barcodes, direct processing)
+  # Set barcode to null (~) to skip demultiplexing for this sample
+  - path: /path/to/non-pooled/run
+    samples:
+      direct_sample: ~

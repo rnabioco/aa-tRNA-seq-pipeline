@@ -1,0 +1,13 @@
+# Test sample file for WarpDemuX demultiplexing
+#
+# Uses existing test data directories but treats them as barcoded samples.
+# This is for testing the demux workflow logic only.
+#
+# Using WDX4_tRNA_rna004_v1_0 barcodes: WDX_bc03, WDX_bc04, WDX_bc05, WDX_bc07
+
+runs:
+  - path: .tests/sample1
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    samples:
+      sample1_bc03: "barcode03"
+      sample1_bc04: "barcode04"

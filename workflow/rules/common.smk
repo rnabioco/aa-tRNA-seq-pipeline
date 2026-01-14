@@ -2,12 +2,19 @@ import os
 import glob
 import sys
 import pysam
+import yaml
 from git import Repo
 
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
 
-def parse_samples(fl):
+def is_demux_enabled():
+    """Check if WarpDemuX demultiplexing is enabled in config."""
+    return config.get("warpdemux", {}).get("enabled", False)
+
+
+def parse_samples_tsv(fl):
+    """Parse TSV-format sample file (existing format)."""
     samples = {}
     with open(fl) as f:
         for l in f:
@@ -25,8 +32,67 @@ def parse_samples(fl):
             if sample in samples:
                 samples[sample]["path"].add(path)
             else:
-                samples[sample] = {"path": {path}}
+                samples[sample] = {"path": {path}, "barcode": None, "run_id": None}
     return samples
+
+
+def parse_samples_yaml(fl):
+    """
+    Parse YAML-format sample file with barcode assignments.
+
+    YAML format:
+    runs:
+      - path: /path/to/pooled/run
+        barcode_kit: "WDX4_rna004_v1_0"  # optional, uses config default
+        samples:
+          sample_name: "barcode04"
+          another_sample: "barcode05"
+
+      - path: /path/to/non-demux/run
+        samples:
+          direct_sample: ~  # null barcode = no demux
+    """
+    samples = {}
+    with open(fl) as f:
+        data = yaml.safe_load(f)
+
+    if "runs" not in data:
+        sys.exit(f"YAML samples file must contain 'runs' key: {fl}")
+
+    for run_idx, run in enumerate(data["runs"]):
+        if "path" not in run:
+            sys.exit(f"Run {run_idx} missing 'path' in samples file: {fl}")
+        if "samples" not in run:
+            sys.exit(f"Run {run_idx} missing 'samples' in samples file: {fl}")
+
+        run_path = run["path"]
+        # Create a unique run_id from the path (last directory component)
+        run_id = os.path.basename(run_path.rstrip("/"))
+        barcode_kit = run.get("barcode_kit", config.get("warpdemux", {}).get("barcode_kit"))
+
+        for sample_name, barcode in run["samples"].items():
+            if sample_name in samples:
+                sys.exit(f"Duplicate sample name '{sample_name}' in samples file: {fl}")
+            samples[sample_name] = {
+                "path": {run_path},
+                "barcode": barcode,
+                "run_id": run_id,
+                "barcode_kit": barcode_kit,
+            }
+
+    return samples
+
+
+def parse_samples(fl):
+    """
+    Parse sample file, detecting format based on extension.
+    .yml/.yaml files use YAML format with barcode support.
+    Other files use TSV format (backward compatible).
+    """
+    if fl.endswith(".yml") or fl.endswith(".yaml"):
+        return parse_samples_yaml(fl)
+    else:
+        return parse_samples_tsv(fl)
 
 
 def get_pipeline_commit():
@@ -205,3 +271,67 @@ def get_modkit_threshold_opts():
                 if threshold is not None:
                     opts.append(f"--mod-thresholds {mod_code}:{threshold}")
     return " ".join(opts)
+
+
+# WarpDemuX helper functions
+
+
+def get_run_ids():
+    """Get unique run_ids for samples that require demultiplexing."""
+    run_ids = set()
+    for sample, info in samples.items():
+        if info.get("barcode") and info.get("run_id"):
+            run_ids.add(info["run_id"])
+    return list(run_ids)
+
+
+def get_run_path(run_id):
+    """Get the path for a run_id."""
+    for sample, info in samples.items():
+        if info.get("run_id") == run_id:
+            # Return first path from the set
+            return list(info["path"])[0]
+    return None
+
+
+def get_samples_for_run(run_id):
+    """Get list of sample names assigned to a run."""
+    return [
+        sample
+        for sample, info in samples.items()
+        if info.get("run_id") == run_id and info.get("barcode")
+    ]
+
+
+def get_barcodes_for_run(run_id):
+    """Get barcode→sample mapping for a run."""
+    return {
+        info["barcode"]: sample
+        for sample, info in samples.items()
+        if info.get("run_id") == run_id and info.get("barcode")
+    }
+
+
+def get_barcode_kit_for_run(run_id):
+    """Get the barcode kit for a run."""
+    for sample, info in samples.items():
+        if info.get("run_id") == run_id:
+            return info.get("barcode_kit")
+    return config.get("warpdemux", {}).get("barcode_kit")
+
+
+def sample_needs_demux(sample):
+    """Check if a sample needs demultiplexing (has barcode assigned)."""
+    return is_demux_enabled() and samples[sample].get("barcode") is not None
+
+
+def get_sample_pod5(wildcards):
+    """
+    Return the correct POD5 path for a sample.
+    If demux is enabled and sample has barcode, use split POD5.
+    Otherwise, use merged POD5 from merge_pods rule.
+    """
+    if sample_needs_demux(wildcards.sample):
+        return os.path.join(outdir, "demux", "pod5", f"{wildcards.sample}.pod5")
+    else:
+        return os.path.join(outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5")
