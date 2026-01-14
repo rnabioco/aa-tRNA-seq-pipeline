@@ -44,7 +44,7 @@ jobs:
       - name: Run pipeline test (non-GPU rules only)
         run: |
           # Run merge_pods rule as a basic test (doesn't require GPU)
-          pixi run snakemake merge_pods --cores 2 --configfile=config/config-test.yml
+          pixi run snakemake .tests/outputs/pod5/sample1/sample1.pod5 --cores 2 --configfile=config/config-test.yml
 
       - name: Validate outputs
         run: |
