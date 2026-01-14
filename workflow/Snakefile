@@ -26,6 +26,7 @@ PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
 
 include: "rules/common.smk"
+include: "rules/aatrnaseq-reference.smk"
 include: "rules/aatrnaseq-process.smk"
 include: "rules/aatrnaseq-charging.smk"
 include: "rules/aatrnaseq-qc.smk"

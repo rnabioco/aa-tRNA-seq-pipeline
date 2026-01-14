@@ -5,6 +5,7 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 ## Unreleased
 
 ### Added
+- Reference validation and building step to ensure tRNA sequences have proper CCA endings and adapter structure required for charging classification
 - Optional WarpDemuX barcode demultiplexing support for pooled/multiplexed sequencing runs (#74)
 - Optimized modkit thresholds from ModkitOpt
 - Pixi package manager support as primary environment manager

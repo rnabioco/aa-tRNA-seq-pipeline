@@ -67,10 +67,14 @@ rule ubam_to_fastq:
 
 
 rule bwa_idx:
+    """
+    Build BWA index for the validated/built reference.
+    Depends on reference validation/building completing first.
+    """
     input:
-        config["fasta"],
+        get_validated_reference(),
     output:
-        multiext(config["fasta"], ".amb", ".ann", ".bwt", ".pac", ".sa"),
+        multiext(get_validated_reference(), ".amb", ".ann", ".bwt", ".pac", ".sa"),
     log:
         os.path.join(outdir, "logs", "bwa_idx", "log"),
     shell:
@@ -81,8 +85,9 @@ rule bwa_idx:
 
 rule bwa_align:
     """
-  align reads to tRNA references with bwa mem
-  """
+    Align reads to tRNA references with bwa mem.
+    Uses the validated/built reference.
+    """
     input:
         reads=rules.ubam_to_fastq.output,
         idx=rules.bwa_idx.output,
@@ -90,7 +95,7 @@ rule bwa_align:
         bam=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
         bai=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
     params:
-        index=config["fasta"],
+        index=get_validated_reference(),
         bwa_opts=config["opts"]["bwa"],
     log:
         os.path.join(outdir, "logs", "bwa_align", "{sample}"),
