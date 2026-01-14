@@ -35,10 +35,9 @@ Do **not** use when:
 
 ```bash
 pixi install -e demux
-pixi run -e demux install-warpdemux
 ```
 
-This installs the WarpDemuX package and its dependencies.
+This installs the demux environment dependencies. WarpDemuX itself is automatically installed on first use via the environment activation script.
 
 ### 2. Create YAML Sample File
 
