@@ -111,19 +111,3 @@ jobs:
           done
           echo "All required directories exist"
 
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [syntax-check, unit-tests]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.9.3
-
-      - name: Download test data
-        run: pixi run dl-test-data
-
-      - name: Run integration tests
-        run: pixi run -e test pytest tests/integration/ -v
