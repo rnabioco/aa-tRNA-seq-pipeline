@@ -2,9 +2,7 @@
 
 All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
-## [Unreleased]
+## Unreleased
 
 ### Added
 - Optional WarpDemuX barcode demultiplexing support for pooled/multiplexed sequencing runs (#74)
@@ -16,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated README to use pixi instead of conda (#72)
 - Normalized file permissions across repository
 
-## [0.6.0] - 2025-11-07
+## 2025-11-07
 
 ### Added
 - Claude Code session start hook for automated development setup (#69)
@@ -27,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Prefer pandas over polars for stability on some cluster nodes
 - Reduced Remora logging level
 
-## [0.5.0] - 2025-06-22
+## 2025-06-22
 
 ### Added
 - LSF-specific cluster configuration (#63)
@@ -37,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Reduced and made optional dorado verbosity
 - Downgraded numpy to fix remora stats compatibility
 
-## [0.4.0] - 2025-03-16
+## 2025-03-16
 
 ### Added
 - Modkit integration for RNA modification analysis (#59)
@@ -58,7 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Restored `-v` option in dorado for proper verbosity control
 
-## [0.3.0] - 2025-01-08
+## 2025-01-08
 
 ### Added
 - Rule for calculating CPM of charged/uncharged tRNAs (#28)
@@ -74,7 +72,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 - Actually use the threshold value in classification
 
-## [0.2.0] - 2024-08-13
+## 2024-08-13
 
 ### Added
 - Alignment filtering capabilities with configurable parameters (#13)
@@ -95,7 +93,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Dropped redundant summary align stats (#14)
 - Added 'pod5' to list of possible pod5 directories
 
-## [0.1.0] - 2024-05-19
+## 2024-05-19
 
 ### Added
 - Support for merging multiple sequencing runs per sample
@@ -115,7 +113,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Keep additional BAM flags (e.g., pi) during processing (#1)
 - Use -T → -C options to preserve all BAM tags from dorado
 
-## [0.0.1] - 2024-02-07
+## 2024-02-07
 
 ### Added
 - Initial pipeline release
