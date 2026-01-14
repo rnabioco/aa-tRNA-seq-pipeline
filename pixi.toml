@@ -78,6 +78,25 @@ install-warpdemux = { cmd = "[ -d resources/tools/WarpDemuX ] || git clone --rec
 warpdemux = { cmd = "warpdemux $@", env = { LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
+# QC Report rendering feature
+[feature.report]
+platforms = ["linux-64"]
+
+[feature.report.dependencies]
+quarto = "*"
+r-base = ">=4.3"
+r-tidyverse = "*"
+r-gt = "*"
+r-paletteer = "*"
+r-fs = "*"
+r-patchwork = "*"
+r-scales = "*"
+r-sessioninfo = "*"
+
+[feature.report.tasks]
+render-qc = { cmd = "snakemake render_all_qc_reports --configfile=config/config-test.yml --cores 1", description = "Render QC reports for test data" }
+
 [environments]
 default = []
 demux = ["demux"]
+report = ["report"]

@@ -1,0 +1,338 @@
+---
+title: "aa-tRNA-seq QC Report"
+author: "Pipeline"
+date: today
+format:
+  html:
+    code-fold: true
+    code-summary: "Show code"
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+params:
+  sample: "sample1"
+  output_dir: ".tests/outputs"
+  ml_threshold: 200
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(gt)
+library(paletteer)
+library(fs)
+library(patchwork)
+library(scales)
+
+# Parameters
+sample <- params$sample
+output_dir <- params$output_dir
+ml_threshold <- params$ml_threshold
+
+# Paths to input files
+tables_dir <- fs::path(output_dir, "summary", "tables", sample)
+
+align_stats_path <- fs::path(tables_dir, paste0(sample, ".align_stats.tsv.gz"))
+charging_prob_path <- fs::path(tables_dir, paste0(sample, ".charging_prob.tsv.gz"))
+charging_cpm_path <- fs::path(tables_dir, paste0(sample, ".charging.cpm.tsv.gz"))
+bcerror_path <- fs::path(tables_dir, paste0(sample, ".bcerror.tsv.gz"))
+```
+
+## Sample: `r sample`
+
+This report summarizes QC metrics for sample **`r sample`** from the aa-tRNA-seq pipeline.
+
+## Alignment Summary
+
+```{r}
+#| label: load-align-stats
+
+align_stats <- read_tsv(align_stats_path, show_col_types = FALSE)
+```
+
+### Read Progression Through Pipeline
+
+```{r}
+#| label: tbl-alignment-summary
+#| tbl-cap: "Read counts at each processing stage"
+
+tbl_align <- align_stats |>
+  dplyr::select(
+    Stage = info,
+    `Total Reads` = n_reads,
+    `Mapped Reads` = mapped_reads,
+    `% Mapped` = pct_mapped,
+    `Mean Length` = mean_length,
+    `Median Length` = median_length,
+    `Mean Quality` = mean_base_quality,
+    `Mean MAPQ` = mean_MAPQ
+  ) |>
+  mutate(
+    Stage = factor(Stage, levels = c("unmapped", "aligned", "classified")),
+    Stage = recode(Stage,
+      "unmapped" = "Rebasecalled",
+      "aligned" = "Aligned",
+      "classified" = "Classified"
+    )
+  )
+
+gt(tbl_align) |>
+  fmt_number(columns = c(`Mean Length`, `Mean Quality`, `Mean MAPQ`), decimals = 1) |>
+  fmt_number(columns = `% Mapped`, decimals = 1) |>
+  opt_interactive(use_search = TRUE, use_highlight = TRUE, use_sorting = TRUE)
+```
+
+### Alignment Funnel
+
+```{r}
+#| label: fig-alignment-funnel
+#| fig-cap: "Read counts at each processing stage showing retention through the pipeline"
+#| fig-width: 8
+#| fig-height: 5
+
+tbl_funnel <- align_stats |>
+  dplyr::select(info, n_reads) |>
+  mutate(
+    stage = factor(info, levels = c("unmapped", "aligned", "classified")),
+    stage = recode(stage,
+      "unmapped" = "Rebasecalled",
+      "aligned" = "Aligned",
+      "classified" = "Classified"
+    )
+  )
+
+ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = comma(n_reads)), vjust = -0.5, size = 4) +
+  scale_fill_paletteer_d("ggokabeito::okabe_ito") +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    x = "Processing Stage",
+    y = "Number of Reads"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Charging Classification
+
+```{r}
+#| label: load-charging-data
+
+charging_prob <- read_tsv(charging_prob_path, show_col_types = FALSE)
+charging_cpm <- read_tsv(charging_cpm_path, show_col_types = FALSE)
+```
+
+### Charging Likelihood Distribution
+
+The Remora model assigns a charging likelihood score (0-255) to each read. Reads with scores >= `r ml_threshold` are classified as charged.
+
+```{r}
+#| label: fig-charging-density
+#| fig-cap: !expr paste0("Distribution of charging likelihood scores. Threshold = ", ml_threshold, " (dashed line)")
+#| fig-width: 8
+#| fig-height: 5
+
+tbl_density <- charging_prob |>
+  mutate(
+    charging_status = if_else(charging_likelihood >= ml_threshold, "Charged", "Uncharged")
+  )
+
+ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
+  geom_histogram(binwidth = 5, alpha = 0.8, position = "identity") +
+  geom_vline(xintercept = ml_threshold, linetype = "dashed", linewidth = 1, color = "grey30") +
+  scale_fill_manual(values = c("Charged" = "#E69F00", "Uncharged" = "#56B4E9")) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    x = "Charging Likelihood (ML tag, 0-255)",
+    y = "Number of Reads",
+    fill = "Classification"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+### Charging Summary
+
+```{r}
+#| label: tbl-charging-summary
+#| tbl-cap: "Summary of charged vs uncharged reads"
+
+n_charged <- sum(charging_prob$charging_likelihood >= ml_threshold)
+n_uncharged <- sum(charging_prob$charging_likelihood < ml_threshold)
+n_total <- nrow(charging_prob)
+
+tbl_charging_summary <- tibble(
+  Status = c("Charged", "Uncharged", "Total"),
+  `Read Count` = c(n_charged, n_uncharged, n_total),
+  Percentage = c(
+    n_charged / n_total * 100,
+    n_uncharged / n_total * 100,
+    100
+  )
+)
+
+gt(tbl_charging_summary) |>
+  fmt_number(columns = Percentage, decimals = 1) |>
+  fmt_number(columns = `Read Count`, use_seps = TRUE, decimals = 0)
+```
+
+### Per-tRNA Charging
+
+```{r}
+#| label: fig-trna-charging-heatmap
+#| fig-cap: "Charging status by tRNA isodecoder (CPM normalized)"
+#| fig-width: 8
+#| fig-height: 6
+
+# Filter to tRNAs with at least some reads
+tbl_heatmap <- charging_cpm |>
+  mutate(
+    total_counts = counts_charged + counts_uncharged,
+    pct_charged = counts_charged / total_counts * 100
+  ) |>
+  dplyr::filter(total_counts >= 5) |>
+  arrange(desc(pct_charged))
+
+if (nrow(tbl_heatmap) > 0) {
+  tbl_heatmap <- tbl_heatmap |>
+    mutate(tRNA = fct_reorder(tRNA, pct_charged))
+
+  ggplot(tbl_heatmap, aes(x = 1, y = tRNA, fill = pct_charged)) +
+    geom_tile() +
+    geom_text(aes(label = paste0(round(pct_charged, 0), "%")), size = 3) +
+    scale_fill_distiller(palette = "RdYlBu", direction = -1, limits = c(0, 100)) +
+    labs(
+      x = NULL,
+      y = "tRNA Isodecoder",
+      fill = "% Charged"
+    ) +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      panel.grid = element_blank()
+    )
+} else {
+  cat("No tRNAs with >= 5 reads")
+}
+```
+
+### Top tRNAs by Read Count
+
+```{r}
+#| label: tbl-top-trnas
+#| tbl-cap: "Top 20 tRNAs by total read count"
+
+tbl_top_trnas <- charging_cpm |>
+  mutate(
+    total_counts = counts_charged + counts_uncharged,
+    total_cpm = cpm_charged + cpm_uncharged,
+    pct_charged = counts_charged / total_counts * 100
+  ) |>
+  arrange(desc(total_counts)) |>
+  head(20) |>
+  dplyr::select(
+    tRNA,
+    `Charged` = counts_charged,
+    `Uncharged` = counts_uncharged,
+    `Total` = total_counts,
+    `% Charged` = pct_charged,
+    `CPM` = total_cpm
+  )
+
+gt(tbl_top_trnas) |>
+  fmt_number(columns = c(`Charged`, `Uncharged`, `Total`), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = `% Charged`, decimals = 1) |>
+  fmt_number(columns = CPM, decimals = 0) |>
+  opt_interactive(use_search = TRUE, use_highlight = TRUE, use_sorting = TRUE)
+```
+
+## Base Calling Quality
+
+```{r}
+#| label: load-bcerror
+
+bcerror <- read_tsv(bcerror_path, show_col_types = FALSE)
+```
+
+### Error Frequency by Position
+
+```{r}
+#| label: fig-error-frequency
+#| fig-cap: "Base calling error frequency across reference positions"
+#| fig-width: 10
+#| fig-height: 5
+
+# Aggregate across all references
+tbl_error <- bcerror |>
+  group_by(Position) |>
+  summarise(
+    mean_bcerror = mean(BCErrorFreq, na.rm = TRUE),
+    mean_mismatch = mean(MismatchFreq, na.rm = TRUE),
+    mean_insertion = mean(InsertionFreq, na.rm = TRUE),
+    mean_deletion = mean(DeletionFreq, na.rm = TRUE),
+    mean_coverage = mean(Spanning_Reads, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+tbl_error_long <- tbl_error |>
+  dplyr::select(Position, Mismatch = mean_mismatch, Insertion = mean_insertion, Deletion = mean_deletion) |>
+  pivot_longer(cols = -Position, names_to = "Error Type", values_to = "Frequency")
+
+ggplot(tbl_error_long, aes(x = Position, y = Frequency, color = `Error Type`)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_paletteer_d("ggokabeito::okabe_ito") +
+  scale_y_continuous(labels = percent_format(scale = 100)) +
+  labs(
+    x = "Position in Reference",
+    y = "Error Frequency"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+### Coverage by Position
+
+```{r}
+#| label: fig-coverage-position
+#| fig-cap: "Mean read coverage across reference positions"
+#| fig-width: 10
+#| fig-height: 4
+
+ggplot(tbl_error, aes(x = Position, y = mean_coverage)) +
+  geom_area(fill = "#56B4E9", alpha = 0.6) +
+  geom_line(color = "#0072B2", linewidth = 0.5) +
+  scale_y_continuous(labels = comma) +
+  labs(
+    x = "Position in Reference",
+    y = "Mean Coverage (Reads)"
+  ) +
+  theme_minimal()
+```
+
+::: {.callout-note}
+## Summary
+
+- **Total classified reads**: `r comma(nrow(charging_prob))`
+- **Charged reads**: `r comma(n_charged)` (`r round(n_charged/n_total*100, 1)`%)
+- **Uncharged reads**: `r comma(n_uncharged)` (`r round(n_uncharged/n_total*100, 1)`%)
+- **ML threshold**: `r ml_threshold`
+
+:::
+
+::: {.callout-note collapse="true"}
+## Session Info
+
+```{r}
+#| label: session-info
+
+sessioninfo::session_info()
+```
+
+:::
