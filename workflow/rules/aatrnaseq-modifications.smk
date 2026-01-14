@@ -4,8 +4,8 @@
 
 rule bam_to_coverage:
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
     output:
         counts_tmp=temp(
             os.path.join(outdir, "summary", "tables", "{sample}", "{sample}.counts.bg")
@@ -54,8 +54,8 @@ rule modkit_pileup:
     """
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
     output:
         bed=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.pileup.bed.gz"
@@ -81,8 +81,8 @@ rule modkit_extract_calls:
     Extract per-read modification calls with optimized thresholds.
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
     output:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
@@ -110,8 +110,8 @@ rule modkit_extract_full:
     Extract full modification information with optimized thresholds.
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
     output:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"

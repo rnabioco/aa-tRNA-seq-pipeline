@@ -13,14 +13,15 @@ If an adapter is not found, that annotation is omitted.
 """
 
 import argparse
+import re
 import sys
 
 import parasail
 import pysam
 
 # Default adapter sequences
-DEFAULT_ADAPTER_5P = "CCTAAGAGCAAGAAGAAGCCTGG"  # 24bp (excluding trailing N)
-DEFAULT_ADAPTER_3P_SPLINT = "GGCTTCTTCTTGCTCTT"  # 17bp common splint region
+DEFAULT_ADAPTER_5P = "CCTAAGAGCAAGAAGAAGCCTGG"  # 23bp (excluding trailing N)
+DEFAULT_ADAPTER_3P = "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"  # 40bp full 3' adapter
 
 # Default scoring parameters for ~15% error tolerance
 DEFAULT_MATCH = 2
@@ -29,8 +30,9 @@ DEFAULT_GAP_OPEN = 2
 DEFAULT_GAP_EXTEND = 1
 
 # Default minimum scores
+# Semi-global alignment allows partial adapter matches (truncated at either end)
 # 5' adapter (23bp): 23 * 2 * 0.85 ≈ 39, use 30 for more tolerance
-# 3' splint (17bp): 17 * 2 * 0.85 ≈ 29, use 20 for more tolerance
+# 3' adapter (40bp): use 20 to allow partial matches (at least ~12bp with good alignment)
 DEFAULT_MIN_SCORE_5P = 30
 DEFAULT_MIN_SCORE_3P = 20
 
@@ -42,6 +44,53 @@ DEFAULT_SEARCH_3P = 80  # Search last N bp for 3' adapter
 def create_scoring_matrix(match=DEFAULT_MATCH, mismatch=DEFAULT_MISMATCH):
     """Create parasail scoring matrix."""
     return parasail.matrix_create("ACGT", match, mismatch)
+
+
+def get_adapter_bounds_from_cigar(cigar_decode, beg_ref):
+    """
+    Get the actual adapter match bounds from cigar, excluding leading/trailing deletions.
+
+    Semi-global alignment with free query end gaps can produce leading/trailing D ops
+    representing parts of the reference (read region) that don't align to the adapter.
+
+    Args:
+        cigar_decode: Decoded cigar string (bytes)
+        beg_ref: Starting reference position from cigar
+
+    Returns:
+        (start, end) tuple with 0-based positions, end is exclusive
+    """
+    ops = re.findall(r"(\d+)([MIDNSHP=X])", cigar_decode.decode())
+
+    # Skip leading deletions to find where adapter match actually starts
+    ref_pos = beg_ref
+    leading_idx = 0
+    for i, (length, op) in enumerate(ops):
+        length = int(length)
+        if op == "D":
+            ref_pos += length
+            leading_idx = i + 1
+        else:
+            break
+    start = ref_pos
+
+    # Count trailing deletions
+    trailing_d_len = 0
+    for length, op in reversed(ops):
+        length = int(length)
+        if op == "D":
+            trailing_d_len += length
+        else:
+            break
+
+    # Walk through remaining ops to find end
+    for length, op in ops[leading_idx:]:
+        length = int(length)
+        if op in "MDN=X":
+            ref_pos += length
+
+    end = ref_pos - trailing_d_len
+    return start, end
 
 
 def find_adapter(
@@ -87,11 +136,9 @@ def find_adapter(
     if result.score < min_score:
         return None
 
-    # Get alignment coordinates
-    # The traceback gives us the aligned region
+    # Get alignment coordinates from cigar, excluding leading/trailing deletions
     cigar = result.cigar
-    ref_start = cigar.beg_ref  # Start in the search region
-    ref_end = ref_start + cigar.len_ref  # End in the search region
+    ref_start, ref_end = get_adapter_bounds_from_cigar(cigar.decode, cigar.beg_ref)
 
     # Convert to full read coordinates
     start = search_start + ref_start
@@ -109,7 +156,7 @@ def find_5p_adapter(read_seq, adapter_5p, matrix, gap_open, gap_extend, min_scor
 
 
 def find_3p_adapter(read_seq, adapter_3p, matrix, gap_open, gap_extend, min_score):
-    """Find 3' adapter (splint region) in the end of the read."""
+    """Find 3' adapter in the end of the read."""
     search_len = min(DEFAULT_SEARCH_3P, len(read_seq))
     search_start = max(0, len(read_seq) - search_len)
     return find_adapter(
@@ -239,8 +286,8 @@ def main():
     )
     parser.add_argument(
         "--adapter-3p",
-        default=DEFAULT_ADAPTER_3P_SPLINT,
-        help=f"3' adapter splint sequence (default: {DEFAULT_ADAPTER_3P_SPLINT})",
+        default=DEFAULT_ADAPTER_3P,
+        help=f"3' adapter sequence (default: {DEFAULT_ADAPTER_3P})",
     )
 
     parser.add_argument(

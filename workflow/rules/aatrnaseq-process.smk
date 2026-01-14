@@ -155,7 +155,7 @@ rule classify_charging:
 
 rule transfer_bam_tags:
     """
-  creates final bam with classified reads MM and ML tags and table with charging probability per read
+  creates classified bam with MM and ML tags transferred to CM/CL
 
   MM/ML tags from the charging classification are transferred to CM/CL so as not to interfere with
   base modifications.
@@ -164,8 +164,8 @@ rule transfer_bam_tags:
         source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.bwa_align.output.bam,
     output:
-        classified_bam=os.path.join(outdir, "bam", "final", "{sample}.bam"),
-        classified_bam_bai=os.path.join(outdir, "bam", "final", "{sample}.bam.bai"),
+        classified_bam=os.path.join(outdir, "bam", "classified", "{sample}.bam"),
+        classified_bam_bai=os.path.join(outdir, "bam", "classified", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
     params:
@@ -190,19 +190,21 @@ rule add_adapter_tags:
 
     PT tag format: start;end;strand;type|start;end;strand;type
     Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+
+    This produces the final BAM with all tags: CM/CL (charging) and PT (adapters).
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
-        bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "adapter_tagged", "{sample}.bam.bai"),
+        bam=os.path.join(outdir, "bam", "final", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "final", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
         src=SCRIPT_DIR,
-        adapter_5p=config["adapters"]["5p"],
-        adapter_3p_splint=config["adapters"]["3p_splint"],
+        adapter_5p=config["adapters"]["five_prime"],
+        adapter_3p_splint=config["adapters"]["three_prime"],
         min_score_5p=config["adapters"]["min_score_5p"],
         min_score_3p=config["adapters"]["min_score_3p"],
     shell:
