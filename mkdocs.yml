@@ -1,0 +1,94 @@
+site_name: aa-tRNA-seq Pipeline
+site_description: Oxford Nanopore pipeline for aminoacylated tRNA analysis
+site_url: https://rnabioco.github.io/aa-tRNA-seq-pipeline
+repo_url: https://github.com/rnabioco/aa-tRNA-seq-pipeline
+repo_name: rnabioco/aa-tRNA-seq-pipeline
+edit_uri: edit/docs/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      auto_title: true
+      linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rnabioco/aa-tRNA-seq-pipeline
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - First Analysis: getting-started/first-analysis.md
+  - User Guide:
+    - Configuration: user-guide/configuration.md
+    - Sample Files: user-guide/samples-format.md
+    - Running Pipeline: user-guide/running-pipeline.md
+    - Output Files: user-guide/outputs.md
+  - Workflow:
+    - Overview: workflow/overview.md
+    - Rules Reference: workflow/rules-reference.md
+    - Scripts Reference: workflow/scripts-reference.md
+    - Demultiplexing: workflow/demultiplexing.md
+  - Cluster Setup:
+    - LSF Setup: cluster/lsf-setup.md
+    - SLURM Setup: cluster/slurm-setup.md
+    - GPU Configuration: cluster/gpu-configuration.md
+  - Troubleshooting:
+    - Common Errors: troubleshooting/common-errors.md
+    - FAQ: troubleshooting/faq.md
+    - Debugging: troubleshooting/debugging.md
+  - Development:
+    - Architecture: development/architecture.md
+    - Adding Rules: development/adding-rules.md
+    - Contributing: development/contributing.md
