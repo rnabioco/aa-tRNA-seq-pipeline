@@ -68,7 +68,9 @@ def parse_samples_yaml(fl):
         run_path = run["path"]
         # Create a unique run_id from the path (last directory component)
         run_id = os.path.basename(run_path.rstrip("/"))
-        barcode_kit = run.get("barcode_kit", config.get("warpdemux", {}).get("barcode_kit"))
+        barcode_kit = run.get(
+            "barcode_kit", config.get("warpdemux", {}).get("barcode_kit")
+        )
 
         for sample_name, barcode in run["samples"].items():
             if sample_name in samples:
@@ -284,4 +286,6 @@ def get_sample_pod5(wildcards):
     if sample_needs_demux(wildcards.sample):
         return os.path.join(outdir, "demux", "pod5", f"{wildcards.sample}.pod5")
     else:
-        return os.path.join(outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5")
+        return os.path.join(
+            outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
+        )

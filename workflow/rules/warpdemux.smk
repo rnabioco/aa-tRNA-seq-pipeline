@@ -105,9 +105,11 @@ rule warpdemux:
         os.path.join(outdir, "logs", "warpdemux", "{run_id}"),
     params:
         model=lambda wildcards: get_barcode_kit_for_run(wildcards.run_id),
-        save_boundaries=lambda wildcards: "true"
-        if config.get("warpdemux", {}).get("save_boundaries", True)
-        else "false",
+        save_boundaries=lambda wildcards: (
+            "true"
+            if config.get("warpdemux", {}).get("save_boundaries", True)
+            else "false"
+        ),
     threads: config.get("warpdemux", {}).get("threads", 8)
     shell:
         """
@@ -131,8 +133,12 @@ rule parse_warpdemux:
         ),
         demux_dir=os.path.join(outdir, "demux", "warpdemux_output", "{run_id}"),
     output:
-        mapping=os.path.join(outdir, "demux", "read_ids", "{run_id}", "barcode_mapping.tsv.gz"),
-        summary=os.path.join(outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"),
+        mapping=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "barcode_mapping.tsv.gz"
+        ),
+        summary=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
+        ),
     log:
         os.path.join(outdir, "logs", "parse_warpdemux", "{run_id}"),
     run:
@@ -173,7 +179,9 @@ rule parse_warpdemux:
         )
 
         # Write summary statistics
-        summary_data = predictions.groupby("predicted_barcode").size().reset_index(name="n_reads")
+        summary_data = (
+            predictions.groupby("predicted_barcode").size().reset_index(name="n_reads")
+        )
         summary_data.to_csv(output.summary, sep="\t", index=False, compression="gzip")
 
 
@@ -198,7 +206,9 @@ rule extract_sample_reads:
     run:
         # Read the mapping file and filter for this sample's barcode
         mapping = pd.read_csv(input.mapping, sep="\t", compression="gzip")
-        sample_reads = mapping[mapping["predicted_barcode"] == params.barcode]["read_id"]
+        sample_reads = mapping[mapping["predicted_barcode"] == params.barcode][
+            "read_id"
+        ]
 
         with open(output.read_ids, "w") as f:
             for read_id in sample_reads:
