@@ -102,3 +102,10 @@ pixi run run-preprint
 ```
 
 For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/generic/config.yaml`.
+
+## Citation
+
+To cite this work, see:
+
+> White LK, Radakovic A, Sajek MP, Dobson K, Riemondy KA, Del Pozo S, Szostak JW, Hesselberth JR. Nanopore sequencing of intact aminoacylated tRNAs. Nat Commun. 2025 Aug 20;16(1):7781. doi: 10.1038/s41467-025-62545-9. PMID: 40835813; PMCID: PMC12368100.
+
