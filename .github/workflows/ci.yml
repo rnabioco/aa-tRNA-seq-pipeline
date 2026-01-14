@@ -19,7 +19,7 @@ jobs:
         uses: prefix-dev/setup-pixi@v0.9.3
 
       - name: Run unit tests with coverage
-        run: pixi run pytest tests/unit/ -v --cov=workflow/scripts --cov-report=term-missing
+        run: pixi run -e test pytest tests/unit/ -v --cov=workflow/scripts --cov-report=term-missing
 
   syntax-check:
     name: Snakemake Syntax Check
@@ -126,4 +126,4 @@ jobs:
         run: pixi run dl-test-data
 
       - name: Run integration tests
-        run: pixi run pytest tests/integration/ -v
+        run: pixi run -e test pytest tests/integration/ -v
