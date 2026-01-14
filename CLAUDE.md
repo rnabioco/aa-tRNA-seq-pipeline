@@ -143,7 +143,7 @@ The pipeline supports optional barcode demultiplexing using WarpDemuX for pooled
 
 ### Enabling Demultiplexing
 
-1. **Install demux environment**: `pixi install -e demux && pixi run -e demux install-warpdemux`
+1. **Install demux environment**: `pixi install -e demux` (WarpDemuX is auto-installed on first use)
 2. **Create YAML sample file** with barcode assignments (see `config/samples-demux-example.yml`)
 3. **Enable in config**: Set `warpdemux.enabled: true`
 
