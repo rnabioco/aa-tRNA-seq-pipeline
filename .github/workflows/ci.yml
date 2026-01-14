@@ -8,6 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.9.3
+
+      - name: Run unit tests with coverage
+        run: pixi run pytest tests/unit/ -v --cov=workflow/scripts --cov-report=term-missing
+
   syntax-check:
     name: Snakemake Syntax Check
     runs-on: ubuntu-latest
@@ -30,7 +43,7 @@ jobs:
   pipeline-test:
     name: Pipeline Integration Test
     runs-on: ubuntu-latest
-    needs: syntax-check
+    needs: [syntax-check, unit-tests]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,3 +110,20 @@ jobs:
             fi
           done
           echo "All required directories exist"
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [syntax-check, unit-tests]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.9.3
+
+      - name: Download test data
+        run: pixi run dl-test-data
+
+      - name: Run integration tests
+        run: pixi run pytest tests/integration/ -v
