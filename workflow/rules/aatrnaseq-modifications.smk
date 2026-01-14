@@ -63,7 +63,7 @@ rule modkit_pileup:
     log:
         os.path.join(outdir, "logs", "modkit", "pileup", "{sample}"),
     params:
-        fa=config["fasta"],
+        fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
@@ -90,7 +90,7 @@ rule modkit_extract_calls:
     log:
         os.path.join(outdir, "logs", "modkit", "extract_calls", "{sample}"),
     params:
-        fa=config["fasta"],
+        fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
@@ -120,7 +120,7 @@ rule modkit_extract_full:
     log:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
-        fa=config["fasta"],
+        fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
