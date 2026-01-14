@@ -21,6 +21,9 @@ jobs:
       - name: Verify Snakemake installation
         run: pixi run snakemake --version
 
+      - name: Download test data
+        run: pixi run dl-test-data
+
       - name: Snakemake dry-run (syntax check)
         run: pixi run dry-run
 
