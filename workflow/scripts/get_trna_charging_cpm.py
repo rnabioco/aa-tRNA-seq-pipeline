@@ -35,6 +35,12 @@ def per_read_charging(input, output, threshold):
     # Group by tRNA and status to get counts
     count_data = df.groupby(["tRNA", "status"]).size().unstack(fill_value=0)
 
+    # Ensure both columns exist (handles case where all reads are same status)
+    if "counts_charged" not in count_data.columns:
+        count_data["counts_charged"] = 0
+    if "counts_uncharged" not in count_data.columns:
+        count_data["counts_uncharged"] = 0
+
     # Get total number of reads in the file
     total_reads = len(df)
 
