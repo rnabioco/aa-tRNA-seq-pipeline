@@ -11,17 +11,33 @@ This guide covers installing the aa-tRNA-seq pipeline and its dependencies.
 
 ## Install Pixi
 
-The pipeline uses [Pixi](https://pixi.sh) for environment management. Install it with:
+The pipeline uses [Pixi](https://pixi.sh) for environment management.
 
-```bash
-curl -fsSL https://pixi.sh/install.sh | bash
-```
+=== "Linux/macOS"
+
+    ```bash
+    curl -fsSL https://pixi.sh/install.sh | sh
+    ```
+
+=== "macOS (Homebrew)"
+
+    ```bash
+    brew install pixi
+    ```
+
+=== "Windows"
+
+    ```powershell
+    powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+    ```
 
 After installation, restart your shell or run:
 
 ```bash
-source ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # or ~/.zshrc for Zsh
 ```
+
+For additional installation options, see the [official Pixi installation guide](https://pixi.prefix.dev/latest/installation/).
 
 ## Clone the Repository
 
