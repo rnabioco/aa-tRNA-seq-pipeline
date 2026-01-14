@@ -26,12 +26,12 @@ snakemake-executor-plugin-slurm = "*"
 snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
 pod5 = "*"
+ont-modkit = "*"
+
+[activation]
+scripts = ["scripts/setup-env.sh"]
 
 [tasks]
-# Install pip-only dependencies (ont-remora not on conda)
-install-pip-deps = { cmd = "uv pip install git+https://github.com/nanoporetech/remora.git", description = "Install ont-remora from GitHub" }
-# Setup tasks
-setup-tools = { cmd = "snakemake setup_dorado dorado_model setup_modkit", description = "Download Dorado and Modkit binaries" }
 dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Download test data" }
 # Pipeline execution
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }

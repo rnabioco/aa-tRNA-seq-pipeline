@@ -11,28 +11,36 @@ This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) a
 ### Initial Setup
 
 ```bash
-# Create conda environment
-mamba env create -f workflow/envs/aatrnaseqpipe-env.yml
-mamba activate aatrnaseqpipe
+# Install all dependencies (modkit, remora, and other tools)
+pixi install
+
+# Enter the environment (downloads dorado on first activation)
+pixi shell
 
 # Download test data (first time only)
-bash .tests/dl_test_data.sh
-
-# Install dorado and modkit (first time only)
-snakemake setup_dorado dorado_model setup_modkit
+pixi run dl-test-data
 ```
 
 ### Running the Pipeline
 
 ```bash
 # Dry run with test config
-snakemake -n --configfile=config/config-test.yml
+pixi run dry-run
 
-# Execute locally (specify cores)
-snakemake --cores 12 --configfile=config/config-test.yml
+# Run locally with test data (4 cores)
+pixi run test
 
-# Run on LSF cluster (uses cluster/lsf profile)
-bsub < run-test.sh
+# Run on LSF cluster
+pixi run test-lsf
+
+# Run preprint pipeline on cluster
+pixi run run-preprint
+```
+
+### Direct Snakemake Commands
+
+```bash
+pixi run snakemake --configfile=config/config-test.yml --cores 8
 ```
 
 ### Cluster Execution
@@ -55,42 +63,55 @@ workflow/
 ├── Snakefile                          # Main entry point, includes all rule modules
 ├── rules/
 │   ├── common.smk                     # Sample parsing, helper functions, outputs definition
-│   ├── tool_setup.smk                 # Dorado and modkit installation
 │   ├── aatrnaseq-process.smk          # Core processing: pod5 merge → basecalling → alignment
-│   ├── aatrnaseq-summaries.smk        # Summary statistics and output tables
+│   ├── aatrnaseq-charging.smk         # Charging classification outputs (2 rules)
+│   ├── aatrnaseq-qc.smk               # QC metrics: base calling errors, alignment stats (3 rules)
+│   ├── aatrnaseq-modifications.smk    # Modification calling: coverage, modkit outputs (4 rules)
 │   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
 └── envs/
-    └── aatrnaseqpipe-env.yml          # Conda environment
+    └── aatrnaseqpipe-env.yml          # Conda environment (legacy)
 ```
 
 **Key Architectural Details:**
 
 - **Sample Management**: `workflow/rules/common.smk` contains `parse_samples()` which reads `config/samples.tsv` and `find_raw_inputs()` which recursively searches for pod5 files in specified directories
-- **Dynamic PATH Setup**: The Snakefile `onstart` handler dynamically adds dorado and modkit binaries to PATH based on configured versions
+- **Tool Management**: Modkit and Remora are managed by pixi. Dorado is downloaded on first `pixi shell` activation via `scripts/setup-dorado.sh`
 - **Output Aggregation**: `pipeline_outputs()` in `common.smk` defines all final output files for the `rule all` target
 
-### Core Processing Pipeline (aatrnaseq-process.smk)
+### Pipeline Flow
 
-The main data flow through the pipeline:
+```
+POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
+classify_charging (Remora) → transfer_bam_tags → Summary tables
+```
+
+### Core Processing Pipeline (aatrnaseq-process.smk)
 
 1. **merge_pods**: Merge all pod5 files per sample into single pod5
 2. **rebasecall**: Use dorado to rebasecall with move tables (required for Remora)
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
-5. **filter_reads**: Filter for full-length tRNA reads with proper adapter boundaries
-6. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
-7. **transfer_bam_tags**: Transfer alignment tags back to classified BAM
+5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
+6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM
 
-### Summary Generation (aatrnaseq-summaries.smk)
+### Summary Generation
 
-After classification, generates:
+After classification, generates (split across three rule files):
+
+**aatrnaseq-charging.smk:**
 - Charging probability tables (ML tag values per read)
 - CPM (counts per million) for charged/uncharged tRNA
+
+**aatrnaseq-qc.smk:**
 - Base calling error frequencies
 - Alignment statistics
 - Remora signal metrics (if kmer table provided)
-- Modkit modification calls and pileups
+
+**aatrnaseq-modifications.smk:**
+- Coverage bedGraph files (counts and CPM)
+- Modkit modification pileups
+- Modkit per-read modification calls
 
 ## Configuration
 
@@ -100,7 +121,7 @@ After classification, generates:
   - Base calling model path
   - Reference fasta
   - Remora models and kmer tables
-  - Tool versions (dorado, modkit)
+  - Dorado version for download
   - Command-line options for tools (dorado, bwa, filters)
 
 - `config/samples.tsv`: Two-column TSV (no header)
@@ -144,15 +165,6 @@ runs:
       uncharged_sample: "barcode05"
 ```
 
-### Demux Data Flow
-
-When demux is enabled:
-```
-POD5 files (pooled) → merge_pods_for_demux (per run) → warpdemux →
-parse_warpdemux (create read ID lists) → split_pod5 (per sample) →
-[existing pipeline: rebasecall → align → classify_charging → ...]
-```
-
 ### Running with Demux
 
 ```bash
@@ -162,12 +174,6 @@ pixi run -e demux snakemake -n --configfile=config/config-demux-test.yml
 # Execute with demux
 pixi run -e demux snakemake --configfile=config/config-demux-test.yml --cores 8
 ```
-
-### Key Files
-
-- `workflow/rules/warpdemux.smk` - Demux rules (conditionally loaded)
-- `config/samples-demux-example.yml` - Example YAML sample format
-- `config/config-demux-test.yml` - Test config with demux enabled
 
 ## Charged vs Uncharged Classification
 
@@ -185,7 +191,9 @@ The pipeline uses Remora machine learning to classify charging state:
 
 When adding new Snakemake rules:
 - Place processing rules in `aatrnaseq-process.smk`
-- Place summary/analysis rules in `aatrnaseq-summaries.smk`
+- Place charging analysis rules in `aatrnaseq-charging.smk`
+- Place QC/statistics rules in `aatrnaseq-qc.smk`
+- Place modification/coverage rules in `aatrnaseq-modifications.smk`
 - Add helper functions to `common.smk`
 - Reference Python scripts should go in `workflow/scripts/`
 - Update `pipeline_outputs()` if rule produces final outputs
@@ -194,13 +202,13 @@ When adding new Snakemake rules:
 
 ```bash
 # Always test with dry run first
-snakemake -n --configfile=config/config-test.yml
+pixi run dry-run
 
 # Run specific rule
-snakemake <rule_name> --configfile=config/config-test.yml
+pixi run snakemake <rule_name> --configfile=config/config-test.yml
 
 # Force rerun of specific rule
-snakemake <rule_name> --forcerun <rule_name> --configfile=config/config-test.yml
+pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config-test.yml
 ```
 
 ### Cluster Resource Configuration
@@ -219,82 +227,17 @@ Rules requiring GPU (rebasecall, classify_charging) must set:
 ## Important Notes
 
 - The pipeline requires Snakemake 8.0+
-- Dorado and modkit are installed by the pipeline (not via conda) to specific versions
+- Modkit and Remora are managed by pixi (bioconda and pypi-dependencies)
+- Dorado is downloaded automatically on first `pixi shell` activation
 - The pipeline tracks git commit ID for reproducibility (see `get_pipeline_commit()`)
 - CUDA_VISIBLE_DEVICES is passed through to dorado if set
 - Pod5 files are searched recursively in pod5_pass/pod5_fail/pod5 subdirectories
 - The ML threshold for charging classification is currently hardcoded in the `get_cca_trna_cpm` rule
-=======
-Snakemake pipeline for analyzing Oxford Nanopore direct RNA sequencing of aminoacylated tRNAs (aa-tRNA-seq). The pipeline rebasecalls POD5 files, aligns reads to tRNA references, and uses a Remora ML model to classify whether tRNAs are charged (aminoacylated) or uncharged based on nanopore signal patterns at the CCA 3' end.
 
-## Common Commands
+## Key Outputs
 
-### Environment Setup
-```bash
-pixi install
-```
-
-### First-Time Setup
-```bash
-pixi run setup-tools    # Download Dorado and Modkit
-pixi run dl-test-data   # Download test data
-```
-
-### Run Pipeline
-```bash
-pixi run dry-run        # Dry run with test config
-pixi run test           # Run locally with test data (4 cores)
-pixi run test-lsf       # Run test pipeline on LSF cluster
-pixi run run-preprint   # Run preprint pipeline on cluster
-```
-
-### Development
-```bash
-pixi run fmt            # Format Snakemake files
-pixi run dag            # Generate workflow DAG image
-```
-
-### Direct Snakemake Commands
-```bash
-pixi run snakemake --configfile=config/config-test.yml --cores 8
-```
-
-## Architecture
-
-### Pipeline Flow
-```
-POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
-classify_charging (Remora) → transfer_bam_tags → Summary tables
-```
-
-### Directory Structure
-- `workflow/Snakefile` - Main entry point, imports rule files
-- `workflow/rules/` - Modular Snakemake rules:
-  - `common.smk` - Utility functions (parse_samples, find_raw_inputs, pipeline_outputs)
-  - `tool_setup.smk` - Download Dorado and Modkit
-  - `aatrnaseq-process.smk` - Core processing (8 rules: merge, basecall, align, classify)
-  - `aatrnaseq-summaries.smk` - Analysis outputs (11 rules: charging tables, coverage, modkit)
-- `workflow/scripts/` - Python scripts for data processing (use pysam, pandas)
-- `config/` - YAML configs and sample TSV files
-- `cluster/lsf/` and `cluster/generic/` - HPC cluster profiles
-- `resources/` - Reference sequences, kmer tables, trained models
-
-### Configuration
-- `config/config-base.yml` - Default parameters (inherited by other configs)
-- `config/config-test.yml` - Test data configuration
-- Sample files are TSV with columns: `sample_id` and `run_directory`
-
-### Key Biological Concepts
-- **ML/CL tags**: BAM tags containing Remora model likelihood scores (0-255)
-- **Charging threshold**: ML ≥ 200 = charged (aminoacylated), < 200 = uncharged
-- **Full-length filtering**: Only tRNAs with complete 3' CCA sequence retained
-- Reference: `sacCer3-mature-tRNAs-dual-adapt-v2.fa` (S. cerevisiae tRNAs with adapters)
-
-### GPU Rules
-Rules `rebasecall` and `classify_charging` require GPU access. Configure via cluster profile.
-
-### Output Location
 Outputs go to directory specified by `output_dir` in config. Test outputs: `.tests/outputs/`
+
 Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
