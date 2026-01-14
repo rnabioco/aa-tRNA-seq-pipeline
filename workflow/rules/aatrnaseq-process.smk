@@ -181,3 +181,40 @@ rule transfer_bam_tags:
 
     samtools index {output.classified_bam}
     """
+
+
+rule add_adapter_tags:
+    """
+    Detect adapter positions in reads using parasail alignment
+    and add PT tags (SAM-spec read annotation format) to BAM file.
+
+    PT tag format: start;end;strand;type|start;end;strand;type
+    Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+    """
+    input:
+        bam=rules.transfer_bam_tags.output.classified_bam,
+        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+    output:
+        bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "adapter_tagged", "{sample}.bam.bai"),
+    log:
+        os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+        adapter_5p=config["adapters"]["5p"],
+        adapter_3p_splint=config["adapters"]["3p_splint"],
+        min_score_5p=config["adapters"]["min_score_5p"],
+        min_score_3p=config["adapters"]["min_score_3p"],
+    shell:
+        """
+    python {params.src}/add_adapter_tags.py \
+      -i {input.bam} \
+      -o {output.bam} \
+      --adapter-5p "{params.adapter_5p}" \
+      --adapter-3p "{params.adapter_3p_splint}" \
+      --min-score-5p {params.min_score_5p} \
+      --min-score-3p {params.min_score_3p} \
+      2> {log}
+
+    samtools index {output.bam}
+    """
