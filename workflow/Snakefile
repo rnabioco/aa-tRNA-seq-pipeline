@@ -8,25 +8,17 @@ min_version("8.0")
 configfile: "config/config-base.yml"
 
 
-# Add a onstart handler to update the PATH environment variable
+# Dorado path setup (modkit and remora are managed by pixi)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
-MODKIT_VERSION = config["modkit_version"]
-MODKIT_DIR = f"resources/tools/modkit/{MODKIT_VERSION}"
 
 
 onstart:
     import os
 
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
-    modkit_bin_path = os.path.abspath(f"{MODKIT_DIR}/bin")
-    pixi_bin_path = os.path.abspath(".pixi/envs/default/bin")
-    os.environ["PATH"] = (
-        f"{dorado_bin_path}:{modkit_bin_path}:{pixi_bin_path}:{os.environ['PATH']}"
-    )
-    shell.prefix(
-        f"export PATH={dorado_bin_path}:{modkit_bin_path}:{pixi_bin_path}:$PATH; "
-    )
+    os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
+    shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
 
 
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
@@ -34,9 +26,10 @@ PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
 
 include: "rules/common.smk"
-include: "rules/tool_setup.smk"
 include: "rules/aatrnaseq-process.smk"
-include: "rules/aatrnaseq-summaries.smk"
+include: "rules/aatrnaseq-charging.smk"
+include: "rules/aatrnaseq-qc.smk"
+include: "rules/aatrnaseq-modifications.smk"
 
 
 # Conditionally include WarpDemuX demultiplexing rules

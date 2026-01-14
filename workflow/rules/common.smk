@@ -219,12 +219,6 @@ def pipeline_outputs():
         sample=samples.keys(),
     )
 
-    outs += [f"{DORADO_DIR}/bin/dorado"]
-
-    outs += [os.path.join("resources/models", config["dorado_model"])]
-
-    outs += [f"{MODKIT_DIR}/bin/modkit"]
-
     if (
         "remora_kmer_table" in config
         and config["remora_kmer_table"] != ""
@@ -275,51 +269,7 @@ def get_modkit_threshold_opts():
     return " ".join(opts)
 
 
-# WarpDemuX helper functions
-
-
-def get_run_ids():
-    """Get unique run_ids for samples that require demultiplexing."""
-    run_ids = set()
-    for sample, info in samples.items():
-        if info.get("barcode") and info.get("run_id"):
-            run_ids.add(info["run_id"])
-    return list(run_ids)
-
-
-def get_run_path(run_id):
-    """Get the path for a run_id."""
-    for sample, info in samples.items():
-        if info.get("run_id") == run_id:
-            # Return first path from the set
-            return list(info["path"])[0]
-    return None
-
-
-def get_samples_for_run(run_id):
-    """Get list of sample names assigned to a run."""
-    return [
-        sample
-        for sample, info in samples.items()
-        if info.get("run_id") == run_id and info.get("barcode")
-    ]
-
-
-def get_barcodes_for_run(run_id):
-    """Get barcode→sample mapping for a run."""
-    return {
-        info["barcode"]: sample
-        for sample, info in samples.items()
-        if info.get("run_id") == run_id and info.get("barcode")
-    }
-
-
-def get_barcode_kit_for_run(run_id):
-    """Get the barcode kit for a run."""
-    for sample, info in samples.items():
-        if info.get("run_id") == run_id:
-            return info.get("barcode_kit")
-    return config.get("warpdemux", {}).get("barcode_kit")
+# WarpDemuX helper functions (additional functions in warpdemux.smk)
 
 
 def sample_needs_demux(sample):
