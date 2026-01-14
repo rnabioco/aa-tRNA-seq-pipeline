@@ -8,6 +8,30 @@ base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
 # a BWA index will be built if it does not exist for this fasta file
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
+# Adapter sequences for tRNA reference building/validation
+# These must match what the Remora charging model was trained on.
+# The charging classification uses the CCAGGC 6-mer junction:
+#   CCA = tRNA 3' end (last 3 bases of mature tRNA)
+#   GGC = first 3 bases of 3' adapter
+# Therefore, the 3' adapter MUST start with GGC for classification to work.
+adapters:
+  # 5' adapter prepended to tRNA (23bp, the first tRNA base is included as variable N)
+  five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+  # 3' adapter appended after tRNA CCA end (40bp, starts with GGC)
+  three_prime: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
+
+# Reference validation/building mode
+# The pipeline validates that the reference FASTA has proper adapter structure
+# before alignment. This ensures the CCAGGC junction exists for charging classification.
+#
+# Modes:
+#   validate: Check existing adapted reference (default)
+#   build: Create adapted reference from raw tRNA sequences
+reference:
+  mode: "validate"
+  # For build mode only: path to raw tRNA FASTA (without adapters, must end in CCA)
+  raw_fasta: null
+
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
 remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
