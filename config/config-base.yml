@@ -60,6 +60,15 @@ opts:
     # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
     remora: ""
 
+# Adapter sequences for position detection (PT tag)
+# Used by add_adapter_tags rule to mark adapter positions in reads
+adapters:
+    5p: "CCTAAGAGCAAGAAGAAGCCTGG"  # 24bp 5' adapter (excluding trailing N)
+    3p_splint: "GGCTTCTTCTTGCTCTT"  # 17bp common splint region of 3' adapter
+    # Minimum parasail alignment scores (~15% error tolerance)
+    min_score_5p: 30
+    min_score_3p: 20
+
 # WarpDemuX demultiplexing (optional, disabled by default)
 #
 # For Nano-tRNAseq data, use the WarpDemuX-tRNA models:
