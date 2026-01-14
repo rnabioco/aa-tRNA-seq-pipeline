@@ -8,7 +8,6 @@ edit_uri: edit/docs/docs/
 theme:
   name: material
   features:
-    - navigation.tabs
     - navigation.sections
     - navigation.expand
     - navigation.top
