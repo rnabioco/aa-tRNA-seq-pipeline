@@ -8,6 +8,30 @@ base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
 # a BWA index will be built if it does not exist for this fasta file
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
+# Adapter sequences for tRNA reference building/validation
+# These must match what the Remora charging model was trained on.
+# The charging classification uses the CCAGGC 6-mer junction:
+#   CCA = tRNA 3' end (last 3 bases of mature tRNA)
+#   GGC = first 3 bases of 3' adapter
+# Therefore, the 3' adapter MUST start with GGC for classification to work.
+adapters:
+  # 5' adapter prepended to tRNA (23bp, the first tRNA base is included as variable N)
+  five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+  # 3' adapter appended after tRNA CCA end (40bp, starts with GGC)
+  three_prime: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
+
+# Reference validation/building mode
+# The pipeline validates that the reference FASTA has proper adapter structure
+# before alignment. This ensures the CCAGGC junction exists for charging classification.
+#
+# Modes:
+#   validate: Check existing adapted reference (default)
+#   build: Create adapted reference from raw tRNA sequences
+reference:
+  mode: "validate"
+  # For build mode only: path to raw tRNA FASTA (without adapters, must end in CCA)
+  raw_fasta: null
+
 # If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
 remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
@@ -24,41 +48,41 @@ dorado_model: rna004_130bps_sup@v5.1.0
 # see https://github.com/comprna/modkitopt
 # these params improve F1 by 51% (m6A) and 1251% (pseU) compared to defaults
 modkit:
-    # global threshold for canonical base confidence
-    filter_threshold: 0.5
-    # per-modification pass thresholds (mod code or ChEBI ID : threshold)
-    #   a = N6-methyladenosine (m6A)
-    #   m = 5-methylcytosine (m5C)
-    #   17802 = pseudouridine (pseU)
-    #   17596 = inosine
-    mod_thresholds:
-        a: 0.99
-        m: 0.99
-        "17802": 0.995
-        "17596": 0.99
+  # global threshold for canonical base confidence
+  filter_threshold: 0.5
+  # per-modification pass thresholds (mod code or ChEBI ID : threshold)
+  #   a = N6-methyladenosine (m6A)
+  #   m = 5-methylcytosine (m5C)
+  #   17802 = pseudouridine (pseU)
+  #   17596 = inosine
+  mod_thresholds:
+    a: 0.99
+    m: 0.99
+    "17802": 0.995
+    "17596": 0.99
 
 # additional options for particular commands
 opts:
-    # additional options for dorado basecalling
-    # XXX place modified bases first as the arg parser gets confused
-    # XXX add `-v` for verbose logging
-    dorado: " --modified-bases pseU m5C inosine_m6A --emit-moves "
+  # additional options for dorado basecalling
+  # XXX place modified bases first as the arg parser gets confused
+  # XXX add `-v` for verbose logging
+  dorado: " --modified-bases pseU m5C inosine_m6A --emit-moves "
 
-    # additional options for bwa alignment
-    # based on Novoa lab optimising bwa for tRNA alignment
-    # the -h 20 option is used to increase the number of secondary alignments reported in the XA tag
-    bwa: " -W 13 -k 6 -T 20 -x ont2d"
+  # additional options for bwa alignment
+  # based on Novoa lab optimising bwa for tRNA alignment
+  # the -h 20 option is used to increase the number of secondary alignments reported in the XA tag
+  bwa: " -W 13 -k 6 -T 20 -x ont2d"
 
-    # requires positive strand alignment
-    # requires at least 1 5' adapter base
-    # requires 1 3' adapter base in the discriminating adapter region between charged and uncharged (v2 adapters).
-    bam_filter: "-5 24 -3 23 -s"
+  # requires positive strand alignment
+  # requires at least 1 5' adapter base
+  # requires 1 3' adapter base in the discriminating adapter region between charged and uncharged (v2 adapters).
+  bam_filter: "-5 24 -3 23 -s"
 
-    #requires positive strand alignment and excludes non-primary alignments
-    coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
+  # requires positive strand alignment and excludes non-primary alignments
+  coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
 
-    # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
-    remora: ""
+  # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
+  remora: ""
 
 # WarpDemuX demultiplexing (optional, disabled by default)
 #
@@ -71,7 +95,7 @@ opts:
 #
 # WDX4_tRNA_rna004_v1_0 has improved recovery (+3-7%) compared to WDX4b_tRNA_rna004_v1_0.
 warpdemux:
-    enabled: false
-    barcode_kit: "WDX4_tRNA_rna004_v1_0"
-    save_boundaries: true
-    threads: 8
+  enabled: false
+  barcode_kit: "WDX4_tRNA_rna004_v1_0"
+  save_boundaries: true
+  threads: 8

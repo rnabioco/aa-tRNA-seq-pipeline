@@ -17,7 +17,7 @@ rule base_calling_error:
         os.path.join(outdir, "logs", "bcerror", "{sample}.bwa"),
     params:
         src=SCRIPT_DIR,
-        fa=config["fasta"],
+        fa=get_validated_reference(),
     shell:
         """
     python {params.src}/get_bcerror_freqs.py \

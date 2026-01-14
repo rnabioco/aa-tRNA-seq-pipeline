@@ -53,8 +53,74 @@ fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
 A BWA index is built automatically if it doesn't exist.
 
+### Adapter Sequences
+
+The pipeline uses adapter sequences for reference validation and building. These must match what the Remora charging model was trained on:
+
+```yaml
+adapters:
+  # 5' adapter prepended to tRNA (23bp)
+  five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+  # 3' adapter appended after tRNA CCA end (40bp)
+  three_prime: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
+```
+
+!!! important "CCAGGC Junction"
+    The charging classification uses the **CCAGGC** 6-mer junction where:
+
+    - **CCA** = last 3 bases of mature tRNA
+    - **GGC** = first 3 bases of 3' adapter
+
+    The 3' adapter **must** start with GGC for classification to work correctly.
+
+### Reference Validation and Building
+
+The pipeline validates that the reference FASTA has proper adapter structure before alignment:
+
+```yaml
+reference:
+  # Mode: "validate" (default) or "build"
+  mode: "validate"
+  # For build mode: path to raw tRNA FASTA (without adapters)
+  raw_fasta: null
+```
+
+| Mode | Description |
+|------|-------------|
+| `validate` | Check existing adapted reference has correct structure |
+| `build` | Create adapted reference from raw tRNA sequences |
+
+#### Validate Mode (Default)
+
+Checks that each sequence in your reference has:
+
+- Correct 5' adapter prefix
+- tRNA portion ending with CCA
+- Correct 3' adapter suffix (starting with GGC)
+- Valid CCAGGC junction for charging classification
+
+#### Build Mode
+
+Creates an adapted reference from raw tRNA sequences:
+
+1. Reads raw tRNA FASTA (without adapters)
+2. Adds CCA to sequences missing it (with warning)
+3. Prepends 5' adapter
+4. Appends 3' adapter after CCA
+5. Verifies CCAGGC junction is created
+
+```yaml
+# Example: building reference from raw tRNAs
+reference:
+  mode: "build"
+  raw_fasta: "resources/ref/my_raw_trnas.fa"
+```
+
 !!! info "Custom References"
-    To use a custom reference, ensure it includes both charged and uncharged tRNA variants with appropriate adapter sequences.
+    To use a custom reference, either:
+
+    1. Use `mode: "validate"` with a pre-adapted FASTA
+    2. Use `mode: "build"` with raw tRNA sequences (CCA endings required or will be added)
 
 ### Remora Models
 
