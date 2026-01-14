@@ -41,9 +41,6 @@ jobs:
       - name: Download test data
         run: pixi run dl-test-data
 
-      - name: Setup dorado and modkit
-        run: pixi run setup-tools
-
       - name: Run pipeline test (non-GPU rules only)
         run: |
           # Run merge_pods rule as a basic test (doesn't require GPU)
