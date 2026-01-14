@@ -60,3 +60,19 @@ opts:
 
     # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
     remora: ""
+
+# WarpDemuX demultiplexing (optional, disabled by default)
+#
+# For Nano-tRNAseq data, use the WarpDemuX-tRNA models:
+#   - WDX4_tRNA_rna004_v1_0 (Recommended) - barcodes: WDX_bc03, WDX_bc04, WDX_bc05, WDX_bc07
+#   - WDX4b_tRNA_rna004_v1_0 - barcodes: WDX_bc04, WDX_bc05, WDX_bc07, WDX_bc11
+#
+# ATTENTION: WarpDemuX-tRNA models are developed for the Nano-tRNAseq protocol
+# and do NOT work with data using the Thomas splint adapter.
+#
+# WDX4_tRNA_rna004_v1_0 has improved recovery (+3-7%) compared to WDX4b_tRNA_rna004_v1_0.
+warpdemux:
+    enabled: false
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    save_boundaries: true
+    threads: 8

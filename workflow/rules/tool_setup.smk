@@ -62,6 +62,8 @@ rule dorado_model:
     """
     Download dorado base-calling model
     """
+    input:
+        dorado_bin=f"{DORADO_DIR}/bin/dorado",
     output:
         directory(os.path.join("resources", "models", config["dorado_model"])),
     log:
@@ -74,7 +76,7 @@ rule dorado_model:
         mkdir -p {params.model_dir}
 
         # Run Dorado download
-        dorado download --model {params.model} --models-directory {params.model_dir} > {log} 2>&1
+        {input.dorado_bin} download --model {params.model} --models-directory {params.model_dir} > {log} 2>&1
 
         # Create a marker file if needed
         if [ ! -d "{output}" ]; then

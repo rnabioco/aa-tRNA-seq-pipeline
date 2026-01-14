@@ -41,3 +41,35 @@ run-preprint = { cmd = "snakemake --configfile=config/config-preprint.yml --prof
 # Development
 fmt = { cmd = "snakefmt workflow/Snakefile workflow/rules/*.smk", description = "Format Snakemake files" }
 dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng > workflow/workflow_dag.png", description = "Generate workflow DAG image" }
+
+# WarpDemuX demultiplexing feature
+[feature.demux]
+platforms = ["linux-64"]
+
+[feature.demux.activation]
+scripts = ["scripts/demux-activate.sh"]
+
+[feature.demux.dependencies]
+# WarpDemuX dependencies
+libstdcxx-ng = ">=12"
+pytorch = "*"
+dtaidistance = "*"
+scikit-learn = "*"
+scipy = "*"
+cython = "*"
+toml = "*"
+tqdm = "*"
+numpy = "<2"
+joblib = "*"
+bottleneck = "*"
+ruptures = "*"
+catboost = "*"
+
+[feature.demux.tasks]
+install-warpdemux = { cmd = "[ -d resources/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/WarpDemuX && uv pip install -e resources/WarpDemuX", description = "Clone and install WarpDemuX" }
+warpdemux = { cmd = "warpdemux $@", env = { LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
+dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
+
+[environments]
+default = []
+demux = ["demux"]
