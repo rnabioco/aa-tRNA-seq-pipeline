@@ -8,6 +8,16 @@ A Snakemake pipeline to process ONT aa-tRNA-seq data.
 
 **[Documentation](https://rnabioco.github.io/aa-tRNA-seq-pipeline)** | **[Downstream Analysis](https://github.com/rnabioco/aa-tRNA-seq)**
 
+## Prerequisites
+
+This pipeline uses [Pixi](https://pixi.sh) for environment management. Install it first:
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | sh
+```
+
+See the [Pixi installation guide](https://pixi.prefix.dev/latest/installation/) for alternative methods (Homebrew, Windows, etc.).
+
 ## Usage
 
 The pipeline can be configured by editing the `config/config.yml` file. The config file specifications will
