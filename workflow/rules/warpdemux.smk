@@ -113,7 +113,7 @@ rule warpdemux:
     threads: config.get("warpdemux", {}).get("threads", 8)
     shell:
         """
-        warpdemux demux \
+        pixi run -e demux warpdemux demux \
             -i {input.pod5} \
             -o {output.outdir} \
             -m {params.model} \
