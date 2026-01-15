@@ -158,11 +158,14 @@ The pipeline includes cluster profiles for LSF and SLURM schedulers.
 # Run test data on LSF cluster
 pixi run test-lsf
 
+# Run test data on SLURM cluster
+pixi run test-slurm
+
 # Run full preprint analysis on cluster
 pixi run run-preprint
 ```
 
-For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/generic/config.yaml`.
+For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/slurm/config.yaml`.
 
 ## Citation
 
