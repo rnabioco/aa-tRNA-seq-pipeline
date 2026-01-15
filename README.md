@@ -83,10 +83,10 @@ warpdemux:
     barcode_kit: "WDX4_tRNA_rna004_v1_0"
 ```
 
-Run with the demux environment:
+Run with pixi: 
 
 ```bash
-pixi run -e demux snakemake --configfile=config/config-demux.yml --cores 8
+pixi run snakemake --configfile=config/config-demux.yml --cores 8
 ```
 
 See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details on all configuration options.
