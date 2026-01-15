@@ -139,7 +139,7 @@ Downstream analysis to generate figures for the initial preprint can be found at
 
 If you use this pipeline, please cite:
 
-> [Citation pending publication]
+> White LK, Radakovic A, Sajek MP, Dobson K, Riemondy KA, Del Pozo S, Szostak JW, Hesselberth JR. Nanopore sequencing of intact aminoacylated tRNAs. *Nat Commun.* 2025;16:7781. doi:[10.1038/s41467-025-62545-9](https://doi.org/10.1038/s41467-025-62545-9)
 
 ## License
 
