@@ -33,6 +33,9 @@ pixi run test
 # Run on LSF cluster
 pixi run test-lsf
 
+# Run on SLURM cluster
+pixi run test-slurm
+
 # Run preprint pipeline on cluster
 pixi run run-preprint
 ```
@@ -45,12 +48,17 @@ pixi run snakemake --configfile=config/config-test.yml --cores 8
 
 ### Cluster Execution
 
-The pipeline is optimized for LSF scheduler. Key files:
+The pipeline supports both LSF and SLURM schedulers. Key files:
+
+**LSF:**
 - `run-test.sh`: Test data execution on LSF
 - `run-preprint.sh`: Full preprint data execution on LSF
 - `cluster/lsf/config.yaml`: LSF-specific resource configurations
 
-GPU-intensive rules (rebasecall, classify_charging) automatically request GPU resources via LSF queue configuration.
+**SLURM:**
+- `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
+
+GPU-intensive rules (rebasecall, classify_charging) automatically request GPU resources via queue/partition configuration.
 
 ## Architecture
 
@@ -213,16 +221,27 @@ pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config
 
 ### Cluster Resource Configuration
 
-Modify `cluster/lsf/config.yaml` to adjust:
+**LSF** - Modify `cluster/lsf/config.yaml` to adjust:
 - Memory requirements per rule (mem_mb)
-- GPU queue assignments
-- LSF project tags
+- GPU queue assignments (lsf_queue)
+- LSF project tags (lsf_project)
 - Maximum concurrent jobs
 
 Rules requiring GPU (rebasecall, classify_charging) must set:
 - lsf_queue: "gpu"
 - lsf_extra: "-gpu num=1:j_exclusive=yes"
 - ngpu: 1
+
+**SLURM** - Modify `cluster/slurm/config.yaml` to adjust:
+- Memory requirements per rule (mem_mb)
+- GPU partition (slurm_partition)
+- Account/allocation (slurm_account)
+- Runtime limits (runtime, in minutes)
+- Maximum concurrent jobs
+
+Rules requiring GPU (rebasecall, classify_charging) must set:
+- slurm_partition: "gpu" (or your cluster's GPU partition)
+- gres: "gpu:1"
 
 ## Important Notes
 

@@ -42,6 +42,7 @@ dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Downl
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }
 test = { cmd = "snakemake --configfile=config/config-test.yml --cores 4", description = "Run pipeline locally with test data" }
 test-lsf = { cmd = "snakemake --configfile=config/config-test.yml --profile=cluster/lsf", description = "Run test pipeline on LSF cluster" }
+test-slurm = { cmd = "snakemake --configfile=config/config-test.yml --profile=cluster/slurm", description = "Run test pipeline on SLURM cluster" }
 run-preprint = { cmd = "snakemake --configfile=config/config-preprint.yml --profile=cluster/generic --rerun-incomplete", description = "Run preprint pipeline on cluster" }
 # Development
 fmt = { cmd = "snakefmt workflow/Snakefile workflow/rules/*.smk", description = "Format Snakemake files" }
