@@ -86,6 +86,29 @@ resources:
 
 Set this to match your available GPUs or queue limits.
 
+### CUDA Toolkit Version
+
+The pipeline installs PyTorch with CUDA 12.4 support by default. To use a different CUDA version, set the `CUDA_VERSION` environment variable before activating the environment:
+
+```bash
+# For CUDA 11.8
+export CUDA_VERSION=cu118
+pixi shell
+
+# For CUDA 12.1
+export CUDA_VERSION=cu121
+pixi shell
+
+# For CPU-only (no CUDA)
+export CUDA_VERSION=cpu
+pixi shell
+```
+
+Available CUDA wheel tags: `cu118`, `cu121`, `cu124`, `cpu`
+
+!!! tip "Check your CUDA version"
+    Run `nvidia-smi` to see your installed CUDA driver version. Choose a PyTorch CUDA version that matches or is lower than your driver version.
+
 ### Exclusive GPU Access
 
 Request exclusive GPU access to avoid memory conflicts:

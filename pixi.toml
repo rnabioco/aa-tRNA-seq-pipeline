@@ -27,6 +27,7 @@ snakemake-executor-plugin-slurm = "*"
 snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
 pod5 = "*"
+libstdcxx-ng = ">=12"
 ont-modkit = "*"
 # Linting tools
 ruff = "*"
@@ -88,7 +89,6 @@ catboost = "*"
 
 [feature.demux.tasks]
 install-warpdemux = { cmd = "[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
-warpdemux = { cmd = "warpdemux", env = { LD_LIBRARY_PATH = "$CONDA_PREFIX/lib:$LD_LIBRARY_PATH" } }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
 [environments]

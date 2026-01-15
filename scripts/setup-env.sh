@@ -11,6 +11,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 DORADO_VERSION="${DORADO_VERSION:-0.9.1}"
 DORADO_MODEL="${DORADO_MODEL:-rna004_130bps_sup@v5.1.0}"
+CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
 
@@ -94,12 +95,17 @@ fi
 # ============================================================================
 # Check if remora is installed, install if not
 if ! python -c "import remora" 2>/dev/null; then
+    echo "Installing PyTorch with CUDA support (${CUDA_VERSION})..."
+    uv pip install torch --index-url https://download.pytorch.org/whl/${CUDA_VERSION} 2>/dev/null || \
+        echo "Warning: Failed to install PyTorch with CUDA (may need to run manually)"
     echo "Installing ont-remora from GitHub..."
     uv pip install git+https://github.com/nanoporetech/remora.git 2>/dev/null || \
         echo "Warning: Failed to install remora (may need to run manually)"
 fi
 
 # ============================================================================
-# PATH Setup
+# Library and PATH Setup
 # ============================================================================
+# Use conda/pixi libstdc++ instead of system version (fixes GLIBCXX version errors)
+export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
 export PATH="${DORADO_DIR}/bin:${PATH}"
