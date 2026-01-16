@@ -19,9 +19,15 @@ adapters:
   five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
   # 3' adapter appended after tRNA CCA end (40bp, starts with GGC)
   three_prime: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
-  # Minimum parasail alignment scores for adapter position detection (~15% error tolerance)
-  min_score_5p: 30
+  # Minimum parasail alignment scores for adapter position detection
+  # Note: ~9% of reads have complete 5' adapter (truncation is expected)
+  min_score_5p: 25
   min_score_3p: 20
+  # Use alignment position to infer 5' adapter presence for truncated reads
+  # If ref_start < max_ref_start_for_5p, 5' adapter is considered present
+  # Value of 20 means at least 3bp of 23bp adapter is present (23-20=3)
+  infer_5p_from_alignment: true
+  max_ref_start_for_5p: 20
 
 # Reference validation/building mode
 # The pipeline validates that the reference FASTA has proper adapter structure
