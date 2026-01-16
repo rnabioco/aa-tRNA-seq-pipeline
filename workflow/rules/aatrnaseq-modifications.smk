@@ -107,7 +107,7 @@ rule modkit_extract_calls:
 
 rule modkit_extract_full:
     """
-    Extract full modification information with optimized thresholds.
+    Extract full modification information.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,
@@ -121,16 +121,14 @@ rule modkit_extract_full:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
         fa=get_validated_reference(),
-        threshold_opts=get_modkit_threshold_opts(),
     shell:
         """
     modkit extract full \
         --bgzf \
-        --threads 12 \
+        --threads {threads} \
         --reference {params.fa} \
         --log-filepath {log} \
         --edge-filter 10 \
-        --mapped \
-        {params.threshold_opts} \
+        --mapped-only \
         {input.bam} {output.tsv}
     """

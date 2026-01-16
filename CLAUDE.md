@@ -11,15 +11,18 @@ This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) a
 ### Initial Setup
 
 ```bash
-# Install all dependencies (modkit, remora, and other tools)
+# Install all dependencies
 pixi install
 
-# Enter the environment (downloads dorado on first activation)
-pixi shell
+# One-time setup: downloads dorado, basecalling models, remora, and WarpDemuX
+# IMPORTANT: Run this once before using the pipeline, from a single node only
+pixi run setup
 
-# Download test data (first time only)
+# Download test data (optional, for testing only)
 pixi run dl-test-data
 ```
+
+**Note:** The `pixi run setup` command installs tools that are not available via conda (dorado, remora, WarpDemuX). Run this once from a single node before submitting cluster jobs to avoid race conditions on shared filesystems.
 
 ### Running the Pipeline
 
@@ -151,7 +154,7 @@ The pipeline supports optional barcode demultiplexing using WarpDemuX for pooled
 
 ### Enabling Demultiplexing
 
-1. **Install demux environment**: `pixi install -e demux` (WarpDemuX is auto-installed on first use)
+1. **Install demux environment**: `pixi install -e demux && pixi run -e demux install-warpdemux`
 2. **Create YAML sample file** with barcode assignments (see `config/samples-demux-example.yml`)
 3. **Enable in config**: Set `warpdemux.enabled: true`
 
