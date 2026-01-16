@@ -5,6 +5,12 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 ## Unreleased
 
 ### Added
+- Run manifest generation for reproducibility tracking
+- Native SLURM cluster support with GPU configuration
+- Pytest unit tests and expanded CI coverage (#80)
+- Adapter position tagging with parasail alignment - adds PT tags (#79)
+- MkDocs documentation website (#77)
+- Publication citation (White et al. 2025 Nat Commun)
 - Reference validation and building step to ensure tRNA sequences have proper CCA endings and adapter structure required for charging classification
 - Optional WarpDemuX barcode demultiplexing support for pooled/multiplexed sequencing runs (#74)
 - Optimized modkit thresholds from ModkitOpt
@@ -12,8 +18,17 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 - Mermaid diagram for workflow visualization
 
 ### Changed
+- Standardized output directory structure to nested sample paths
+- Updated dorado version from 0.9.1 to 1.3.1
+- Migrated GitHub Actions CI from conda to pixi (#75)
+- Separated tool installation from environment activation (`pixi run setup`)
 - Updated README to use pixi instead of conda (#72)
 - Normalized file permissions across repository
+
+### Fixed
+- **Major fix**: Improved 5' adapter detection from 0.04% to 82% (#82)
+- Resolved GLIBCXX version errors with configurable CUDA support
+- Shell glob pattern errors in tests
 
 ## 2025-11-07
 
