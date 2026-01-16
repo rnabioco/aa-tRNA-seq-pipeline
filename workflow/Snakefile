@@ -21,6 +21,11 @@ onstart:
     shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
 
 
+import datetime
+import sys
+
+PIPELINE_START_TIME = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
 SNAKEFILE_DIR = os.path.dirname(workflow.snakefile)
 PIPELINE_DIR = os.path.dirname(SNAKEFILE_DIR)
 
@@ -37,6 +42,36 @@ include: "rules/aatrnaseq-modifications.smk"
 if config.get("warpdemux", {}).get("enabled", False):
 
     include: "rules/warpdemux.smk"
+
+
+# Add scripts directory to path for manifest generation
+sys.path.insert(0, os.path.join(SNAKEFILE_DIR, "scripts"))
+
+
+onsuccess:
+    from generate_manifest import generate_manifest
+
+    generate_manifest(
+        config=config,
+        samples=samples,
+        status="success",
+        start_time=PIPELINE_START_TIME,
+        output_dir=config["output_directory"],
+        pipeline_dir=PIPELINE_DIR,
+    )
+
+
+onerror:
+    from generate_manifest import generate_manifest
+
+    generate_manifest(
+        config=config,
+        samples=samples,
+        status="failed",
+        start_time=PIPELINE_START_TIME,
+        output_dir=config["output_directory"],
+        pipeline_dir=PIPELINE_DIR,
+    )
 
 
 report_metadata()
