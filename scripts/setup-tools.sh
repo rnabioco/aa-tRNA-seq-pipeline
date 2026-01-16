@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 # Configuration
 # ============================================================================
-DORADO_VERSION="${DORADO_VERSION:-0.9.1}"
+DORADO_VERSION="${DORADO_VERSION:-1.3.1}"
 DORADO_MODEL="${DORADO_MODEL:-rna004_130bps_sup@v5.1.0}"
 CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"

@@ -25,12 +25,12 @@ flowchart TB
     end
 
     subgraph Processing
-        B[pod5/{sample}.pod5<br/>Merged POD5]
-        C[bam/rebasecall/{sample}.rbc.bam<br/>Basecalled]
-        D[fq/{sample}.fq.gz<br/>FASTQ]
-        E[bam/aln/{sample}.aln.bam<br/>Aligned]
-        F[bam/charging/{sample}.charging.bam<br/>Classified]
-        G[bam/final/{sample}.bam<br/>Final BAM]
+        B[pod5/{sample}/{sample}.pod5<br/>Merged POD5]
+        C[bam/rebasecall/{sample}/{sample}.rbc.bam<br/>Basecalled]
+        D[fq/{sample}/{sample}.fq.gz<br/>FASTQ]
+        E[bam/aln/{sample}/{sample}.aln.bam<br/>Aligned]
+        F[bam/charging/{sample}/{sample}.charging.bam<br/>Classified]
+        G[bam/final/{sample}/{sample}.bam<br/>Final BAM]
     end
 
     subgraph Outputs
@@ -47,9 +47,9 @@ flowchart TB
 
 ### Final BAM
 
-`bam/final/{sample}.bam`
+`bam/final/{sample}/{sample}.bam`
 
-The final BAM file with charging classification tags.
+The final BAM file with charging classification and adapter position tags.
 
 **Tags:**
 
@@ -57,11 +57,12 @@ The final BAM file with charging classification tags.
 |-----|------|-------------|
 | `CL` | `B:C` | Charging likelihood (0-255 scale) |
 | `CM` | `Z` | Charging model metadata |
+| `PT` | `Z` | Adapter positions (5' and 3' boundaries) |
 
 **View tags:**
 
 ```bash
-samtools view results/bam/final/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM):"
+samtools view results/bam/final/sample1/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM|PT):"
 ```
 
 !!! note "Tag Renaming"
@@ -231,13 +232,13 @@ BWA MEM alignment output.
 
 ### Charging BAM
 
-`bam/charging/{sample}.charging.bam`
+`bam/charging/{sample}/{sample}.charging.bam`
 
 Remora classification output with ML/MM tags (before renaming).
 
 ### FASTQ
 
-`fq/{sample}.fq.gz`
+`fq/{sample}/{sample}.fq.gz`
 
 Extracted reads for alignment.
 
