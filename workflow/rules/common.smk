@@ -284,7 +284,9 @@ def get_sample_pod5(wildcards):
     Otherwise, use merged POD5 from merge_pods rule.
     """
     if sample_needs_demux(wildcards.sample):
-        return os.path.join(outdir, "demux", "pod5", f"{wildcards.sample}.pod5")
+        return os.path.join(
+            outdir, "demux", "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
+        )
     else:
         return os.path.join(
             outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
