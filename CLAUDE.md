@@ -263,4 +263,4 @@ Outputs go to directory specified by `output_dir` in config. Test outputs: `.tes
 Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
-- `bam/final/{sample}.bam` - Final BAM with CL/CM charging tags
+- `bam/final/{sample}/{sample}.bam` - Final BAM with CL/CM charging tags
