@@ -28,9 +28,9 @@ cd aa-tRNA-seq-pipeline
 # Install environment
 pixi install
 
-# Download test data and setup tools (first time only)
+# One-time setup: download tools, models, and test data
+pixi run setup
 pixi run dl-test-data
-pixi run setup-tools
 
 # Dry run
 pixi run dry-run

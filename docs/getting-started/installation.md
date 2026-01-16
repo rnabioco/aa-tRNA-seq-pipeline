@@ -67,28 +67,20 @@ This creates a `.pixi` directory with all required packages including:
 
 ## Install External Tools
 
-The pipeline requires Dorado (ONT basecaller) and Modkit (modification toolkit). Install them with:
+The pipeline requires several external tools. Install them with a single command:
 
 ```bash
-pixi run setup-tools
+pixi run setup
 ```
 
 This downloads and installs:
 
-- **Dorado** v0.9.1 - Oxford Nanopore basecaller
-- **Modkit** v0.4.3 - Modification calling toolkit
+- **Dorado** v1.3.1 - Oxford Nanopore basecaller
+- **Dorado model** - `rna004_130bps_sup@v5.1.0` basecalling model
+- **Remora** - ONT signal analysis for charging classification
+- **WarpDemuX** - Barcode demultiplexing (optional, for multiplexed samples)
 
-Tools are installed to `resources/tools/` and automatically added to PATH when running the pipeline.
-
-## Download Basecalling Model
-
-Download the Dorado basecalling model:
-
-```bash
-pixi run snakemake dorado_model --cores 1
-```
-
-This downloads `rna004_130bps_sup@v5.1.0` to `resources/models/`.
+Dorado and models are installed to `resources/tools/` and `resources/models/`. Modkit is managed by pixi (installed via conda).
 
 ## Download Test Data (Optional)
 
@@ -109,10 +101,10 @@ Verify everything is installed correctly:
 pixi run snakemake --version
 
 # Check Dorado installation
-resources/tools/dorado/0.9.1/bin/dorado --version
+resources/tools/dorado/1.3.1/bin/dorado --version
 
-# Check Modkit installation
-resources/tools/modkit/0.4.3/bin/modkit --version
+# Check Modkit installation (managed by pixi)
+pixi run modkit --version
 
 # Dry run with test config
 pixi run dry-run
@@ -122,11 +114,11 @@ pixi run dry-run
 
 ```
 aa-tRNA-seq-pipeline/
-├── .pixi/                    # Pixi environment
+├── .pixi/                    # Pixi environment (includes modkit, remora)
 ├── resources/
 │   ├── tools/
-│   │   ├── dorado/0.9.1/    # Dorado binaries
-│   │   └── modkit/0.4.3/    # Modkit binaries
+│   │   ├── dorado/1.3.1/    # Dorado binaries
+│   │   └── WarpDemuX/       # WarpDemuX (if demux enabled)
 │   ├── models/
 │   │   ├── rna004_130bps_sup@v5.1.0/  # Basecalling model
 │   │   └── cca_classifier.pt          # Remora charging model
@@ -150,7 +142,7 @@ pixi install  # Update dependencies if pixi.lock changed
 To update external tools, modify the version in `config/config-base.yml` and rerun:
 
 ```bash
-pixi run setup-tools
+pixi run setup
 ```
 
 ## Troubleshooting
@@ -171,17 +163,13 @@ If Dorado fails to detect GPU:
 2. Verify CUDA_VISIBLE_DEVICES is set correctly
 3. Ensure GPU drivers are up to date
 
-### Modkit Build Fails
+### Remora Installation Issues
 
-Modkit is built from source and requires Rust. If installation fails:
+If Remora fails to install with CUDA/PyTorch errors:
 
 ```bash
-# Install Rust manually
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
-
-# Retry setup
-pixi run setup-tools
+# Manually specify CUDA version
+CUDA_VERSION=cu121 pixi run setup
 ```
 
 ## Next Steps

@@ -103,7 +103,7 @@ For production runs, use cluster execution:
 === "SLURM"
 
     ```bash
-    pixi run snakemake --profile cluster/generic --configfile=config/config-myproject.yml
+    pixi run snakemake --profile cluster/slurm --configfile=config/config-myproject.yml
     ```
 
 See [Cluster Setup](../cluster/lsf-setup.md) for detailed cluster configuration.
@@ -175,7 +175,7 @@ ls -la results/myproject/summary/tables/
 
 3. **Final BAM** - Verify charging tags:
    ```bash
-   samtools view results/myproject/bam/final/sample1.bam | head -1
+   samtools view results/myproject/bam/final/sample1/sample1.bam | head -1
    ```
 
 ## Troubleshooting

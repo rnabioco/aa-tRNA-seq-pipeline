@@ -10,7 +10,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 # Environment Variables
 # ============================================================================
-DORADO_VERSION="${DORADO_VERSION:-0.9.1}"
+DORADO_VERSION="${DORADO_VERSION:-1.3.1}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 
 # ============================================================================
