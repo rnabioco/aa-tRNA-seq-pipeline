@@ -37,6 +37,7 @@ yamllint = "*"
 scripts = ["scripts/setup-env.sh"]
 
 [tasks]
+setup = { cmd = "bash scripts/setup-tools.sh && pixi run -e demux install-warpdemux", description = "One-time setup: install dorado, models, remora, and WarpDemuX" }
 dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Download test data" }
 # Pipeline execution
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }
