@@ -207,7 +207,11 @@ rule add_adapter_tags:
         adapter_3p_splint=config["adapters"]["three_prime"],
         min_score_5p=config["adapters"]["min_score_5p"],
         min_score_3p=config["adapters"]["min_score_3p"],
-        infer_5p_flag="--infer-5p-from-alignment" if config["adapters"].get("infer_5p_from_alignment", False) else "",
+        infer_5p_flag=(
+            "--infer-5p-from-alignment"
+            if config["adapters"].get("infer_5p_from_alignment", False)
+            else ""
+        ),
         max_ref_start_for_5p=config["adapters"].get("max_ref_start_for_5p", 20),
     shell:
         """
