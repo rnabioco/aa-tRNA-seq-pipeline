@@ -9,3 +9,7 @@ results/
 resources/tools/*
 *.bam
 *.pod5
+
+# python testing
+__pycache__/
+.coverage

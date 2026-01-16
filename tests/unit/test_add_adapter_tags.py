@@ -223,6 +223,55 @@ class TestFindAdapter:
         # Should still find adapter with lower threshold
         assert result is not None
 
+    def test_adapter_with_polyt_prefix(self, scoring_matrix):
+        """5' adapter after poly-T prefix should be found (regression test for sg_dx fix).
+
+        Real nanopore reads often have poly-T at the start followed by the adapter.
+        This test ensures the adapter can be found anywhere within the search region.
+        """
+        # Real read pattern: poly-T + adapter + tRNA
+        read_seq = "TTTTTTTTTTTT" + DEFAULT_ADAPTER_5P + "GCGGCTATAGCTCAGTTGGTA"
+
+        result = find_5p_adapter(
+            read_seq,
+            DEFAULT_ADAPTER_5P,
+            scoring_matrix,
+            DEFAULT_GAP_OPEN,
+            DEFAULT_GAP_EXTEND,
+            DEFAULT_MIN_SCORE_5P,
+        )
+
+        assert result is not None
+        start, end, score = result
+        # Adapter should be found after the poly-T prefix
+        assert start >= 10  # After poly-T
+        assert start <= 15
+        assert score >= DEFAULT_MIN_SCORE_5P
+
+    def test_adapter_with_errors_embedded(self, scoring_matrix):
+        """Adapter with errors after poly-T should still be found.
+
+        Tests the realistic case from actual data where adapter has ~10% errors.
+        """
+        # Pattern from real data: poly-T + adapter with errors
+        # Real: CCTAAGAGCAAGGGGAAGCCTGG vs config: CCTAAGAGCAAGAAGAAGCCTGG
+        adapter_with_errors = "CCTAAGAGCAAGGGGAAGCCTGG"
+        read_seq = "TTTTTTTTTTTT" + adapter_with_errors + "TGGAGGATGCGGGCAGCGAGTCCCG"
+
+        result = find_5p_adapter(
+            read_seq,
+            DEFAULT_ADAPTER_5P,
+            scoring_matrix,
+            DEFAULT_GAP_OPEN,
+            DEFAULT_GAP_EXTEND,
+            min_score=20,  # Lower threshold due to errors
+        )
+
+        assert result is not None
+        start, end, score = result
+        assert start >= 10  # After poly-T
+        assert score >= 20
+
 
 class TestFormatPtTag:
     """Tests for format_pt_tag function."""
@@ -445,3 +494,71 @@ class TestProcessBam:
             assert read.get_tag("XY") == "existing"
             assert read.has_tag("ML")
             assert read.has_tag("PT")
+
+    def test_alignment_based_5p_detection(self, temp_dir):
+        """Alignment-based detection should infer 5' adapter from ref position."""
+        input_bam = temp_dir / "input.bam"
+        output_bam = temp_dir / "output.bam"
+
+        header = {"HD": {"VN": "1.0"}, "SQ": [{"SN": "ref", "LN": 200}]}
+
+        with pysam.AlignmentFile(str(input_bam), "wb", header=header) as outf:
+            # Read starting at ref position 10 (truncated, missing first 10bp of adapter)
+            # This read would NOT be detected by sequence-based detection
+            # but SHOULD be detected by alignment-based detection
+            read = pysam.AlignedSegment()
+            read.query_name = "truncated_read"
+            # Sequence without the full 5' adapter (starts mid-adapter)
+            read.query_sequence = "AAGAAGCCTGG" + "ACGTACGTACGTACGT" + DEFAULT_ADAPTER_3P
+            read.flag = 0
+            read.reference_id = 0
+            read.reference_start = 10  # Starts at position 10 (mid-adapter)
+            read.cigartuples = [(0, len(read.query_sequence))]
+            read.query_qualities = pysam.qualitystring_to_array(
+                "I" * len(read.query_sequence)
+            )
+            outf.write(read)
+
+        # Without alignment-based detection
+        stats_no_infer = process_bam(
+            str(input_bam),
+            str(output_bam),
+            DEFAULT_ADAPTER_5P,
+            DEFAULT_ADAPTER_3P,
+            min_score_5p=30,  # High threshold - won't detect partial
+            min_score_3p=20,
+            match=2,
+            mismatch=-1,
+            gap_open=2,
+            gap_extend=1,
+            infer_5p_from_alignment=False,
+        )
+
+        # Should NOT detect 5' adapter without inference
+        assert stats_no_infer.with_5p == 0
+
+        # With alignment-based detection
+        stats_with_infer = process_bam(
+            str(input_bam),
+            str(output_bam),
+            DEFAULT_ADAPTER_5P,
+            DEFAULT_ADAPTER_3P,
+            min_score_5p=30,
+            min_score_3p=20,
+            match=2,
+            mismatch=-1,
+            gap_open=2,
+            gap_extend=1,
+            infer_5p_from_alignment=True,
+            max_ref_start_for_5p=20,
+        )
+
+        # SHOULD detect 5' adapter with inference (ref_start=10 < 20)
+        assert stats_with_infer.with_5p == 1
+
+        # Check the PT tag
+        with pysam.AlignmentFile(str(output_bam), "rb") as bam:
+            read = next(bam)
+            assert read.has_tag("PT")
+            pt_tag = read.get_tag("PT")
+            assert "5p_adapter" in pt_tag
