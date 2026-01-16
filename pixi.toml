@@ -18,7 +18,7 @@ numpy = "<2"
 pandas = "*"
 gitpython = "*"
 uv = "*"
-parasail = "*"
+parasail-python = "*"
 # Snakemake and workflow
 snakemake = ">=8.0"
 snakefmt = "*"
@@ -60,7 +60,7 @@ platforms = ["linux-64"]
 [feature.test.dependencies]
 pytest = "*"
 pytest-cov = "*"
-parasail = "*"
+parasail-python = "*"
 pysam = "*"
 
 [feature.test.tasks]

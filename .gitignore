@@ -12,3 +12,4 @@ resources/tools/*
 
 # python testing
 __pycache__/
+.coverage
