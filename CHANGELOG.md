@@ -2,7 +2,7 @@
 
 All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
-## Unreleased
+## [v0.1.0] - 2025-01-16
 
 ### Added
 - Run manifest generation for reproducibility tracking
