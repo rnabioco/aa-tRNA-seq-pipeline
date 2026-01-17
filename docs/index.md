@@ -69,8 +69,8 @@ cd aa-tRNA-seq-pipeline
 # Install environment
 pixi install
 
-# Download tools and test data
-pixi run setup-tools
+# One-time setup: download tools, models, and test data
+pixi run setup
 pixi run dl-test-data
 
 # Run test pipeline
@@ -124,7 +124,7 @@ The pipeline produces several key output files per sample:
 
 | Output | Description |
 |--------|-------------|
-| `bam/final/{sample}.bam` | Final BAM with charging tags (CL/CM) |
+| `bam/final/{sample}/{sample}.bam` | Final BAM with charging tags (CL/CM/PT) |
 | `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` | CPM-normalized charging counts per tRNA |
 | `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` | Per-read charging probabilities |
 | `summary/modkit/{sample}/{sample}.pileup.bed.gz` | Modification pileup consensus |
@@ -139,7 +139,7 @@ Downstream analysis to generate figures for the initial preprint can be found at
 
 If you use this pipeline, please cite:
 
-> [Citation pending publication]
+> White LK, Radakovic A, Sajek MP, Dobson K, Riemondy KA, Del Pozo S, Szostak JW, Hesselberth JR. Nanopore sequencing of intact aminoacylated tRNAs. *Nat Commun.* 2025;16:7781. doi:[10.1038/s41467-025-62545-9](https://doi.org/10.1038/s41467-025-62545-9)
 
 ## License
 

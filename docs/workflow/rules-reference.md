@@ -61,7 +61,7 @@ Extract reads from unmapped BAM to FASTQ format.
 | Property | Value |
 |----------|-------|
 | Input | Rebasecalled BAM |
-| Output | `fq/{sample}.fq.gz` |
+| Output | `fq/{sample}/{sample}.fq.gz` |
 
 **Command:**
 ```bash
@@ -136,7 +136,7 @@ Run Remora ML model to classify charged vs uncharged reads.
 | Property | Value |
 |----------|-------|
 | Input | POD5, aligned BAM |
-| Output | `bam/charging/{sample}.charging.bam`, `.bai` |
+| Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai` |
 | GPU | Yes |
 | Parameters | `remora_cca_classifier` |
 
@@ -160,14 +160,14 @@ samtools index {output}
 
 ### transfer_bam_tags
 
-Transfer and rename charging tags from Remora output to final BAM.
+Transfer and rename charging tags from Remora output to classified BAM.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
 | Property | Value |
 |----------|-------|
 | Input | Charging BAM, aligned BAM |
-| Output | `bam/final/{sample}.bam`, `.bai` |
+| Output | `bam/classified/{sample}/{sample}.bam`, `.bai` |
 
 **Command:**
 ```bash
@@ -186,6 +186,44 @@ samtools index {output}
 - `MM` → `CM`: Charging metadata
 
 This prevents interference with standard SAM modification tags.
+
+---
+
+### add_adapter_tags
+
+Detect adapter positions using parasail alignment and add PT tags to create final BAM.
+
+**File:** `workflow/rules/aatrnaseq-process.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | Classified BAM |
+| Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
+| Parameters | `adapters.*` config options |
+
+**Command:**
+```bash
+python add_adapter_tags.py \
+    -i {classified_bam} \
+    -o {output} \
+    --adapter-5p "{adapter_5p}" \
+    --adapter-3p "{adapter_3p}" \
+    --min-score-5p {min_score_5p} \
+    --min-score-3p {min_score_3p}
+samtools index {output}
+```
+
+**PT tag format:**
+```
+PT:Z:start;end;strand;type|start;end;strand;type
+Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+```
+
+**Notes:**
+
+- Uses parasail Smith-Waterman alignment to find adapter positions
+- Can infer 5' adapter presence from alignment position when adapter is truncated
+- This is the final BAM with all tags: CL/CM (charging) and PT (adapters)
 
 ---
 
@@ -492,10 +530,11 @@ flowchart LR
     ubam_to_fastq --> bwa_align
     bwa_align --> classify_charging
     classify_charging --> transfer_bam_tags
-    transfer_bam_tags --> get_cca_trna
-    transfer_bam_tags --> base_calling_error
-    transfer_bam_tags --> align_stats
-    transfer_bam_tags --> bam_to_coverage
-    transfer_bam_tags --> modkit_pileup
+    transfer_bam_tags --> add_adapter_tags
+    add_adapter_tags --> get_cca_trna
+    add_adapter_tags --> base_calling_error
+    add_adapter_tags --> align_stats
+    add_adapter_tags --> bam_to_coverage
+    add_adapter_tags --> modkit_pileup
     get_cca_trna --> get_cca_trna_cpm
 ```

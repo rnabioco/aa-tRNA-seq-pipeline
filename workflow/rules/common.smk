@@ -103,6 +103,32 @@ def get_pipeline_commit():
     return repo.head.commit
 
 
+def get_pipeline_version():
+    """
+    Get comprehensive pipeline version information from git.
+
+    Returns dict with commit, tag, branch, and dirty status.
+    """
+    repo = Repo(PIPELINE_DIR)
+    commit = repo.head.commit
+
+    # Find tags pointing to current commit
+    tags = [tag.name for tag in repo.tags if tag.commit == commit]
+
+    # Get branch name (None if detached HEAD)
+    try:
+        branch = repo.active_branch.name
+    except TypeError:
+        branch = None
+
+    return {
+        "git_commit": str(commit),
+        "git_tag": tags[0] if tags else None,
+        "git_branch": branch,
+        "git_dirty": repo.is_dirty(),
+    }
+
+
 def format_config_values():
     x = []
     x.append("Config settings:")
@@ -284,7 +310,9 @@ def get_sample_pod5(wildcards):
     Otherwise, use merged POD5 from merge_pods rule.
     """
     if sample_needs_demux(wildcards.sample):
-        return os.path.join(outdir, "demux", "pod5", f"{wildcards.sample}.pod5")
+        return os.path.join(
+            outdir, "demux", "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
+        )
     else:
         return os.path.join(
             outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5"

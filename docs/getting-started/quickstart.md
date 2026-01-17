@@ -8,7 +8,7 @@ Complete the [Installation](installation.md) guide first:
 
 ```bash
 pixi install
-pixi run setup-tools
+pixi run setup
 pixi run dl-test-data
 ```
 
@@ -59,14 +59,20 @@ After completion, outputs are in `.tests/outputs/`:
 ```
 .tests/outputs/
 ├── pod5/
-│   └── sample1/sample1.pod5          # Merged POD5
+│   └── sample1/
+│       └── sample1.pod5              # Merged POD5
 ├── bam/
-│   ├── rebasecall/sample1/           # Basecalled BAM
-│   ├── aln/sample1/                  # Aligned BAM
-│   ├── charging/sample1.charging.bam # Remora classification
-│   └── final/sample1.bam             # Final BAM with CL/CM tags
+│   ├── rebasecall/sample1/
+│   │   └── sample1.rbc.bam           # Basecalled BAM
+│   ├── aln/sample1/
+│   │   └── sample1.aln.bam           # Aligned BAM
+│   ├── charging/sample1/
+│   │   └── sample1.charging.bam      # Remora classification
+│   └── final/sample1/
+│       └── sample1.bam               # Final BAM with CL/CM/PT tags
 ├── fq/
-│   └── sample1.fq.gz                 # Extracted FASTQ
+│   └── sample1/
+│       └── sample1.fq.gz             # Extracted FASTQ
 └── summary/
     ├── tables/sample1/
     │   ├── sample1.charging_prob.tsv.gz  # Per-read charging
@@ -119,11 +125,12 @@ Output columns:
 The final BAM contains charging classification in tags:
 
 ```bash
-samtools view .tests/outputs/bam/final/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM):"
+samtools view .tests/outputs/bam/final/sample1/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM|PT):"
 ```
 
 - `CL:B:C` - Charging likelihood (ML tag renamed to avoid conflict)
 - `CM:Z` - Charging model metadata (MM tag renamed)
+- `PT:Z` - Adapter positions (5' and 3' adapter boundaries)
 
 ## Run on Cluster
 

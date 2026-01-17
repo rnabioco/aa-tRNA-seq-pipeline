@@ -43,6 +43,7 @@ flowchart TB
         E[bwa_align<br/>Align to reference]
         F[classify_charging<br/>Remora ML]
         G[transfer_bam_tags<br/>Rename tags]
+        G2[add_adapter_tags<br/>PT tags]
     end
 
     subgraph Charging[aatrnaseq-charging.smk]
@@ -63,16 +64,16 @@ flowchart TB
         P[modkit_extract_full<br/>Full export]
     end
 
-    A --> B --> C --> D --> E --> F --> G
+    A --> B --> C --> D --> E --> F --> G --> G2
 
-    G --> H --> I
-    G --> J
-    G --> K
-    G --> L
-    G --> M
-    G --> N
-    G --> O
-    G --> P
+    G2 --> H --> I
+    G2 --> J
+    G2 --> K
+    G2 --> L
+    G2 --> M
+    G2 --> N
+    G2 --> O
+    G2 --> P
 ```
 
 ### With Demultiplexing (WarpDemuX)
@@ -113,6 +114,7 @@ Core data processing from raw signal to classified reads:
 | `bwa_align` | Align reads to reference | No |
 | `classify_charging` | ML charging classification | Yes |
 | `transfer_bam_tags` | Rename ML→CL tags | No |
+| `add_adapter_tags` | Add PT tags for adapter positions | No |
 
 ### Charging Analysis Rules
 
@@ -206,6 +208,14 @@ Original Remora tags are renamed to avoid conflicts:
 
 - `ML` → `CL` (charging likelihood)
 - `MM` → `CM` (charging metadata)
+
+### 6. Adapter Position Tagging
+
+The `add_adapter_tags` rule adds PT tags with adapter boundaries:
+
+- Uses parasail Smith-Waterman alignment
+- Detects 5' and 3' adapter positions
+- Can infer 5' adapter from alignment position when truncated
 
 ## Resource Requirements
 

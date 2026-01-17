@@ -1,0 +1,86 @@
+# Snakemake Slurm Executor Profile Configuration
+# ================================================
+# This profile configures Snakemake to submit jobs to a SLURM cluster
+# Usage: snakemake --profile cluster/slurm
+#
+# Customize slurm_partition, slurm_account, and slurm-logdir for your cluster
+
+# Executor settings
+executor: slurm
+jobs: 300                      # Maximum concurrent jobs
+latency-wait: 15               # Wait time for output files (seconds)
+
+# Slurm-specific settings (customize paths for your cluster)
+slurm-logdir: "logs/slurm"     # Directory for Slurm job logs
+slurm-keep-successful-logs: false
+slurm-delete-logfiles-older-than: 10  # Days
+
+# Default resources for all rules
+default-resources:
+  slurm_partition: "cpu"       # Default CPU partition (customize for your cluster)
+  slurm_account: "aatrnaseq"   # SLURM account/allocation (customize for your cluster)
+  runtime: 120                 # Default walltime in minutes (2 hours)
+  mem_mb: 8000                 # Default memory in MB (8GB)
+  cpus_per_task: 1             # Default CPUs per task
+
+# Rule-specific resource overrides
+set-resources:
+  # GPU-accelerated rules
+  # Dorado basecalling - requires GPU
+  rebasecall:
+    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
+    gres: "gpu:1"              # Request 1 GPU
+    runtime: 480               # 8 hours (basecalling can be slow)
+    mem_mb: 24000              # 24GB
+    cpus_per_task: 4
+
+  # Remora charging classification - requires GPU
+  classify_charging:
+    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
+    gres: "gpu:1"              # Request 1 GPU
+    runtime: 240               # 4 hours
+    mem_mb: 24000              # 24GB
+    cpus_per_task: 4
+
+  # CPU-intensive rules
+  # BWA alignment
+  bwa_align:
+    runtime: 240               # 4 hours
+    mem_mb: 24000              # 24GB
+    cpus_per_task: 8
+
+  # Remora signal statistics
+  remora_signal_stats:
+    runtime: 180               # 3 hours
+    mem_mb: 24000              # 24GB
+    cpus_per_task: 4
+
+  # Modkit modification extraction - high memory
+  modkit_extract_calls:
+    runtime: 360               # 6 hours
+    mem_mb: 96000              # 96GB
+    cpus_per_task: 4
+
+  # WarpDemuX demultiplexing rules
+  warpdemux:
+    runtime: 360               # 6 hours
+    mem_mb: 32000              # 32GB
+    cpus_per_task: 4
+
+  parse_warpdemux:
+    runtime: 60                # 1 hour
+    mem_mb: 8000               # 8GB
+    cpus_per_task: 1
+
+  merge_pods_for_demux:
+    runtime: 120               # 2 hours
+    mem_mb: 16000              # 16GB
+    cpus_per_task: 1
+
+# Rerun incomplete jobs
+rerun-incomplete: true
+keep-going: true
+
+# Printout settings
+printshellcmds: true
+show-failed-logs: true

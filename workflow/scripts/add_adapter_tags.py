@@ -125,11 +125,9 @@ def find_adapter(
         return None
 
     # Semi-global alignment: free end gaps on the reference (read region)
-    # sg_dx: free gaps at end of database (reference/read)
-    # sg_qx: free gaps at end of query (adapter)
-    # We want adapter to be able to be truncated, so use sg_qe (free query end)
-    # and sg_db (free database begin) for flexibility
-    result = parasail.sg_qx_trace_scan_sat(
+    # sg_dx: free gaps at both ends of database (reference/read region)
+    # This allows the adapter to be found anywhere within the search region
+    result = parasail.sg_dx_trace_scan_sat(
         adapter_seq, region, gap_open, gap_extend, matrix
     )
 
@@ -235,10 +233,13 @@ def process_bam(
     mismatch,
     gap_open,
     gap_extend,
+    infer_5p_from_alignment=False,
+    max_ref_start_for_5p=20,
 ):
     """Process BAM file and add adapter position tags."""
     matrix = create_scoring_matrix(match, mismatch)
     stats = Stats()
+    adapter_5p_len = len(adapter_5p)
 
     with pysam.AlignmentFile(input_bam, "rb") as inbam:
         with pysam.AlignmentFile(output_bam, "wb", header=inbam.header) as outbam:
@@ -250,13 +251,23 @@ def process_bam(
                     outbam.write(read)
                     continue
 
-                # Find adapters
+                # Find adapters using sequence-based detection
                 result_5p = find_5p_adapter(
                     seq, adapter_5p, matrix, gap_open, gap_extend, min_score_5p
                 )
                 result_3p = find_3p_adapter(
                     seq, adapter_3p, matrix, gap_open, gap_extend, min_score_3p
                 )
+
+                # Fallback: infer 5' adapter from alignment position for truncated reads
+                if result_5p is None and infer_5p_from_alignment:
+                    if not read.is_unmapped and read.reference_start < max_ref_start_for_5p:
+                        # Adapter end position in read = adapter_len - ref_start
+                        adapter_end_in_read = adapter_5p_len - read.reference_start
+                        if adapter_end_in_read > 0:
+                            # Estimate score based on how much adapter is present
+                            estimated_score = int(adapter_end_in_read * match * 0.85)
+                            result_5p = (0, adapter_end_in_read, estimated_score)
 
                 # Update stats
                 stats.update(result_5p is not None, result_3p is not None)
@@ -328,6 +339,18 @@ def main():
         help=f"Gap extension penalty (default: {DEFAULT_GAP_EXTEND})",
     )
 
+    parser.add_argument(
+        "--infer-5p-from-alignment",
+        action="store_true",
+        help="Infer 5' adapter presence from alignment position for truncated reads",
+    )
+    parser.add_argument(
+        "--max-ref-start-for-5p",
+        type=int,
+        default=20,
+        help="Max reference start position to infer 5' adapter (default: 20)",
+    )
+
     args = parser.parse_args()
 
     stats = process_bam(
@@ -341,6 +364,8 @@ def main():
         args.mismatch,
         args.gap_open,
         args.gap_extend,
+        args.infer_5p_from_alignment,
+        args.max_ref_start_for_5p,
     )
 
     print(stats.summary(), file=sys.stderr)

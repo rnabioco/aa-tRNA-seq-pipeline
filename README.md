@@ -6,8 +6,6 @@
 
 A Snakemake pipeline to process ONT aa-tRNA-seq data.
 
-**[Documentation](https://rnabioco.github.io/aa-tRNA-seq-pipeline)** | **[Downstream Analysis](https://github.com/rnabioco/aa-tRNA-seq)**
-
 ## Prerequisites
 
 This pipeline uses [Pixi](https://pixi.sh) for environment management. Install it first:
@@ -30,9 +28,9 @@ cd aa-tRNA-seq-pipeline
 # Install environment
 pixi install
 
-# Download test data and setup tools (first time only)
+# One-time setup: download tools, models, and test data
+pixi run setup
 pixi run dl-test-data
-pixi run setup-tools
 
 # Dry run
 pixi run dry-run
@@ -43,9 +41,55 @@ pixi run test
 
 ## Configuration
 
-To use on your own samples, edit `config.yml` and `samples.tsv`  in  `config/`.
+To use on your own samples, create a config file and sample file in `config/`.
 
-See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details.
+### Standard Usage (Non-Multiplexed Runs)
+
+Create a TSV sample file with sample IDs and run paths:
+
+```
+sample1    /path/to/run1
+sample2    /path/to/run2
+```
+
+Then create a config file pointing to it:
+
+```yaml
+samples: config/samples.tsv
+output_directory: "results"
+```
+
+### Multiplexed Runs (WarpDemuX Demultiplexing)
+
+For pooled sequencing runs with WarpDemuX barcodes, use a YAML sample file:
+
+```yaml
+runs:
+  - path: /path/to/pooled/run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    samples:
+      charged_sample: "barcode03"
+      uncharged_sample: "barcode04"
+```
+
+Enable demultiplexing in your config:
+
+```yaml
+samples: config/samples-demux.yml
+output_directory: "results"
+
+warpdemux:
+    enabled: true
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+```
+
+Run with pixi: 
+
+```bash
+pixi run snakemake --configfile=config/config-demux.yml --cores 8
+```
+
+See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-pipeline/tree/main/config) for additional details on all configuration options.
 
 ## Workflow
 
@@ -53,6 +97,10 @@ See [README.md in the config directory](https://github.com/rnabioco/aa-tRNA-seq-
 flowchart TD
     subgraph Input
         POD5[POD5 files]
+    end
+
+    subgraph Demux [Optional Demultiplexing]
+        W[warpdemux<br/>barcode classification]
     end
 
     subgraph Processing
@@ -77,16 +125,19 @@ flowchart TD
         G --> L[modkit pileups]
     end
 
+    POD5 -.-> W
+    W -.-> A
     POD5 --> A
 ```
 
 Given a directory of POD5 files, this pipeline:
 
-1. **Merges** all POD5 files per sample into a single file
-2. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
-3. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
-4. **Filters** for full-length tRNA reads with proper adapter boundaries
-5. **Classifies** charged vs. uncharged reads using a Remora model trained on nanopore signal over the CCA 3' end
+1. **(Optional) Demultiplexes** pooled runs using WarpDemuX barcode classification
+2. **Merges** all POD5 files per sample into a single file
+3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
+4. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
+5. **Filters** for full-length tRNA reads with proper adapter boundaries
+6. **Classifies** charged vs. uncharged reads using a Remora model trained on nanopore signal over the CCA 3' end
 
 The classification generates ML tag values (0-255) indicating the likelihood of aminoacylation. By default, ML values of 200-255 are treated as charged, and values <200 as uncharged. This threshold can be adjusted via the `ml-threshold` parameter in the `get_cca_trna_cpm` rule.
 
@@ -107,11 +158,14 @@ The pipeline includes cluster profiles for LSF and SLURM schedulers.
 # Run test data on LSF cluster
 pixi run test-lsf
 
+# Run test data on SLURM cluster
+pixi run test-slurm
+
 # Run full preprint analysis on cluster
 pixi run run-preprint
 ```
 
-For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/generic/config.yaml`.
+For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/slurm/config.yaml`.
 
 ## Citation
 

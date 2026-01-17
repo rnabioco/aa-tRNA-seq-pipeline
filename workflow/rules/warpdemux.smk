@@ -113,7 +113,7 @@ rule warpdemux:
     threads: config.get("warpdemux", {}).get("threads", 8)
     shell:
         """
-        warpdemux demux \
+        pixi run -e demux warpdemux demux \
             -i {input.pod5} \
             -o {output.outdir} \
             -m {params.model} \
@@ -198,7 +198,7 @@ rule extract_sample_reads:
     input:
         mapping=get_sample_barcode_mapping,
     output:
-        read_ids=os.path.join(outdir, "demux", "read_ids", "{sample}.txt"),
+        read_ids=os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt"),
     log:
         os.path.join(outdir, "logs", "extract_sample_reads", "{sample}"),
     params:
@@ -217,7 +217,9 @@ rule extract_sample_reads:
 
 def get_sample_read_ids(wildcards):
     """Get the read ID file for a sample."""
-    return os.path.join(outdir, "demux", "read_ids", f"{wildcards.sample}.txt")
+    return os.path.join(
+        outdir, "demux", "read_ids", wildcards.sample, f"{wildcards.sample}.txt"
+    )
 
 
 def get_sample_merged_pod5(wildcards):
@@ -234,7 +236,7 @@ rule split_pod5:
         pod5=get_sample_merged_pod5,
         read_ids=get_sample_read_ids,
     output:
-        os.path.join(outdir, "demux", "pod5", "{sample}.pod5"),
+        os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "split_pod5", "{sample}"),
     shell:
