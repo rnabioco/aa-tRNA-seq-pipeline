@@ -11,15 +11,18 @@ This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) a
 ### Initial Setup
 
 ```bash
-# Install all dependencies (modkit, remora, and other tools)
+# Install all dependencies
 pixi install
 
-# Enter the environment (downloads dorado on first activation)
-pixi shell
+# One-time setup: downloads dorado, basecalling models, remora, and WarpDemuX
+# IMPORTANT: Run this once before using the pipeline, from a single node only
+pixi run setup
 
-# Download test data (first time only)
+# Download test data (optional, for testing only)
 pixi run dl-test-data
 ```
+
+**Note:** The `pixi run setup` command installs tools that are not available via conda (dorado, remora, WarpDemuX). Run this once from a single node before submitting cluster jobs to avoid race conditions on shared filesystems.
 
 ### Running the Pipeline
 
@@ -33,6 +36,9 @@ pixi run test
 # Run on LSF cluster
 pixi run test-lsf
 
+# Run on SLURM cluster
+pixi run test-slurm
+
 # Run preprint pipeline on cluster
 pixi run run-preprint
 ```
@@ -45,12 +51,17 @@ pixi run snakemake --configfile=config/config-test.yml --cores 8
 
 ### Cluster Execution
 
-The pipeline is optimized for LSF scheduler. Key files:
+The pipeline supports both LSF and SLURM schedulers. Key files:
+
+**LSF:**
 - `run-test.sh`: Test data execution on LSF
 - `run-preprint.sh`: Full preprint data execution on LSF
 - `cluster/lsf/config.yaml`: LSF-specific resource configurations
 
-GPU-intensive rules (rebasecall, classify_charging) automatically request GPU resources via LSF queue configuration.
+**SLURM:**
+- `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
+
+GPU-intensive rules (rebasecall, classify_charging) automatically request GPU resources via queue/partition configuration.
 
 ## Architecture
 
@@ -83,7 +94,7 @@ workflow/
 
 ```
 POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
-classify_charging (Remora) → transfer_bam_tags → Summary tables
+classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → Summary tables
 ```
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
@@ -93,7 +104,8 @@ classify_charging (Remora) → transfer_bam_tags → Summary tables
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
 5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
-6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM
+6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→CL, MM→CM)
+7. **add_adapter_tags**: Detect adapter positions and add PT tags with 5'/3' boundaries
 
 ### Summary Generation
 
@@ -213,16 +225,27 @@ pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config
 
 ### Cluster Resource Configuration
 
-Modify `cluster/lsf/config.yaml` to adjust:
+**LSF** - Modify `cluster/lsf/config.yaml` to adjust:
 - Memory requirements per rule (mem_mb)
-- GPU queue assignments
-- LSF project tags
+- GPU queue assignments (lsf_queue)
+- LSF project tags (lsf_project)
 - Maximum concurrent jobs
 
 Rules requiring GPU (rebasecall, classify_charging) must set:
 - lsf_queue: "gpu"
 - lsf_extra: "-gpu num=1:j_exclusive=yes"
 - ngpu: 1
+
+**SLURM** - Modify `cluster/slurm/config.yaml` to adjust:
+- Memory requirements per rule (mem_mb)
+- GPU partition (slurm_partition)
+- Account/allocation (slurm_account)
+- Runtime limits (runtime, in minutes)
+- Maximum concurrent jobs
+
+Rules requiring GPU (rebasecall, classify_charging) must set:
+- slurm_partition: "gpu" (or your cluster's GPU partition)
+- gres: "gpu:1"
 
 ## Important Notes
 
@@ -241,4 +264,4 @@ Outputs go to directory specified by `output_dir` in config. Test outputs: `.tes
 Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
-- `bam/final/{sample}.bam` - Final BAM with CL/CM charging tags
+- `bam/final/{sample}/{sample}.bam` - Final BAM with CL/CM (charging) and PT (adapter positions) tags

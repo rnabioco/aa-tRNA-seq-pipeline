@@ -1,230 +1,247 @@
 # SLURM Setup
 
-Configure the pipeline for SLURM or other generic cluster schedulers.
+Configure the pipeline for SLURM cluster execution.
 
 ## Overview
 
-The pipeline includes a generic cluster profile at `cluster/generic/config.yaml` that uses Snakemake's `cluster-generic` executor. While configured for LSF's `bsub` command by default, it can be adapted for SLURM.
+The pipeline includes a pre-configured SLURM profile at `cluster/slurm/config.yaml` that handles:
 
-## Generic Profile (LSF-based)
+- Job submission via the native Snakemake SLURM executor
+- Memory and partition allocation
+- GPU job routing
+- Runtime limits
+
+## Quick Start
+
+```bash
+# Run with SLURM profile
+pixi run snakemake --profile cluster/slurm --configfile=config/config.yml
+
+# Or use the test shortcut
+pixi run test-slurm
+```
+
+## Profile Configuration
 
 ### Location
 
 ```
-cluster/generic/config.yaml
+cluster/slurm/config.yaml
 ```
 
-### Configuration
+### Full Configuration
 
 ```yaml
-executor: cluster-generic
-cluster-generic-submit-cmd:
-  bsub
-    -o "{log}.out"
-    -e "{log}.err"
-    -J "{rule}-{wildcards}"
-    -R "select[mem>{resources.mem_mb}] rusage[mem={resources.mem_mb}] span[hosts=1]"
-    -n {threads}
-    -q "{resources.queue}"
-    "{resources.gpu_opts}"
+executor: slurm
+jobs: 300
+latency-wait: 15
+
+slurm-logdir: "logs/slurm"
+slurm-keep-successful-logs: false
+slurm-delete-logfiles-older-than: 10
 
 default-resources:
-  - mem_mb=8
-  - queue="rna"
-  - gpu_opts=""
-
-jobs: 50
-
-resources:
-  - ngpu=8
+  slurm_partition: "cpu"
+  slurm_account: "aatrnaseq"
+  runtime: 120
+  mem_mb: 8000
+  cpus_per_task: 1
 
 set-resources:
-  - rebasecall:queue="gpu"
-  - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
-  - rebasecall:ngpu=1
-  - rebasecall:mem_mb=24
-  - classify_charging:queue="gpu"
-  - classify_charging:gpu_opts="-gpu num=1:j_exclusive=yes"
-  - classify_charging:ngpu=1
-  - classify_charging:mem_mb=24
-  - remora_signal_stats:mem_mb=24
-  - bwa_align:mem_mb=24
-  - modkit_extract_calls:mem_mb=96
-  - modkit_extract_full:mem_mb=48
+  rebasecall:
+    slurm_partition: "gpu"
+    gres: "gpu:1"
+    runtime: 480
+    mem_mb: 24000
+    cpus_per_task: 4
 
-printshellcmds: True
-show-failed-logs: True
-latency-wait: 60
-cluster-generic-cancel-cmd: "bkill"
-```
+  classify_charging:
+    slurm_partition: "gpu"
+    gres: "gpu:1"
+    runtime: 240
+    mem_mb: 24000
+    cpus_per_task: 4
 
-## SLURM Adaptation
+  bwa_align:
+    runtime: 240
+    mem_mb: 24000
+    cpus_per_task: 8
 
-To use with SLURM, create a modified profile:
+  remora_signal_stats:
+    runtime: 180
+    mem_mb: 24000
+    cpus_per_task: 4
 
-### Create SLURM Profile
+  modkit_extract_calls:
+    runtime: 360
+    mem_mb: 96000
+    cpus_per_task: 4
 
-```bash
-mkdir -p cluster/slurm
-```
+  warpdemux:
+    runtime: 360
+    mem_mb: 32000
+    cpus_per_task: 4
 
-=== "cluster/slurm/config.yaml"
+  parse_warpdemux:
+    runtime: 60
+    mem_mb: 8000
+    cpus_per_task: 1
 
-    ```yaml
-    executor: cluster-generic
-    cluster-generic-submit-cmd:
-      sbatch
-        --output="{log}.out"
-        --error="{log}.err"
-        --job-name="{rule}-{wildcards}"
-        --mem={resources.mem_mb}M
-        --cpus-per-task={threads}
-        --partition="{resources.partition}"
-        {resources.gpu_opts}
-        --wrap
+  merge_pods_for_demux:
+    runtime: 120
+    mem_mb: 16000
+    cpus_per_task: 1
 
-    default-resources:
-      - mem_mb=8000
-      - partition="compute"
-      - gpu_opts=""
-
-    jobs: 50
-
-    resources:
-      - ngpu=8
-
-    set-resources:
-      - rebasecall:partition="gpu"
-      - rebasecall:gpu_opts="--gres=gpu:1"
-      - rebasecall:ngpu=1
-      - rebasecall:mem_mb=24000
-      - classify_charging:partition="gpu"
-      - classify_charging:gpu_opts="--gres=gpu:1"
-      - classify_charging:ngpu=1
-      - classify_charging:mem_mb=24000
-      - remora_signal_stats:mem_mb=24000
-      - bwa_align:mem_mb=24000
-      - modkit_extract_calls:mem_mb=96000
-      - modkit_extract_full:mem_mb=48000
-
-    printshellcmds: True
-    show-failed-logs: True
-    latency-wait: 60
-    cluster-generic-cancel-cmd: "scancel"
-    ```
-
-### Key Differences from LSF
-
-| Feature | LSF | SLURM |
-|---------|-----|-------|
-| Submit command | `bsub` | `sbatch` |
-| Cancel command | `bkill` | `scancel` |
-| Queue/Partition | `-q queue` | `--partition=partition` |
-| Memory | `-R "rusage[mem=X]"` | `--mem=XM` |
-| Threads | `-n X` | `--cpus-per-task=X` |
-| GPU | `-gpu num=1` | `--gres=gpu:1` |
-
-## Usage
-
-### With Generic Profile
-
-```bash
-pixi run snakemake --profile cluster/generic --configfile=config/config.yml
-```
-
-### With Custom SLURM Profile
-
-```bash
-pixi run snakemake --profile cluster/slurm --configfile=config/config.yml
+rerun-incomplete: true
+keep-going: true
+printshellcmds: true
+show-failed-logs: true
 ```
 
 ## Configuration Options
 
-### Max Concurrent Jobs
+### Global Settings
 
-```yaml
-jobs: 50
-```
+| Option | Value | Description |
+|--------|-------|-------------|
+| `executor` | `slurm` | Use native SLURM executor |
+| `jobs` | `300` | Maximum concurrent jobs |
+| `latency-wait` | `15` | Seconds to wait for file sync |
 
-Adjust based on your cluster's fair share policy.
+### Default Resources
 
-### Latency Wait
+Applied to all rules unless overridden:
 
-```yaml
-latency-wait: 60
-```
-
-Increase for network file systems with slow sync.
-
-### GPU Limits
-
-```yaml
-resources:
-  - ngpu=8
-```
-
-Limits concurrent GPU jobs. Set to your available GPUs.
+| Resource | Value | Description |
+|----------|-------|-------------|
+| `slurm_partition` | `cpu` | Default partition (customize for your cluster) |
+| `slurm_account` | `aatrnaseq` | Account for job submission |
+| `runtime` | `120` | Default runtime in minutes |
+| `mem_mb` | `8000` | Memory in MB (8GB) |
+| `cpus_per_task` | `1` | CPUs per task |
 
 ## Per-Rule Resources
 
-### Memory Requirements
-
-| Rule | Memory (MB) |
-|------|-------------|
-| `rebasecall` | 24000 |
-| `classify_charging` | 24000 |
-| `modkit_extract_calls` | 96000 |
-| `modkit_extract_full` | 48000 |
-| `remora_signal_stats` | 24000 |
-| `bwa_align` | 24000 |
-
 ### GPU Rules
 
-| Rule | Partition | GPU |
-|------|-----------|-----|
-| `rebasecall` | gpu | 1 |
-| `classify_charging` | gpu | 1 |
+These rules are automatically submitted to the GPU partition:
+
+| Rule | Partition | Memory | Runtime | GPU |
+|------|-----------|--------|---------|-----|
+| `rebasecall` | gpu | 24 GB | 8 hours | 1 |
+| `classify_charging` | gpu | 24 GB | 4 hours | 1 |
+
+### Memory-Intensive Rules
+
+| Rule | Memory | Runtime |
+|------|--------|---------|
+| `modkit_extract_calls` | 96 GB | 6 hours |
+| `warpdemux` | 32 GB | 6 hours |
+| `remora_signal_stats` | 24 GB | 3 hours |
+| `bwa_align` | 24 GB | 4 hours |
+| `merge_pods_for_demux` | 16 GB | 2 hours |
+
+## Customization
+
+### Change Default Partition
+
+Edit `slurm_partition` in default-resources:
+
+```yaml
+default-resources:
+  slurm_partition: "your_partition"
+```
+
+### Change Account
+
+For job accounting:
+
+```yaml
+default-resources:
+  slurm_account: "your_account"
+```
+
+### Adjust Max Jobs
+
+Reduce if you're hitting queue limits:
+
+```yaml
+jobs: 100
+```
+
+### Increase Memory for a Rule
+
+Add or modify in `set-resources`:
+
+```yaml
+set-resources:
+  your_rule:
+    mem_mb: 64000
+```
+
+### Change GPU Partition Name
+
+If your GPU partition has a different name:
+
+```yaml
+set-resources:
+  rebasecall:
+    slurm_partition: "your_gpu_partition"
+  classify_charging:
+    slurm_partition: "your_gpu_partition"
+```
+
+### Request Specific GPU Type
+
+For clusters with multiple GPU types:
+
+```yaml
+set-resources:
+  rebasecall:
+    gres: "gpu:v100:1"
+```
 
 ## Monitoring Jobs
 
-### SLURM Commands
+### View Your Jobs
 
 ```bash
-# View your jobs
 squeue -u $USER
+```
 
-# View job details
+### View Job Details
+
+```bash
 scontrol show job <job_id>
+```
 
-# Cancel job
+### Cancel a Job
+
+```bash
 scancel <job_id>
+```
 
-# Cancel all your jobs
+### Cancel All Your Jobs
+
+```bash
 scancel -u $USER
+```
 
-# View partition status
+### View Partition Status
+
+```bash
 sinfo
 ```
 
-### LSF Commands (Generic Profile)
+### View Job History
 
 ```bash
-# View your jobs
-bjobs -u $USER
-
-# View job details
-bjobs -l <job_id>
-
-# Cancel job
-bkill <job_id>
-
-# View queue status
-bqueues
+sacct -j <job_id>
 ```
 
 ## Submit Scripts
 
-### SLURM Submit Script
+For long-running pipelines, use a submit script:
 
 === "run-slurm.sh"
 
@@ -233,9 +250,10 @@ bqueues
     #SBATCH --job-name=aa-tRNA-seq
     #SBATCH --output=logs/pipeline.%j.out
     #SBATCH --error=logs/pipeline.%j.err
-    #SBATCH --partition=compute
+    #SBATCH --partition=cpu
     #SBATCH --mem=4G
     #SBATCH --cpus-per-task=1
+    #SBATCH --time=24:00:00
 
     mkdir -p logs
 
@@ -251,38 +269,74 @@ sbatch run-slurm.sh
 
 ## Troubleshooting
 
-### Jobs Not Starting
+### Jobs Pending Too Long
 
 Check partition limits:
 
 ```bash
-sinfo -p compute
+sinfo -p cpu
+```
+
+Reduce concurrent jobs:
+
+```yaml
+jobs: 50
 ```
 
 ### Memory Errors
 
-SLURM uses different memory units. Ensure values are in MB:
+Increase memory for the failing rule:
 
 ```yaml
 set-resources:
-  - rule:mem_mb=24000  # 24 GB
+  failing_rule:
+    mem_mb: 128000
 ```
 
-### GPU Not Detected
+### GPU Jobs Not Starting
+
+Check GPU partition availability:
+
+```bash
+sinfo -p gpu
+```
 
 Verify GPU resource specification for your cluster:
 
 ```yaml
 set-resources:
-  - rebasecall:gpu_opts="--gres=gpu:1"
+  rebasecall:
+    gres: "gpu:1"
 ```
 
-Or for specific GPU types:
+### File Sync Errors
+
+Increase latency wait:
+
+```yaml
+latency-wait: 60
+```
+
+### Runtime Exceeded
+
+Increase runtime for the failing rule (in minutes):
 
 ```yaml
 set-resources:
-  - rebasecall:gpu_opts="--gres=gpu:v100:1"
+  slow_rule:
+    runtime: 720  # 12 hours
 ```
+
+## Comparison with LSF
+
+| Feature | LSF | SLURM |
+|---------|-----|-------|
+| Executor | `lsf` | `slurm` |
+| Queue/Partition | `lsf_queue` | `slurm_partition` |
+| Account | `lsf_project` | `slurm_account` |
+| Memory units | GB (e.g., `24`) | MB (e.g., `24000`) |
+| GPU request | `lsf_extra="-gpu num=1"` | `gres: "gpu:1"` |
+| Runtime | Not specified | `runtime` (minutes) |
 
 ## Next Steps
 

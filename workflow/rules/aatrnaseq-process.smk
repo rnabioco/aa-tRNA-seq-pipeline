@@ -57,7 +57,7 @@ rule ubam_to_fastq:
     input:
         rules.rebasecall.output,
     output:
-        os.path.join(outdir, "fq", "{sample}.fq.gz"),
+        os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz"),
     log:
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
@@ -120,12 +120,16 @@ rule classify_charging:
         pod5=get_sample_pod5,
         bam=rules.bwa_align.output.bam,
     output:
-        charging_bam=os.path.join(outdir, "bam", "charging", "{sample}.charging.bam"),
+        charging_bam=os.path.join(
+            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
+        ),
         charging_bam_bai=os.path.join(
-            outdir, "bam", "charging", "{sample}.charging.bam.bai"
+            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
         ),
         temp_sorted_bam=temp(
-            os.path.join(outdir, "bam", "charging", "{sample}.charging.bam.tmp")
+            os.path.join(
+                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.tmp"
+            )
         ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
@@ -164,8 +168,12 @@ rule transfer_bam_tags:
         source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.bwa_align.output.bam,
     output:
-        classified_bam=os.path.join(outdir, "bam", "classified", "{sample}.bam"),
-        classified_bam_bai=os.path.join(outdir, "bam", "classified", "{sample}.bam.bai"),
+        classified_bam=os.path.join(
+            outdir, "bam", "classified", "{sample}", "{sample}.bam"
+        ),
+        classified_bam_bai=os.path.join(
+            outdir, "bam", "classified", "{sample}", "{sample}.bam.bai"
+        ),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
     params:
@@ -197,8 +205,8 @@ rule add_adapter_tags:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
-        bam=os.path.join(outdir, "bam", "final", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "final", "{sample}.bam.bai"),
+        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
@@ -207,6 +215,12 @@ rule add_adapter_tags:
         adapter_3p_splint=config["adapters"]["three_prime"],
         min_score_5p=config["adapters"]["min_score_5p"],
         min_score_3p=config["adapters"]["min_score_3p"],
+        infer_5p_flag=(
+            "--infer-5p-from-alignment"
+            if config["adapters"].get("infer_5p_from_alignment", False)
+            else ""
+        ),
+        max_ref_start_for_5p=config["adapters"].get("max_ref_start_for_5p", 20),
     shell:
         """
     python {params.src}/add_adapter_tags.py \
@@ -216,6 +230,8 @@ rule add_adapter_tags:
       --adapter-3p "{params.adapter_3p_splint}" \
       --min-score-5p {params.min_score_5p} \
       --min-score-3p {params.min_score_3p} \
+      {params.infer_5p_flag} \
+      --max-ref-start-for-5p {params.max_ref_start_for_5p} \
       2> {log}
 
     samtools index {output.bam}
