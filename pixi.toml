@@ -109,8 +109,11 @@ r-fs = "*"
 r-patchwork = "*"
 r-scales = "*"
 r-sessioninfo = "*"
+r-pak = "*"
+r-cowplot = "*"
 
 [feature.report.tasks]
+install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }
 render-qc = { cmd = "snakemake render_all_qc_reports --configfile=config/config-test.yml --cores 1", description = "Render QC reports for test data" }
 
 [environments]
