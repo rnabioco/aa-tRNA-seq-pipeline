@@ -257,6 +257,9 @@ def pipeline_outputs():
             sample=samples.keys(),
         )
 
+    # Squiggy session file for loading samples in Positron
+    outs.append(os.path.join(outdir, "squiggy-session.json"))
+
     return outs
 
 
@@ -317,3 +320,56 @@ def get_sample_pod5(wildcards):
         return os.path.join(
             outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
         )
+
+
+def get_all_final_bams():
+    """Return list of all final BAM files for all samples."""
+    return expand(
+        os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+        sample=samples.keys(),
+    )
+
+
+def get_all_merged_pod5s():
+    """Return list of all merged POD5 files for all samples."""
+    pod5_paths = []
+    for sample in samples.keys():
+        if sample_needs_demux(sample):
+            pod5_paths.append(
+                os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")
+            )
+        else:
+            pod5_paths.append(
+                os.path.join(outdir, "pod5", sample, f"{sample}.pod5")
+            )
+    return pod5_paths
+
+
+rule generate_squiggy_session:
+    """
+    Generate squiggy session JSON file for loading samples in Positron.
+
+    Creates a session file with relative paths to POD5, BAM, and FASTA files
+    along with MD5 checksums for integrity verification.
+    """
+    input:
+        bams=get_all_final_bams(),
+        pod5s=get_all_merged_pod5s(),
+        fasta=config["fasta"],
+    output:
+        session=os.path.join(outdir, "squiggy-session.json"),
+    log:
+        os.path.join(outdir, "logs", "generate_squiggy_session.log"),
+    params:
+        src=SCRIPT_DIR,
+        samples=" ".join(samples.keys()),
+        outdir=outdir,
+    shell:
+        """
+        python {params.src}/generate_squiggy_session.py \
+            --samples {params.samples} \
+            --output-dir {params.outdir} \
+            --fasta {input.fasta} \
+            --output {output.session} \
+            2>&1 | tee {log}
+        """
