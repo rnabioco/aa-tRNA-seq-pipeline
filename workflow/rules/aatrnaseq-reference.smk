@@ -18,10 +18,37 @@ def get_adapter_5p():
 
 
 def get_adapter_3p():
-    """Get 3' adapter sequence from config with default fallback."""
-    return config.get("adapters", {}).get(
+    """Get 3' adapter sequence from config with default fallback.
+
+    For backward compatibility, returns the first adapter sequence if multiple
+    are configured. Use get_adapter_3p_list() to get all adapters.
+    """
+    three_prime = config.get("adapters", {}).get(
         "three_prime", "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
     )
+    if isinstance(three_prime, str):
+        return three_prime
+    # List format - return first adapter's sequence
+    return three_prime[0]["seq"]
+
+
+def get_adapter_3p_list():
+    """Get list of (name, seq) tuples for 3' adapters.
+
+    Supports both string format (backward compatible) and list format
+    for multiple adapter versions.
+
+    Returns:
+        List of (name, sequence) tuples
+    """
+    default_seq = "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
+    three_prime = config.get("adapters", {}).get("three_prime", default_seq)
+
+    if isinstance(three_prime, str):
+        return [("default", three_prime)]
+
+    # List format: [{name: "v2", seq: "..."}, ...]
+    return [(a["name"], a["seq"]) for a in three_prime]
 
 
 def get_reference_mode():
