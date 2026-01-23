@@ -1,0 +1,9 @@
+# Test samples using simple YAML format
+# This is equivalent to samples-test.tsv
+
+samples:
+  sample1: .tests/sample1
+  # sample2 has multiple paths that get merged
+  sample2:
+    - .tests/sample2
+    - .tests/sample2_1

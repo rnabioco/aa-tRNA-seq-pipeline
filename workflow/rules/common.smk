@@ -36,9 +36,45 @@ def parse_samples_tsv(fl):
     return samples
 
 
-def parse_samples_yaml(fl):
+def parse_samples_yaml_simple(data, fl):
     """
-    Parse YAML-format sample file with barcode assignments.
+    Parse simple YAML format with direct sample-to-path mapping.
+
+    YAML format:
+    samples:
+      sample1: /path/to/run1
+      sample2: /path/to/run2
+      # Multiple paths for same sample (merged)
+      sample3:
+        - /path/to/run3a
+        - /path/to/run3b
+    """
+    samples = {}
+
+    for sample_name, paths in data["samples"].items():
+        # Handle both string (single path) and list (multiple paths)
+        if isinstance(paths, str):
+            path_set = {paths}
+        elif isinstance(paths, list):
+            path_set = set(paths)
+        else:
+            sys.exit(
+                f"Invalid path value for sample '{sample_name}' in {fl}: "
+                f"expected string or list, got {type(paths).__name__}"
+            )
+
+        samples[sample_name] = {
+            "path": path_set,
+            "barcode": None,
+            "run_id": None,
+        }
+
+    return samples
+
+
+def parse_samples_yaml_runs(data, fl):
+    """
+    Parse YAML format with runs structure for WarpDemuX demultiplexing.
 
     YAML format:
     runs:
@@ -53,11 +89,6 @@ def parse_samples_yaml(fl):
           direct_sample: ~  # null barcode = no demux
     """
     samples = {}
-    with open(fl) as f:
-        data = yaml.safe_load(f)
-
-    if "runs" not in data:
-        sys.exit(f"YAML samples file must contain 'runs' key: {fl}")
 
     for run_idx, run in enumerate(data["runs"]):
         if "path" not in run:
@@ -83,6 +114,25 @@ def parse_samples_yaml(fl):
             }
 
     return samples
+
+
+def parse_samples_yaml(fl):
+    """
+    Parse YAML-format sample file, detecting format automatically.
+
+    Supports two formats:
+    1. Simple format (samples key): Direct sample-to-path mapping
+    2. Runs format (runs key): WarpDemuX demultiplexing with barcodes
+    """
+    with open(fl) as f:
+        data = yaml.safe_load(f)
+
+    if "runs" in data:
+        return parse_samples_yaml_runs(data, fl)
+    elif "samples" in data:
+        return parse_samples_yaml_simple(data, fl)
+    else:
+        sys.exit(f"YAML samples file must contain 'runs' or 'samples' key: {fl}")
 
 
 def parse_samples(fl):
@@ -339,10 +389,24 @@ def get_all_merged_pod5s():
                 os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")
             )
         else:
-            pod5_paths.append(
-                os.path.join(outdir, "pod5", sample, f"{sample}.pod5")
-            )
+            pod5_paths.append(os.path.join(outdir, "pod5", sample, f"{sample}.pod5"))
     return pod5_paths
+
+
+def get_reference_mode():
+    """Get reference processing mode (validate or build)."""
+    return config.get("reference", {}).get("mode", "validate")
+
+
+def get_validated_reference():
+    """
+    Return path to validated/built reference based on mode.
+    This is used by downstream rules (bwa_idx, bwa_align, squiggy session, etc.).
+    """
+    mode = get_reference_mode()
+    if mode == "build":
+        return os.path.join(outdir, "reference", "adapted.fa")
+    return os.path.join(outdir, "reference", "validated.fa")
 
 
 rule generate_squiggy_session:
@@ -355,7 +419,7 @@ rule generate_squiggy_session:
     input:
         bams=get_all_final_bams(),
         pod5s=get_all_merged_pod5s(),
-        fasta=config["fasta"],
+        fasta=get_validated_reference(),
     output:
         session=os.path.join(outdir, "squiggy-session.json"),
     log:
@@ -364,12 +428,16 @@ rule generate_squiggy_session:
         src=SCRIPT_DIR,
         samples=" ".join(samples.keys()),
         outdir=outdir,
+        pod5s=lambda wildcards, input: " ".join(input.pod5s),
+        bams=lambda wildcards, input: " ".join(input.bams),
     shell:
         """
         python {params.src}/generate_squiggy_session.py \
             --samples {params.samples} \
             --output-dir {params.outdir} \
             --fasta {input.fasta} \
+            --pod5s {params.pod5s} \
+            --bams {params.bams} \
             --output {output.session} \
             2>&1 | tee {log}
         """

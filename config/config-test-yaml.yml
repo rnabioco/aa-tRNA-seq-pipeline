@@ -1,0 +1,8 @@
+# Test config using simple YAML sample format
+# Used to verify the simple YAML format works correctly
+
+# Use simple YAML format for samples
+samples: config/samples-test.yml
+
+# output directory for files produced by pipeline
+output_directory: ".tests/outputs"
