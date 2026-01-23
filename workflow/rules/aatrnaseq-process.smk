@@ -212,7 +212,9 @@ rule add_adapter_tags:
     params:
         src=SCRIPT_DIR,
         adapter_5p=config["adapters"]["five_prime"],
-        adapter_3p_splint=config["adapters"]["three_prime"],
+        adapter_3p_args=lambda wc: " ".join(
+            f'--adapter-3p "{name}:{seq}"' for name, seq in get_adapter_3p_list()
+        ),
         min_score_5p=config["adapters"]["min_score_5p"],
         min_score_3p=config["adapters"]["min_score_3p"],
         infer_5p_flag=(
@@ -227,7 +229,7 @@ rule add_adapter_tags:
       -i {input.bam} \
       -o {output.bam} \
       --adapter-5p "{params.adapter_5p}" \
-      --adapter-3p "{params.adapter_3p_splint}" \
+      {params.adapter_3p_args} \
       --min-score-5p {params.min_score_5p} \
       --min-score-3p {params.min_score_3p} \
       {params.infer_5p_flag} \
