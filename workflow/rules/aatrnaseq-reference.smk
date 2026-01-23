@@ -8,6 +8,7 @@ for the Remora charging classification model.
 Modes:
   validate: Check existing adapted reference (default)
   build: Create adapted reference from raw tRNA sequences
+  skip: Copy reference as-is without validation
 """
 
 
@@ -24,7 +25,7 @@ def get_adapter_3p():
 
 
 def get_reference_mode():
-    """Get reference processing mode (validate or build)."""
+    """Get reference processing mode (validate, build, or skip)."""
     return config.get("reference", {}).get("mode", "validate")
 
 
@@ -36,6 +37,8 @@ def get_validated_reference():
     mode = get_reference_mode()
     if mode == "build":
         return os.path.join(outdir, "reference", "adapted.fa")
+    elif mode == "skip":
+        return os.path.join(outdir, "reference", "reference.fa")
     return os.path.join(outdir, "reference", "validated.fa")
 
 
@@ -111,4 +114,33 @@ rule build_reference:
             --adapter-5p "{params.adapter_5p}" \
             --adapter-3p "{params.adapter_3p}" \
             2>&1 | tee {log}
+        """
+
+
+rule skip_reference_validation:
+    """
+    Skip validation and copy reference as-is.
+
+    Use this mode when the reference has non-standard adapters but you want
+    to proceed without validation. The reference is copied to the output
+    directory without any checks.
+
+    WARNING: Charging classification may not work correctly if the reference
+    does not have the expected CCAGGC junction structure.
+    """
+    input:
+        fasta=config["fasta"],
+    output:
+        reference=os.path.join(outdir, "reference", "reference.fa"),
+        report=os.path.join(outdir, "reference", "skip_report.txt"),
+    log:
+        os.path.join(outdir, "logs", "reference", "skip.log"),
+    shell:
+        """
+        cp {input.fasta} {output.reference}
+        echo "Reference validation skipped." > {output.report}
+        echo "Input: {input.fasta}" >> {output.report}
+        echo "Output: {output.reference}" >> {output.report}
+        echo "WARNING: No adapter structure validation performed." >> {output.report}
+        echo "Reference copied without validation." | tee {log}
         """
