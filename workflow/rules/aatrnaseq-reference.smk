@@ -23,20 +23,7 @@ def get_adapter_3p():
     )
 
 
-def get_reference_mode():
-    """Get reference processing mode (validate or build)."""
-    return config.get("reference", {}).get("mode", "validate")
-
-
-def get_validated_reference():
-    """
-    Return path to validated/built reference based on mode.
-    This is used by downstream rules (bwa_idx, bwa_align, etc.).
-    """
-    mode = get_reference_mode()
-    if mode == "build":
-        return os.path.join(outdir, "reference", "adapted.fa")
-    return os.path.join(outdir, "reference", "validated.fa")
+# get_reference_mode() and get_validated_reference() are defined in common.smk
 
 
 rule validate_reference:

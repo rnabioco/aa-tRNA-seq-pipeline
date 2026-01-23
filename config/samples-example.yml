@@ -1,0 +1,19 @@
+# Example YAML sample file for aa-tRNA-seq pipeline
+#
+# This simple format maps sample names directly to run paths.
+# Use this format when NOT using WarpDemuX demultiplexing.
+#
+# For pooled/multiplexed runs requiring demultiplexing, see samples-demux-example.yml
+
+samples:
+  # Each sample maps to a sequencing run directory
+  # The pipeline searches for pod5 files in pod5_pass/, pod5_fail/, and pod5/ subdirs
+  charged_sample: /path/to/charged/sequencing/run
+  uncharged_sample: /path/to/uncharged/sequencing/run
+
+  # Multiple run directories can be merged into a single sample using a list
+  # Useful for combining technical replicates or split runs
+  merged_sample:
+    - /path/to/run1
+    - /path/to/run2
+    - /path/to/run3

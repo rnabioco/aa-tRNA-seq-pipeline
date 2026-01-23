@@ -39,6 +39,8 @@ def generate_squiggy_session(
     sample_names,
     output_dir,
     fasta_path,
+    pod5_paths=None,
+    bam_paths=None,
     session_name=None,
     compute_checksums=True,
 ):
@@ -49,6 +51,8 @@ def generate_squiggy_session(
         sample_names: List of sample names
         output_dir: Pipeline output directory (paths will be relative to this)
         fasta_path: Path to reference FASTA file
+        pod5_paths: List of pod5 file paths (must match order of sample_names)
+        bam_paths: List of BAM file paths (must match order of sample_names)
         session_name: Optional session name (defaults to directory name)
         compute_checksums: Whether to compute MD5 checksums for files
 
@@ -70,10 +74,17 @@ def generate_squiggy_session(
     if compute_checksums and os.path.exists(fasta_path):
         file_checksums[fasta_rel] = get_file_info(fasta_path)
 
-    for sample in sample_names:
-        # Build paths to pipeline outputs
-        pod5_path = os.path.join(output_dir, "pod5", sample, f"{sample}.pod5")
-        bam_path = os.path.join(output_dir, "bam", "final", sample, f"{sample}.bam")
+    for i, sample in enumerate(sample_names):
+        # Use explicit paths if provided, otherwise build default paths
+        if pod5_paths and i < len(pod5_paths):
+            pod5_path = pod5_paths[i]
+        else:
+            pod5_path = os.path.join(output_dir, "pod5", sample, f"{sample}.pod5")
+
+        if bam_paths and i < len(bam_paths):
+            bam_path = bam_paths[i]
+        else:
+            bam_path = os.path.join(output_dir, "bam", "final", sample, f"{sample}.bam")
 
         # Convert to relative paths
         pod5_rel = make_relative_path(pod5_path, output_dir)
@@ -107,7 +118,7 @@ def generate_squiggy_session(
             "showSignalPoints": False,
         },
         "ui": {
-            "expandedSamples": sample_names,
+            "expandedSamples": list(sample_names),
             "selectedSamplesForComparison": [],
         },
     }
@@ -139,6 +150,18 @@ def main():
         help="Path to reference FASTA file",
     )
     parser.add_argument(
+        "--pod5s",
+        nargs="+",
+        default=None,
+        help="Pod5 file paths (must match order of --samples)",
+    )
+    parser.add_argument(
+        "--bams",
+        nargs="+",
+        default=None,
+        help="BAM file paths (must match order of --samples)",
+    )
+    parser.add_argument(
         "--session-name",
         default=None,
         help="Optional session name",
@@ -160,6 +183,8 @@ def main():
         sample_names=args.samples,
         output_dir=args.output_dir,
         fasta_path=args.fasta,
+        pod5_paths=args.pod5s,
+        bam_paths=args.bams,
         session_name=args.session_name,
         compute_checksums=not args.no_checksums,
     )
