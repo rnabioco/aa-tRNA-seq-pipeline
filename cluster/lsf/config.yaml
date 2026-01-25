@@ -9,7 +9,7 @@ default-resources:
   - 'lsf_extra=""'
 
 resources:
-  - ngpu=12
+  - ngpu=8
 
 # set rule specific requirements
 set-resources:
