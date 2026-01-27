@@ -149,7 +149,7 @@ for (s in sample_list) {
 ### Alignment Funnel
 
 ```{r}
-#| label: alignment-funnel
+#| label: fig-alignment-funnel
 #| fig-width: 10
 #| fig-height: 4
 #| fig-cap: "Read counts at each processing stage showing retention through the pipeline."
@@ -183,7 +183,7 @@ ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
 The Remora model assigns a charging likelihood score (0-255) to each read. Reads with scores >= `r ml_threshold` are classified as charged.
 
 ```{r}
-#| label: charging-density
+#| label: fig-charging-density
 #| fig-width: 10
 #| fig-height: 5
 #| fig-cap: "Distribution of Remora charging likelihood scores. Dashed line indicates classification threshold."
@@ -246,7 +246,7 @@ for (s in sample_list) {
 ::: {.panel-tabset}
 
 ```{r}
-#| label: trna-abundance-tabs
+#| label: fig-trna-abundance-tabs
 #| results: asis
 #| fig-width: 10
 #| fig-height: 5
@@ -295,7 +295,7 @@ for (s in sample_list) {
 ::: {.panel-tabset}
 
 ```{r}
-#| label: trna-charging-tabs
+#| label: fig-trna-charging-tabs
 #| results: asis
 #| fig-width: 10
 #| fig-height: 5
@@ -399,7 +399,7 @@ for (s in sample_list) {
 ### Error Frequency by Position
 
 ```{r}
-#| label: error-frequency
+#| label: fig-error-frequency
 #| fig-width: 10
 #| fig-height: 6
 #| fig-cap: "Mean error frequency across all tRNAs by reference position."
@@ -430,7 +430,7 @@ ggplot(tbl_error_long, aes(x = Position, y = Frequency, color = `Error Type`)) +
 ### Coverage by Position
 
 ```{r}
-#| label: coverage-position
+#| label: fig-coverage-position
 #| fig-width: 10
 #| fig-height: 6
 #| fig-cap: "Mean read coverage across all tRNAs by reference position."
