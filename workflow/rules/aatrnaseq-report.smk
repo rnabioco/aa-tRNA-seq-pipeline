@@ -40,8 +40,17 @@ rule render_combined_qc_report:
         template=os.path.join(SNAKEFILE_DIR, "report", "qc-report.qmd"),
         config_file=workflow.configfiles[0],
         ml_threshold=config.get("ml-threshold", 200),
+        custom_include=config.get("report", {}).get("custom_include", ""),
     shell:
         """
+        custom_include="{params.custom_include}"
+        custom_target="$(dirname {params.template})/_custom.qmd"
+        if [ -n "$custom_include" ] && [ -f "$custom_include" ]; then
+            cp "$custom_include" "$custom_target"
+        else
+            touch "$custom_target"
+        fi
+
         CONFIG_ABS=$(realpath {params.config_file})
         OUTPUT_DIR_ABS=$(realpath $(dirname {output.html}))
         LOG_ABS=$(realpath {log})
@@ -52,4 +61,6 @@ rule render_combined_qc_report:
             --output-dir $OUTPUT_DIR_ABS \
             --output $(basename {output.html}) \
             2>&1 | tee $LOG_ABS
+
+        rm -f "$custom_target"
         """

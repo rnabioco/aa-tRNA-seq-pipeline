@@ -479,6 +479,8 @@ gt(summary_tbl) |>
 
 **ML threshold used:** `r ml_threshold`
 
+{{< include _custom.qmd >}}
+
 ::: {.callout-note collapse="true"}
 ## Session Info
 
