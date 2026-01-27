@@ -17,6 +17,20 @@ params:
   ml_threshold: 200
 ---
 
+## Pipeline Overview
+
+```{mermaid}
+flowchart LR
+  A[POD5 files] --> B[Merge POD5s]
+  B --> C[Rebasecall<br>Dorado]
+  C --> D[FASTQ]
+  D --> E[Align<br>BWA MEM]
+  E --> F[Classify Charging<br>Remora]
+  F --> G[Transfer Tags]
+  G --> H[Add Adapter Tags]
+  H --> I[Summary Tables<br>& QC Metrics]
+```
+
 ```{r}
 #| label: setup
 #| include: false
