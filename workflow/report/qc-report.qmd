@@ -67,6 +67,16 @@ if (!is.null(config$samples))
  stop("No samples defined in config file")
 }
 
+# Apply sample ordering from config if specified
+if (!is.null(config$report$sample_order)) {
+  specified_order <- config$report$sample_order
+  # Put specified samples first (in order), then any remaining samples
+  sample_list <- c(
+    intersect(specified_order, sample_list),
+    setdiff(sample_list, specified_order)
+  )
+}
+
 # Extract isodecoder from gtrnadb-format tRNA names
 # Pattern: Genus_species_tRNA-Aaa-NNN-X-Y → Aaa-NNN (handles iMet with 4 chars)
 # Returns list with isodecoder name and whether it matched the tRNA pattern
@@ -113,6 +123,12 @@ bcerror_all <- map_dfr(sample_list, function(s) {
   read_tsv(fs::path(tables_dir, paste0(s, ".bcerror.tsv.gz")), show_col_types = FALSE) |>
     mutate(sample = s)
 })
+
+# Convert sample to factor with correct ordering for all datasets
+align_stats_all <- align_stats_all |> mutate(sample = factor(sample, levels = sample_list))
+charging_prob_all <- charging_prob_all |> mutate(sample = factor(sample, levels = sample_list))
+charging_cpm_all <- charging_cpm_all |> mutate(sample = factor(sample, levels = sample_list))
+bcerror_all <- bcerror_all |> mutate(sample = factor(sample, levels = sample_list))
 ```
 
 ## Alignment Summary
@@ -257,103 +273,73 @@ for (s in sample_list) {
 
 ### Per-tRNA Abundance
 
-::: {.panel-tabset}
-
 ```{r}
-#| label: fig-trna-abundance-tabs
-#| results: asis
+#| label: fig-trna-abundance
 #| fig-width: 10
-#| fig-height: 5
+#| fig-height: 4
+#| fig-cap: "Total CPM per tRNA isodecoder. Non-standard tRNAs shown in red."
 
-for (s in sample_list) {
-  cat("\n\n####", s, "\n\n")
+tbl_abundance <- charging_cpm_all |>
+  mutate(
+    is_standard = is_standard_trna(tRNA),
+    isodecoder = extract_isodecoder(tRNA)
+  ) |>
+  group_by(sample, isodecoder) |>
+  summarise(
+    total_counts = sum(counts_charged) + sum(counts_uncharged),
+    total_cpm = sum(cpm_charged) + sum(cpm_uncharged),
+    is_standard = first(is_standard),
+    .groups = "drop"
+  ) |>
+  filter(total_counts >= 5) |>
+  mutate(isodecoder = fct_reorder(isodecoder, total_cpm, .fun = mean))
 
-  tbl_abundance <- charging_cpm_all |>
-    filter(sample == s) |>
-    mutate(
-      is_standard = is_standard_trna(tRNA),
-      isodecoder = extract_isodecoder(tRNA)
-    ) |>
-    group_by(isodecoder) |>
-    summarise(
-      total_counts = sum(counts_charged) + sum(counts_uncharged),
-      total_cpm = sum(cpm_charged) + sum(cpm_uncharged),
-      is_standard = first(is_standard),
-      .groups = "drop"
-    ) |>
-    filter(total_counts >= 5) |>
-    mutate(isodecoder = fct_reorder(isodecoder, total_cpm))
-
-  if (nrow(tbl_abundance) > 0) {
-    p <- ggplot(tbl_abundance, aes(x = isodecoder, y = total_cpm, fill = is_standard)) +
-      geom_col() +
-      scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
-      scale_y_continuous(labels = comma) +
-      labs(x = NULL, y = "CPM") +
-      theme_minimal_hgrid() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.8)))
-
-    print(p)
-  } else {
-    cat("No tRNAs with >= 5 reads\n")
-  }
-  cat("\n\n")
-}
+ggplot(tbl_abundance, aes(x = isodecoder, y = total_cpm, fill = is_standard)) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+  scale_y_continuous(labels = comma) +
+  labs(x = NULL, y = "CPM") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
 ```
-
-:::
 
 ### Per-tRNA Charging
 
-::: {.panel-tabset}
-
 ```{r}
-#| label: fig-trna-charging-tabs
-#| results: asis
+#| label: fig-trna-charging
 #| fig-width: 10
-#| fig-height: 5
+#| fig-height: 4
+#| fig-cap: "Percent charged per tRNA isodecoder. Non-standard tRNAs shown in red."
 
-for (s in sample_list) {
-  cat("\n\n####", s, "\n\n")
+tbl_charging <- charging_cpm_all |>
+  mutate(
+    is_standard = is_standard_trna(tRNA),
+    isodecoder = extract_isodecoder(tRNA)
+  ) |>
+  group_by(sample, isodecoder) |>
+  summarise(
+    counts_charged = sum(counts_charged),
+    counts_uncharged = sum(counts_uncharged),
+    is_standard = first(is_standard),
+    .groups = "drop"
+  ) |>
+  mutate(
+    total_counts = counts_charged + counts_uncharged,
+    pct_charged = counts_charged / total_counts * 100
+  ) |>
+  filter(total_counts >= 5) |>
+  mutate(isodecoder = fct_reorder(isodecoder, pct_charged, .fun = mean))
 
-  tbl_charging <- charging_cpm_all |>
-    filter(sample == s) |>
-    mutate(
-      is_standard = is_standard_trna(tRNA),
-      isodecoder = extract_isodecoder(tRNA)
-    ) |>
-    group_by(isodecoder) |>
-    summarise(
-      counts_charged = sum(counts_charged),
-      counts_uncharged = sum(counts_uncharged),
-      is_standard = first(is_standard),
-      .groups = "drop"
-    ) |>
-    mutate(
-      total_counts = counts_charged + counts_uncharged,
-      pct_charged = counts_charged / total_counts * 100
-    ) |>
-    filter(total_counts >= 5) |>
-    mutate(isodecoder = fct_reorder(isodecoder, pct_charged))
-
-  if (nrow(tbl_charging) > 0) {
-    p <- ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
-      geom_col() +
-      scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
-      scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
-      labs(x = NULL, y = "% Charged") +
-      theme_minimal_hgrid() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.8)))
-
-    print(p)
-  } else {
-    cat("No tRNAs with >= 5 reads\n")
-  }
-  cat("\n\n")
-}
+ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
+  labs(x = NULL, y = "% Charged") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
 ```
-
-:::
 
 ### Top tRNAs by Read Count
 
