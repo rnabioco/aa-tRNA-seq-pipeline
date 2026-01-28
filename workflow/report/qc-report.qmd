@@ -264,7 +264,6 @@ for (s in sample_list) {
 #| results: asis
 #| fig-width: 10
 #| fig-height: 5
-#| fig-cap: "Abundance (CPM) by tRNA isodecoder. Isodecoders with fewer than 5 total reads are excluded. Red bars indicate non-standard tRNA names."
 
 for (s in sample_list) {
   cat("\n\n####", s, "\n\n")
@@ -313,7 +312,6 @@ for (s in sample_list) {
 #| results: asis
 #| fig-width: 10
 #| fig-height: 5
-#| fig-cap: "Charging percentage by tRNA isodecoder. Isodecoders with fewer than 5 total reads are excluded. Red bars indicate non-standard tRNA names."
 
 for (s in sample_list) {
   cat("\n\n####", s, "\n\n")
