@@ -1,0 +1,198 @@
+---
+title: "Reference Sequence Similarity QC"
+author: "aa-tRNA-seq Pipeline"
+format:
+  html:
+    code-fold: true
+    toc: true
+params:
+  similarity_matrix: "summary/qc/reference_similarity.tsv"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Overview
+
+This report visualizes pairwise sequence similarity across all sequences in the
+reference FASTA file. High similarity between sequences may indicate potential
+cross-mapping issues during alignment.
+
+## Similarity Matrix Heatmap
+
+```{r load-data}
+library(ComplexHeatmap)
+library(circlize)
+library(dplyr)
+library(tidyr)
+library(stringr)
+
+# Read similarity matrix
+mat <- as.matrix(read.table(params$similarity_matrix, header = TRUE,
+                             row.names = 1, sep = "\t", check.names = FALSE))
+```
+
+```{r parse-names}
+# Parse tRNA names to extract amino acid and anticodon
+# Expected format: tRNA-Ala-AGC-1-1 or similar
+parse_trna_name <- function(name) {
+  parts <- str_split(name, "-")[[1]]
+
+  # Handle different naming conventions
+  if (length(parts) >= 3 && parts[1] == "tRNA") {
+    aa <- parts[2]
+    anticodon <- parts[3]
+  } else if (length(parts) >= 2) {
+    # Fallback for other formats
+    aa <- parts[1]
+    anticodon <- if (length(parts) >= 2) parts[2] else "unknown"
+  } else {
+    aa <- "unknown"
+    anticodon <- "unknown"
+  }
+
+  list(aa = aa, anticodon = anticodon)
+}
+
+# Parse all sequence names
+parsed <- lapply(rownames(mat), parse_trna_name)
+aa_labels <- sapply(parsed, function(x) x$aa)
+anticodon_labels <- sapply(parsed, function(x) x$anticodon)
+```
+
+```{r color-setup}
+# Create color palette for amino acids
+unique_aa <- unique(aa_labels)
+n_aa <- length(unique_aa)
+
+# Use a qualitative palette for amino acids
+if (n_aa <= 20) {
+  aa_colors <- setNames(
+    rainbow(n_aa, s = 0.7, v = 0.8),
+    unique_aa
+  )
+} else {
+  aa_colors <- setNames(
+    colorRampPalette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3",
+                       "#FF7F00", "#FFFF33", "#A65628", "#F781BF"))(n_aa),
+    unique_aa
+  )
+}
+
+# Color scale for similarity values
+# Low similarity (50%) = white/blue, High similarity (100%) = red
+col_fun <- colorRamp2(c(50, 75, 90, 100), c("white", "lightyellow", "orange", "red"))
+```
+
+```{r heatmap, fig.width=12, fig.height=10}
+# Create row annotation for amino acid
+row_anno <- rowAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = TRUE,
+  annotation_name_side = "top"
+)
+
+# Create column annotation for amino acid
+col_anno <- HeatmapAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = FALSE
+)
+
+# Draw heatmap with clustering
+ht <- Heatmap(
+  mat,
+  name = "% Identity",
+  col = col_fun,
+  left_annotation = row_anno,
+  top_annotation = col_anno,
+  show_row_names = nrow(mat) <= 50,
+  show_column_names = nrow(mat) <= 50,
+  row_names_gp = gpar(fontsize = 6),
+  column_names_gp = gpar(fontsize = 6),
+  clustering_distance_rows = "euclidean",
+  clustering_distance_columns = "euclidean",
+  clustering_method_rows = "complete",
+  clustering_method_columns = "complete",
+  row_title = "Reference Sequences",
+  column_title = "Reference Sequence Similarity"
+)
+
+draw(ht)
+```
+
+## Highly Similar Sequence Pairs
+
+Sequence pairs with >90% identity may be at risk for cross-mapping:
+
+```{r high-similarity-pairs}
+# Find pairs with high similarity (excluding diagonal)
+high_sim_threshold <- 90
+
+# Get upper triangle indices (excluding diagonal)
+pairs <- data.frame()
+for (i in 1:(nrow(mat) - 1)) {
+  for (j in (i + 1):ncol(mat)) {
+    if (mat[i, j] >= high_sim_threshold) {
+      pairs <- rbind(pairs, data.frame(
+        Seq1 = rownames(mat)[i],
+        Seq2 = colnames(mat)[j],
+        Percent_Identity = round(mat[i, j], 2)
+      ))
+    }
+  }
+}
+
+# Sort by similarity (descending)
+pairs <- pairs %>% arrange(desc(Percent_Identity))
+
+if (nrow(pairs) > 0) {
+  knitr::kable(head(pairs, 50),
+               caption = paste0("Top sequence pairs with >= ", high_sim_threshold, "% identity"))
+} else {
+  cat(paste0("No sequence pairs found with >= ", high_sim_threshold, "% identity."))
+}
+```
+
+## Summary Statistics
+
+```{r summary-stats}
+# Get upper triangle values (excluding diagonal)
+upper_tri <- mat[upper.tri(mat)]
+
+cat("Similarity Distribution (excluding self-comparisons):\n")
+cat(sprintf("  Min: %.2f%%\n", min(upper_tri)))
+cat(sprintf("  Median: %.2f%%\n", median(upper_tri)))
+cat(sprintf("  Mean: %.2f%%\n", mean(upper_tri)))
+cat(sprintf("  Max: %.2f%%\n", max(upper_tri)))
+cat(sprintf("  Pairs >= 90%%: %d\n", sum(upper_tri >= 90)))
+cat(sprintf("  Pairs >= 95%%: %d\n", sum(upper_tri >= 95)))
+cat(sprintf("  Total pairs: %d\n", length(upper_tri)))
+```
+
+```{r similarity-histogram, fig.width=8, fig.height=4}
+hist(upper_tri,
+     breaks = 50,
+     main = "Distribution of Pairwise Sequence Similarities",
+     xlab = "Percent Identity",
+     col = "steelblue",
+     border = "white")
+abline(v = 90, col = "red", lty = 2, lwd = 2)
+legend("topleft", legend = "90% threshold", col = "red", lty = 2, lwd = 2)
+```
+
+## Interpretation
+
+- **Isodecoders** (same anticodon, different genomic copy) are expected to show
+  high similarity, as they encode functionally similar tRNAs.
+
+- **Charged/uncharged pairs** of the same tRNA will differ primarily in the 3'
+  adapter sequence, showing high similarity in the tRNA body.
+
+- **Cross-family similarity** may indicate alignment ambiguity. Reads mapping
+  to highly similar sequences should be interpreted with caution.
+
+- For sequences with >95% identity, consider examining the alignment positions
+  of reads mapping to these sequences.
