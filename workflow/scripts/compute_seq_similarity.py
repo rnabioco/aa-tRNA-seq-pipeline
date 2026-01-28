@@ -14,7 +14,7 @@ import sys
 
 import numpy as np
 import parasail
-from Bio import SeqIO
+import pysam
 
 
 def compute_similarity_matrix(fasta_path):
@@ -32,12 +32,17 @@ def compute_similarity_matrix(fasta_path):
         - similarity_matrix: numpy array of percent identity values
         - sequence_names: list of sequence IDs
     """
-    # Read all sequences from FASTA
-    seqs = list(SeqIO.parse(fasta_path, "fasta"))
-    n = len(seqs)
+    # Read all sequences from FASTA using pysam
+    faidx = pysam.FastaFile(fasta_path)
+    names = list(faidx.references)
+    n = len(names)
 
     if n == 0:
         sys.exit(f"No sequences found in {fasta_path}")
+
+    # Fetch all sequences
+    sequences = [faidx.fetch(name).upper() for name in names]
+    faidx.close()
 
     # Initialize similarity matrix
     matrix = np.zeros((n, n))
@@ -48,14 +53,14 @@ def compute_similarity_matrix(fasta_path):
 
     # Process each pair
     for i in range(n):
-        seq_i = str(seqs[i].seq).upper()
+        seq_i = sequences[i]
         len_i = len(seq_i)
 
         # Diagonal is always 100% identity
         matrix[i, i] = 100.0
 
         for j in range(i + 1, n):
-            seq_j = str(seqs[j].seq).upper()
+            seq_j = sequences[j]
             len_j = len(seq_j)
 
             # Global alignment with statistics
@@ -70,9 +75,6 @@ def compute_similarity_matrix(fasta_path):
             # Fill symmetric matrix
             matrix[i, j] = pct_id
             matrix[j, i] = pct_id
-
-    # Extract sequence names
-    names = [s.id for s in seqs]
 
     return matrix, names
 
