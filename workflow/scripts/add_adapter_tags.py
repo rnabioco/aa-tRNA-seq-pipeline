@@ -15,6 +15,7 @@ If an adapter is not found, that annotation is omitted.
 import argparse
 import re
 import sys
+from collections import defaultdict
 
 import parasail
 import pysam
@@ -169,11 +170,47 @@ def find_3p_adapter(read_seq, adapter_3p, matrix, gap_open, gap_extend, min_scor
     )
 
 
+def find_best_3p_adapter(read_seq, adapters, matrix, gap_open, gap_extend, min_score):
+    """Find best matching 3' adapter from list of (name, seq) tuples.
+
+    Args:
+        read_seq: Full read sequence
+        adapters: List of (name, sequence) tuples for 3' adapters
+        matrix: Parasail scoring matrix
+        gap_open: Gap open penalty
+        gap_extend: Gap extension penalty
+        min_score: Minimum alignment score to accept
+
+    Returns:
+        (start, end, score, name) tuple if found, or None if no adapter matches
+    """
+    best_result = None
+    best_name = None
+    best_score = min_score - 1
+
+    for name, adapter_seq in adapters:
+        result = find_3p_adapter(
+            read_seq, adapter_seq, matrix, gap_open, gap_extend, min_score
+        )
+        if result and result[2] > best_score:
+            best_result = result
+            best_name = name
+            best_score = result[2]
+
+    if best_result:
+        return (*best_result, best_name)  # (start, end, score, name)
+    return None
+
+
 def format_pt_tag(adapter_5p_result, adapter_3p_result):
     """
     Format adapter positions as SAM-spec PT tag.
 
     Format: PT:Z:start;end;strand;type|start;end;strand;type
+
+    For 3' adapters with names, the type will be "3p_adapter_<name>"
+    (e.g., "3p_adapter_v1" or "3p_adapter_v2").
+    For single/default adapters, the type remains "3p_adapter".
     """
     annotations = []
 
@@ -182,8 +219,16 @@ def format_pt_tag(adapter_5p_result, adapter_3p_result):
         annotations.append(f"{start};{end};+;5p_adapter")
 
     if adapter_3p_result:
-        start, end, score = adapter_3p_result
-        annotations.append(f"{start};{end};+;3p_adapter")
+        # Handle both old format (start, end, score) and new format (start, end, score, name)
+        if len(adapter_3p_result) == 4:
+            start, end, score, name = adapter_3p_result
+            if name == "default":
+                annotations.append(f"{start};{end};+;3p_adapter")
+            else:
+                annotations.append(f"{start};{end};+;3p_adapter_{name}")
+        else:
+            start, end, score = adapter_3p_result
+            annotations.append(f"{start};{end};+;3p_adapter")
 
     if not annotations:
         return None
@@ -200,33 +245,41 @@ class Stats:
         self.with_3p = 0
         self.with_both = 0
         self.with_neither = 0
+        self.adapter_3p_counts = defaultdict(int)  # counts by adapter name
 
-    def update(self, has_5p, has_3p):
+    def update(self, has_5p, has_3p, adapter_3p_name=None):
         self.total += 1
         if has_5p:
             self.with_5p += 1
         if has_3p:
             self.with_3p += 1
+            if adapter_3p_name:
+                self.adapter_3p_counts[adapter_3p_name] += 1
         if has_5p and has_3p:
             self.with_both += 1
         if not has_5p and not has_3p:
             self.with_neither += 1
 
     def summary(self):
-        return (
-            f"total_reads {self.total}\n"
-            f"with_5p_adapter {self.with_5p}\n"
-            f"with_3p_adapter {self.with_3p}\n"
-            f"with_both_adapters {self.with_both}\n"
-            f"with_neither_adapter {self.with_neither}"
-        )
+        lines = [
+            f"total_reads {self.total}",
+            f"with_5p_adapter {self.with_5p}",
+            f"with_3p_adapter {self.with_3p}",
+            f"with_both_adapters {self.with_both}",
+            f"with_neither_adapter {self.with_neither}",
+        ]
+        # Add per-adapter 3' counts if there are multiple adapters
+        if self.adapter_3p_counts:
+            for name in sorted(self.adapter_3p_counts.keys()):
+                lines.append(f"with_3p_adapter_{name} {self.adapter_3p_counts[name]}")
+        return "\n".join(lines)
 
 
 def process_bam(
     input_bam,
     output_bam,
     adapter_5p,
-    adapter_3p,
+    adapter_3p_list,
     min_score_5p,
     min_score_3p,
     match,
@@ -236,7 +289,11 @@ def process_bam(
     infer_5p_from_alignment=False,
     max_ref_start_for_5p=20,
 ):
-    """Process BAM file and add adapter position tags."""
+    """Process BAM file and add adapter position tags.
+
+    Args:
+        adapter_3p_list: List of (name, sequence) tuples for 3' adapters
+    """
     matrix = create_scoring_matrix(match, mismatch)
     stats = Stats()
     adapter_5p_len = len(adapter_5p)
@@ -255,8 +312,8 @@ def process_bam(
                 result_5p = find_5p_adapter(
                     seq, adapter_5p, matrix, gap_open, gap_extend, min_score_5p
                 )
-                result_3p = find_3p_adapter(
-                    seq, adapter_3p, matrix, gap_open, gap_extend, min_score_3p
+                result_3p = find_best_3p_adapter(
+                    seq, adapter_3p_list, matrix, gap_open, gap_extend, min_score_3p
                 )
 
                 # Fallback: infer 5' adapter from alignment position for truncated reads
@@ -269,8 +326,9 @@ def process_bam(
                             estimated_score = int(adapter_end_in_read * match * 0.85)
                             result_5p = (0, adapter_end_in_read, estimated_score)
 
-                # Update stats
-                stats.update(result_5p is not None, result_3p is not None)
+                # Update stats (extract adapter name if present)
+                adapter_3p_name = result_3p[3] if result_3p else None
+                stats.update(result_5p is not None, result_3p is not None, adapter_3p_name)
 
                 # Add PT tag if any adapter found
                 pt_value = format_pt_tag(result_5p, result_3p)
@@ -297,8 +355,13 @@ def main():
     )
     parser.add_argument(
         "--adapter-3p",
-        default=DEFAULT_ADAPTER_3P,
-        help=f"3' adapter sequence (default: {DEFAULT_ADAPTER_3P})",
+        action="append",
+        default=[],
+        dest="adapter_3p_list",
+        help=(
+            "3' adapter as 'name:sequence' or just 'sequence' (can specify multiple). "
+            f"Default if none specified: {DEFAULT_ADAPTER_3P}"
+        ),
     )
 
     parser.add_argument(
@@ -353,11 +416,25 @@ def main():
 
     args = parser.parse_args()
 
+    # Parse 3' adapter list
+    adapter_3p_list = []
+    if args.adapter_3p_list:
+        for adapter_spec in args.adapter_3p_list:
+            if ":" in adapter_spec:
+                name, seq = adapter_spec.split(":", 1)
+                adapter_3p_list.append((name, seq))
+            else:
+                # No name provided, use "default"
+                adapter_3p_list.append(("default", adapter_spec))
+    else:
+        # No adapters specified, use default
+        adapter_3p_list = [("default", DEFAULT_ADAPTER_3P)]
+
     stats = process_bam(
         args.input,
         args.output,
         args.adapter_5p,
-        args.adapter_3p,
+        adapter_3p_list,
         args.min_score_5p,
         args.min_score_3p,
         args.match,

@@ -18,6 +18,13 @@ adapters:
   # 5' adapter prepended to tRNA (23bp, the first tRNA base is included as variable N)
   five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
   # 3' adapter appended after tRNA CCA end (40bp, starts with GGC)
+  # Can be a single sequence (string) or list of named adapters for multi-adapter support
+  # List format (for libraries with multiple adapter versions):
+  #   three_prime:
+  #     - name: "v2"
+  #       seq: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
+  #     - name: "v1"
+  #       seq: "GGCTTCTTCTTGCTCTTATGGAAGGTAGGCAAAAAAAAAA"
   three_prime: "GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"
   # Minimum parasail alignment scores for adapter position detection
   # Note: ~9% of reads have complete 5' adapter (truncation is expected)
