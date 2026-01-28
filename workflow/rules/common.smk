@@ -260,6 +260,9 @@ def pipeline_outputs():
     # Squiggy session file for loading samples in Positron
     outs.append(os.path.join(outdir, "squiggy-session.json"))
 
+    # Reference sequence similarity QC (runs once per pipeline execution)
+    outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
+
     return outs
 
 

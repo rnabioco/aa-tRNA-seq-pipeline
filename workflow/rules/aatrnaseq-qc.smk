@@ -2,6 +2,30 @@
 # Base calling errors, alignment stats, and signal metrics
 
 
+rule compute_reference_similarity:
+    """
+    Compute pairwise sequence similarity matrix for reference FASTA.
+
+    This QC step identifies potential cross-mapping issues by calculating
+    all-vs-all sequence similarities using global alignment.
+    """
+    input:
+        fasta=config["fasta"],
+    output:
+        matrix=os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"),
+    log:
+        os.path.join(outdir, "logs", "qc", "reference_similarity.log"),
+    params:
+        src=SCRIPT_DIR,
+    shell:
+        """
+        python {params.src}/compute_seq_similarity.py \
+            {input.fasta} \
+            {output.matrix} \
+            2>&1 | tee {log}
+        """
+
+
 rule base_calling_error:
     """
   extract base calling error metrics to tsv file
