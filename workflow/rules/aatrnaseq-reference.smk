@@ -69,6 +69,18 @@ def get_validated_reference():
     return os.path.join(outdir, "reference", "validated.fa")
 
 
+def get_raw_reference():
+    """
+    Return path to raw/input reference fasta based on mode.
+    For build mode, returns the raw_fasta from reference config.
+    For other modes, returns the main fasta config value.
+    """
+    mode = get_reference_mode()
+    if mode == "build":
+        return config["reference"]["raw_fasta"]
+    return config["fasta"]
+
+
 rule validate_reference:
     """
     Validate that an existing reference FASTA has correct adapter structure.
