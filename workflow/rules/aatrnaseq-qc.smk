@@ -10,7 +10,7 @@ rule compute_reference_similarity:
     all-vs-all sequence similarities using global alignment.
     """
     input:
-        fasta=config["fasta"],
+        fasta=get_raw_reference(),
     output:
         matrix=os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"),
     log:
