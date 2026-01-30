@@ -48,6 +48,7 @@ run-preprint = { cmd = "snakemake --configfile=config/config-preprint.yml --prof
 # Development
 fmt = { cmd = "snakefmt workflow/Snakefile workflow/rules/*.smk", description = "Format Snakemake files" }
 dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng > workflow/workflow_dag.png", description = "Generate workflow DAG image" }
+collapse-ref = { cmd = "python workflow/scripts/collapse_gtrndb_fasta.py", description = "Collapse redundant sequences in a GtRNAdb FASTA reference" }
 # Linting
 lint-snakefmt = { cmd = "snakefmt --check workflow/", description = "Check Snakemake formatting" }
 lint-python = { cmd = "ruff check workflow/scripts/ && ruff format --check workflow/scripts/", description = "Lint and check Python formatting" }
