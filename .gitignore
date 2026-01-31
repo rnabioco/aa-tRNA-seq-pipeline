@@ -13,3 +13,9 @@ resources/tools/*
 # python testing
 __pycache__/
 .coverage
+
+# ML model outputs
+model_best/
+
+# generated at render time by Snakemake rule
+workflow/report/_custom.qmd
