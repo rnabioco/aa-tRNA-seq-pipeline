@@ -110,6 +110,11 @@ opts:
 # and do NOT work with data using the Thomas splint adapter.
 #
 # WDX4_tRNA_rna004_v1_0 has improved recovery (+3-7%) compared to WDX4b_tRNA_rna004_v1_0.
+# QC report options
+report:
+  # path to a .qmd file to include at the end of the QC report (optional)
+  custom_include: ""
+
 warpdemux:
   enabled: false
   barcode_kit: "WDX4_tRNA_rna004_v1_0"

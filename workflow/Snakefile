@@ -36,6 +36,7 @@ include: "rules/aatrnaseq-process.smk"
 include: "rules/aatrnaseq-charging.smk"
 include: "rules/aatrnaseq-qc.smk"
 include: "rules/aatrnaseq-modifications.smk"
+include: "rules/aatrnaseq-report.smk"
 
 
 # Conditionally include WarpDemuX demultiplexing rules

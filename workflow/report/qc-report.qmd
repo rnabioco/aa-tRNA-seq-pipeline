@@ -1,0 +1,684 @@
+---
+title: "aa-tRNA-seq Combined QC Report"
+author: "Pipeline"
+date: today
+format:
+  html:
+    code-fold: true
+    code-summary: "Show code"
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+params:
+  config_file: "config/config.yml"
+  ml_threshold: 200
+---
+
+## Pipeline Overview
+
+```{mermaid}
+flowchart LR
+  A[POD5 files] --> B[Merge POD5s]
+  B --> C[Rebasecall<br>Dorado]
+  C --> D[FASTQ]
+  D --> E[Align<br>BWA MEM]
+  E --> F[Classify Charging<br>Remora]
+  F --> G[Transfer Tags]
+  G --> H[Add Adapter Tags]
+  H --> I[Summary Tables<br>& QC Metrics]
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(gt)
+library(paletteer)
+library(fs)
+library(patchwork)
+library(scales)
+library(yaml)
+library(cowplot)
+library(ComplexHeatmap)
+library(circlize)
+
+# Read pipeline config
+config <- read_yaml(params$config_file)
+output_dir <- fs::path_abs(config$output_directory, start = dirname(params$config_file))
+ml_threshold <- params$ml_threshold
+
+# Parse samples from config
+# Supports both YAML format (with runs) and TSV format
+if (!is.null(config$samples))
+{
+  samples_path <- fs::path_abs(config$samples, start = dirname(params$config_file))
+  if (fs::path_ext(samples_path) %in% c("yml", "yaml")) {
+    samples_config <- read_yaml(samples_path)
+    sample_list <- samples_config$runs |>
+      map(~ names(.x$samples)) |>
+      unlist()
+  } else {
+    # TSV format: first column is sample name
+    sample_list <- read_tsv(samples_path, col_names = FALSE, show_col_types = FALSE)$X1
+  }
+} else {
+ stop("No samples defined in config file")
+}
+
+# Apply sample ordering from config if specified
+if (!is.null(config$report$sample_order)) {
+  specified_order <- config$report$sample_order
+  # Put specified samples first (in order), then any remaining samples
+  sample_list <- c(
+    intersect(specified_order, sample_list),
+    setdiff(sample_list, specified_order)
+  )
+}
+
+# Extract isodecoder from gtrnadb-format tRNA names
+# Pattern: Genus_species_tRNA-Aaa-NNN-X-Y → Aaa-NNN (handles iMet with 4 chars)
+# Returns list with isodecoder name and whether it matched the tRNA pattern
+extract_isodecoder <- function(trna_name) {
+  isodecoder <- str_extract(trna_name, "(?<=tRNA-)[A-Za-z]{3,4}-[ACGT]{3}")
+  if_else(is.na(isodecoder), trna_name, isodecoder)
+}
+
+# Check if name matches standard tRNA isodecoder pattern
+is_standard_trna <- function(trna_name) {
+ str_detect(trna_name, "tRNA-[A-Za-z]{3,4}-[ACGT]{3}")
+}
+```
+
+This report summarizes QC metrics for **`r length(sample_list)` samples** from the aa-tRNA-seq pipeline.
+
+**Samples:** `r paste(sample_list, collapse = ", ")`
+
+```{r}
+#| label: load-all-data
+#| include: false
+
+# Load all data upfront
+align_stats_all <- map_dfr(sample_list, function(s) {
+  tables_dir <- fs::path(output_dir, "summary", "tables", s)
+  read_tsv(fs::path(tables_dir, paste0(s, ".align_stats.tsv.gz")), show_col_types = FALSE) |>
+    mutate(sample = s)
+})
+
+charging_prob_all <- map_dfr(sample_list, function(s) {
+  tables_dir <- fs::path(output_dir, "summary", "tables", s)
+  read_tsv(fs::path(tables_dir, paste0(s, ".charging_prob.tsv.gz")), show_col_types = FALSE) |>
+    mutate(sample = s)
+})
+
+charging_cpm_all <- map_dfr(sample_list, function(s) {
+  tables_dir <- fs::path(output_dir, "summary", "tables", s)
+  read_tsv(fs::path(tables_dir, paste0(s, ".charging.cpm.tsv.gz")), show_col_types = FALSE) |>
+    mutate(sample = s)
+})
+
+bcerror_all <- map_dfr(sample_list, function(s) {
+  tables_dir <- fs::path(output_dir, "summary", "tables", s)
+  read_tsv(fs::path(tables_dir, paste0(s, ".bcerror.tsv.gz")), show_col_types = FALSE) |>
+    mutate(sample = s)
+})
+
+# Convert sample to factor with correct ordering for all datasets
+align_stats_all <- align_stats_all |> mutate(sample = factor(sample, levels = sample_list))
+charging_prob_all <- charging_prob_all |> mutate(sample = factor(sample, levels = sample_list))
+charging_cpm_all <- charging_cpm_all |> mutate(sample = factor(sample, levels = sample_list))
+bcerror_all <- bcerror_all |> mutate(sample = factor(sample, levels = sample_list))
+
+# Load reference similarity matrix
+similarity_matrix_path <- fs::path(output_dir, "summary", "qc", "reference_similarity.tsv")
+similarity_matrix <- NULL
+if (fs::file_exists(similarity_matrix_path)) {
+  similarity_df <- read_tsv(similarity_matrix_path, show_col_types = FALSE)
+  similarity_matrix <- as.matrix(similarity_df[, -1])
+  rownames(similarity_matrix) <- similarity_df[[1]]
+}
+```
+
+## Alignment Summary
+
+### Read Progression Through Pipeline
+
+::: {.panel-tabset}
+
+```{r}
+#| label: alignment-summary-tabs
+#| results: asis
+
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+
+  tbl_align <- align_stats_all |>
+    filter(sample == s) |>
+    dplyr::select(
+      Stage = info,
+      `Total Reads` = n_reads,
+      `Mapped Reads` = mapped_reads,
+      `% Mapped` = pct_mapped,
+      `Mean Length` = mean_length,
+      `Median Length` = median_length,
+      `Mean Quality` = mean_base_quality,
+      `Mean MAPQ` = mean_MAPQ
+    ) |>
+    mutate(
+      Stage = factor(Stage, levels = c("unmapped", "aligned", "classified")),
+      Stage = recode(Stage,
+        "unmapped" = "Rebasecalled",
+        "aligned" = "Aligned",
+        "classified" = "Classified"
+      )
+    )
+
+  tbl <- gt(tbl_align) |>
+    fmt_number(columns = c(`Mean Length`, `Mean Quality`, `Mean MAPQ`), decimals = 1) |>
+    fmt_number(columns = `% Mapped`, decimals = 1)
+
+  print(htmltools::tagList(tbl))
+  cat("\n\n")
+}
+```
+
+:::
+
+### Alignment Funnel
+
+```{r}
+#| label: fig-alignment-funnel
+#| fig-width: 10
+#| fig-height: 4
+#| fig-cap: "Read counts at each processing stage showing retention through the pipeline."
+
+tbl_funnel <- align_stats_all |>
+  dplyr::select(sample, info, n_reads) |>
+  mutate(
+    stage = factor(info, levels = c("unmapped", "aligned", "classified")),
+    stage = recode(stage,
+      "unmapped" = "Rebasecalled",
+      "aligned" = "Aligned",
+      "classified" = "Classified"
+    )
+  )
+
+ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = comma(n_reads)), vjust = -0.5, size = 3) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  labs(x = "Processing Stage", y = "Number of Reads") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Charging Classification
+
+### Charging Likelihood Distribution
+
+The Remora model assigns a charging likelihood score (0-255) to each read. Reads with scores >= `r ml_threshold` are classified as charged.
+
+```{r}
+#| label: fig-charging-density
+#| fig-width: 10
+#| fig-height: 5
+#| fig-cap: "Distribution of Remora charging likelihood scores. Dashed line indicates classification threshold."
+
+tbl_density <- charging_prob_all |>
+  mutate(
+    charging_status = if_else(charging_likelihood >= ml_threshold, "Charged", "Uncharged")
+  )
+
+ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
+  geom_histogram(binwidth = 5, alpha = 0.8, position = "identity") +
+  geom_vline(xintercept = ml_threshold, linetype = "dashed", linewidth = 1, color = "grey30") +
+  scale_fill_manual(values = c("Charged" = "#E69F00", "Uncharged" = "#56B4E9")) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Charging Likelihood (ML tag, 0-255)", y = "Number of Reads", fill = "Classification") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(legend.position = "top")
+```
+
+### Charging Summary
+
+::: {.panel-tabset}
+
+```{r}
+#| label: charging-summary-tabs
+#| results: asis
+
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+
+  sample_prob <- charging_prob_all |> filter(sample == s)
+  n_charged <- sum(sample_prob$charging_likelihood >= ml_threshold)
+  n_uncharged <- sum(sample_prob$charging_likelihood < ml_threshold)
+  n_total <- nrow(sample_prob)
+
+  tbl_charging_summary <- tibble(
+    Status = c("Charged", "Uncharged", "Total"),
+    `Read Count` = c(n_charged, n_uncharged, n_total),
+    Percentage = c(
+      n_charged / n_total * 100,
+      n_uncharged / n_total * 100,
+      100
+    )
+  )
+
+  tbl <- gt(tbl_charging_summary) |>
+    fmt_number(columns = Percentage, decimals = 1) |>
+    fmt_number(columns = `Read Count`, use_seps = TRUE, decimals = 0)
+
+  print(htmltools::tagList(tbl))
+  cat("\n\n")
+}
+```
+
+:::
+
+### Per-tRNA Abundance
+
+```{r}
+#| label: fig-trna-abundance
+#| fig-width: 10
+#| fig-height: 4
+#| fig-cap: "Total CPM per tRNA isodecoder. Non-standard tRNAs shown in red."
+
+tbl_abundance <- charging_cpm_all |>
+  mutate(
+    is_standard = is_standard_trna(tRNA),
+    isodecoder = extract_isodecoder(tRNA)
+  ) |>
+  group_by(sample, isodecoder) |>
+  summarise(
+    total_counts = sum(counts_charged) + sum(counts_uncharged),
+    total_cpm = sum(cpm_charged) + sum(cpm_uncharged),
+    is_standard = first(is_standard),
+    .groups = "drop"
+  ) |>
+  filter(total_counts >= 5) |>
+  mutate(isodecoder = fct_reorder(isodecoder, total_cpm, .fun = mean))
+
+ggplot(tbl_abundance, aes(x = isodecoder, y = total_cpm, fill = is_standard)) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+  scale_y_continuous(labels = comma) +
+  labs(x = NULL, y = "CPM") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
+```
+
+### Per-tRNA Charging
+
+```{r}
+#| label: fig-trna-charging
+#| fig-width: 10
+#| fig-height: 4
+#| fig-cap: "Percent charged per tRNA isodecoder. Non-standard tRNAs shown in red."
+
+tbl_charging <- charging_cpm_all |>
+  mutate(
+    is_standard = is_standard_trna(tRNA),
+    isodecoder = extract_isodecoder(tRNA)
+  ) |>
+  group_by(sample, isodecoder) |>
+  summarise(
+    counts_charged = sum(counts_charged),
+    counts_uncharged = sum(counts_uncharged),
+    is_standard = first(is_standard),
+    .groups = "drop"
+  ) |>
+  mutate(
+    total_counts = counts_charged + counts_uncharged,
+    pct_charged = counts_charged / total_counts * 100
+  ) |>
+  filter(total_counts >= 5) |>
+  mutate(isodecoder = fct_reorder(isodecoder, pct_charged, .fun = mean))
+
+ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
+  labs(x = NULL, y = "% Charged") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
+```
+
+### Top tRNAs by Read Count
+
+::: {.panel-tabset}
+
+```{r}
+#| label: top-trnas-tabs
+#| results: asis
+#| tbl-cap: "Top 20 tRNA isodecoders ranked by total read count."
+
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+
+  tbl_top_trnas <- charging_cpm_all |>
+    filter(sample == s) |>
+    mutate(isodecoder = extract_isodecoder(tRNA)) |>
+    group_by(isodecoder) |>
+    summarise(
+      counts_charged = sum(counts_charged),
+      counts_uncharged = sum(counts_uncharged),
+      cpm_charged = sum(cpm_charged),
+      cpm_uncharged = sum(cpm_uncharged),
+      .groups = "drop"
+    ) |>
+    mutate(
+      total_counts = counts_charged + counts_uncharged,
+      total_cpm = cpm_charged + cpm_uncharged,
+      pct_charged = counts_charged / total_counts * 100
+    ) |>
+    arrange(desc(total_counts)) |>
+    head(20) |>
+    dplyr::select(
+      Isodecoder = isodecoder,
+      `Charged` = counts_charged,
+      `Uncharged` = counts_uncharged,
+      `Total` = total_counts,
+      `% Charged` = pct_charged,
+      `CPM` = total_cpm
+    )
+
+  tbl <- gt(tbl_top_trnas) |>
+    fmt_number(columns = c(`Charged`, `Uncharged`, `Total`), use_seps = TRUE, decimals = 0) |>
+    fmt_number(columns = `% Charged`, decimals = 1) |>
+    fmt_number(columns = CPM, decimals = 0)
+
+  print(htmltools::tagList(tbl))
+  cat("\n\n")
+}
+```
+
+:::
+
+## Base Calling Quality
+
+### Error Frequency by Position
+
+```{r}
+#| label: fig-error-frequency
+#| fig-width: 10
+#| fig-height: 6
+#| fig-cap: "Mean error frequency across all tRNAs by reference position."
+
+tbl_error <- bcerror_all |>
+  group_by(sample, Position) |>
+  summarise(
+    mean_mismatch = mean(MismatchFreq, na.rm = TRUE),
+    mean_insertion = mean(InsertionFreq, na.rm = TRUE),
+    mean_deletion = mean(DeletionFreq, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+tbl_error_long <- tbl_error |>
+  dplyr::select(sample, Position, Mismatch = mean_mismatch, Insertion = mean_insertion, Deletion = mean_deletion) |>
+  pivot_longer(cols = c(Mismatch, Insertion, Deletion), names_to = "Error Type", values_to = "Frequency")
+
+ggplot(tbl_error_long, aes(x = Position, y = Frequency, color = `Error Type`)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_brewer(palette = "Set2") +
+  scale_y_continuous(labels = percent_format(scale = 100)) +
+  labs(x = "Position in Reference", y = "Error Frequency") +
+  facet_wrap(~sample) +
+  theme_minimal_hgrid() +
+  theme(legend.position = "top")
+```
+
+### Coverage by Position
+
+```{r}
+#| label: fig-coverage-position
+#| fig-width: 10
+#| fig-height: 6
+#| fig-cap: "Mean read coverage across all tRNAs by reference position."
+
+tbl_coverage <- bcerror_all |>
+  group_by(sample, Position) |>
+  summarise(
+    mean_coverage = mean(Spanning_Reads, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
+  geom_area(fill = "#56B4E9", alpha = 0.6) +
+  geom_line(color = "#0072B2", linewidth = 0.5) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
+  facet_wrap(~sample, scales = "free_y") +
+  theme_minimal_hgrid()
+```
+
+## Reference Sequence Similarity
+
+This section shows pairwise sequence similarity across all sequences in the reference FASTA file. High similarity between sequences may indicate potential cross-mapping issues during alignment.
+
+```{r}
+#| label: reference-similarity-check
+#| include: false
+
+# Check if similarity matrix is available
+has_similarity_matrix <- !is.null(similarity_matrix)
+```
+
+```{r}
+#| label: fig-similarity-heatmap
+#| fig-width: 12
+#| fig-height: 10
+#| fig-cap: "Pairwise sequence identity heatmap. Amino acid annotations shown on axes. High similarity (>90%) shown in orange/red."
+#| eval: !expr has_similarity_matrix
+
+# Parse tRNA names to extract amino acid and anticodon
+parse_trna_name <- function(name) {
+  parts <- str_split(name, "-")[[1]]
+  if (length(parts) >= 3 && parts[1] == "tRNA") {
+    aa <- parts[2]
+    anticodon <- parts[3]
+  } else if (length(parts) >= 2) {
+    aa <- parts[1]
+    anticodon <- if (length(parts) >= 2) parts[2] else "unknown"
+  } else {
+    aa <- "unknown"
+    anticodon <- "unknown"
+  }
+  list(aa = aa, anticodon = anticodon)
+}
+
+# Parse all sequence names
+parsed <- lapply(rownames(similarity_matrix), parse_trna_name)
+aa_labels <- sapply(parsed, function(x) x$aa)
+
+# Create color palette for amino acids
+unique_aa <- unique(aa_labels)
+n_aa <- length(unique_aa)
+
+if (n_aa <= 20) {
+  aa_colors <- setNames(rainbow(n_aa, s = 0.7, v = 0.8), unique_aa)
+} else {
+  aa_colors <- setNames(
+    colorRampPalette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3",
+                       "#FF7F00", "#FFFF33", "#A65628", "#F781BF"))(n_aa),
+    unique_aa
+  )
+}
+
+# Color scale for similarity values
+col_fun <- colorRamp2(c(50, 75, 90, 100), c("white", "lightyellow", "orange", "red"))
+
+# Create annotations
+row_anno <- rowAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = TRUE,
+  annotation_name_side = "top"
+)
+
+col_anno <- HeatmapAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = FALSE
+)
+
+# Draw heatmap
+ht <- Heatmap(
+  similarity_matrix,
+  name = "% Identity",
+  col = col_fun,
+  left_annotation = row_anno,
+  top_annotation = col_anno,
+  show_row_names = nrow(similarity_matrix) <= 50,
+  show_column_names = nrow(similarity_matrix) <= 50,
+  row_names_gp = gpar(fontsize = 6),
+  column_names_gp = gpar(fontsize = 6),
+  clustering_distance_rows = "euclidean",
+  clustering_distance_columns = "euclidean",
+  clustering_method_rows = "complete",
+  clustering_method_columns = "complete",
+  row_title = "Reference Sequences",
+  column_title = "Reference Sequence Similarity"
+)
+
+draw(ht)
+```
+
+```{r}
+#| label: no-similarity-matrix
+#| eval: !expr !has_similarity_matrix
+#| results: asis
+
+cat("*Reference similarity matrix not available.*\n")
+```
+
+### Highly Similar Sequence Pairs
+
+Sequence pairs with >90% identity may be at risk for cross-mapping:
+
+```{r}
+#| label: high-similarity-pairs
+#| eval: !expr has_similarity_matrix
+
+high_sim_threshold <- 90
+
+# Find pairs with high similarity (excluding diagonal)
+pairs <- data.frame()
+for (i in 1:(nrow(similarity_matrix) - 1)) {
+  for (j in (i + 1):ncol(similarity_matrix)) {
+    if (similarity_matrix[i, j] >= high_sim_threshold) {
+      pairs <- rbind(pairs, data.frame(
+        Seq1 = rownames(similarity_matrix)[i],
+        Seq2 = colnames(similarity_matrix)[j],
+        Percent_Identity = round(similarity_matrix[i, j], 2)
+      ))
+    }
+  }
+}
+
+# Sort by similarity (descending)
+pairs <- pairs |> arrange(desc(Percent_Identity))
+
+if (nrow(pairs) > 0) {
+  gt(head(pairs, 50)) |>
+    cols_label(
+      Seq1 = "Sequence 1",
+      Seq2 = "Sequence 2",
+      Percent_Identity = "% Identity"
+    ) |>
+    fmt_number(columns = Percent_Identity, decimals = 1)
+} else {
+  cat(paste0("No sequence pairs found with >= ", high_sim_threshold, "% identity.\n"))
+}
+```
+
+### Similarity Distribution
+
+```{r}
+#| label: fig-similarity-histogram
+#| fig-width: 8
+#| fig-height: 4
+#| fig-cap: "Distribution of pairwise sequence similarities. Red dashed line indicates 90% threshold."
+#| eval: !expr has_similarity_matrix
+
+# Get upper triangle values (excluding diagonal)
+upper_tri <- similarity_matrix[upper.tri(similarity_matrix)]
+
+tibble(similarity = upper_tri) |>
+  ggplot(aes(x = similarity)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_vline(xintercept = 90, linetype = "dashed", color = "red", linewidth = 1) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Percent Identity", y = "Number of Pairs") +
+  theme_minimal_hgrid()
+```
+
+```{r}
+#| label: similarity-summary-stats
+#| eval: !expr has_similarity_matrix
+
+upper_tri <- similarity_matrix[upper.tri(similarity_matrix)]
+
+tibble(
+  Statistic = c("Minimum", "Median", "Mean", "Maximum", "Pairs >= 90%", "Pairs >= 95%", "Total pairs"),
+  Value = c(
+    sprintf("%.1f%%", min(upper_tri)),
+    sprintf("%.1f%%", median(upper_tri)),
+    sprintf("%.1f%%", mean(upper_tri)),
+    sprintf("%.1f%%", max(upper_tri)),
+    as.character(sum(upper_tri >= 90)),
+    as.character(sum(upper_tri >= 95)),
+    as.character(length(upper_tri))
+  )
+) |>
+  gt()
+```
+
+## Summary
+
+```{r}
+#| label: summary-table
+#| tbl-cap: "Charging classification summary across all samples."
+
+summary_tbl <- map_dfr(sample_list, function(s) {
+  sample_prob <- charging_prob_all |> filter(sample == s)
+  n_charged <- sum(sample_prob$charging_likelihood >= ml_threshold)
+  n_uncharged <- sum(sample_prob$charging_likelihood < ml_threshold)
+  n_total <- nrow(sample_prob)
+
+  tibble(
+    Sample = s,
+    `Total Classified Reads` = n_total,
+    `Charged Reads` = n_charged,
+    `Uncharged Reads` = n_uncharged,
+    `% Charged` = n_charged / n_total * 100
+  )
+})
+
+gt(summary_tbl) |>
+  fmt_number(columns = c(`Total Classified Reads`, `Charged Reads`, `Uncharged Reads`), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = `% Charged`, decimals = 1)
+```
+
+**ML threshold used:** `r ml_threshold`
+
+{{< include _custom.qmd >}}
+
+::: {.callout-note collapse="true"}
+## Session Info
+
+```{r}
+#| label: session-info
+
+sessioninfo::session_info()
+```
+
+:::
