@@ -146,42 +146,31 @@ flowchart TB
     end
 
     subgraph Demux[Demultiplexing Steps]
-        B[merge_pods_for_demux<br/>Merge per run]
-        C[warpdemux<br/>Predict barcodes]
-        D[parse_warpdemux<br/>Create mapping]
-        E[extract_sample_reads<br/>Filter by barcode]
-        F[split_pod5<br/>Split per sample]
+        B[warpdemux<br/>Predict barcodes]
+        C[parse_warpdemux<br/>Create mapping]
+        D[extract_sample_reads<br/>Filter by barcode]
+        E[split_pod5<br/>Split per sample]
     end
 
     subgraph Standard[Standard Pipeline]
-        G[rebasecall]
-        H[bwa_align]
-        I[classify_charging]
-        J[...]
+        F[rebasecall]
+        G[bwa_align]
+        H[classify_charging]
+        I[...]
     end
 
-    A --> B --> C --> D --> E --> F --> G --> H --> I --> J
+    A --> B --> C --> D --> E --> F --> G --> H --> I
 ```
 
 ## Demux Rules
 
-### merge_pods_for_demux
-
-Merges POD5 files **per run** (not per sample) for demultiplexing.
-
-| Property | Value |
-|----------|-------|
-| Input | All POD5s from run directory |
-| Output | `demux/merged/{run_id}/{run_id}.pod5` |
-| Threads | 12 |
-
 ### warpdemux
 
-Runs WarpDemuX barcode prediction.
+Runs WarpDemuX barcode prediction directly on raw POD5 files.
 
 | Property | Value |
 |----------|-------|
-| Input | Merged run POD5 |
+| Input | Raw POD5 files from run directory |
 | Output | `demux/warpdemux_output/{run_id}/` |
 | Threads | Configurable (default: 8) |
 
@@ -212,11 +201,11 @@ Extracts read IDs for a specific sample's barcode.
 
 ### split_pod5
 
-Splits merged POD5 by sample using read ID list.
+Filters raw POD5 files by sample using read ID list.
 
 | Property | Value |
 |----------|-------|
-| Input | Merged run POD5, read ID list |
+| Input | Raw POD5 files from run, read ID list |
 | Output | `demux/pod5/{sample}.pod5` |
 
 ## Running
@@ -244,8 +233,6 @@ With demultiplexing, outputs include:
 ```
 {output_directory}/
 ├── demux/
-│   ├── merged/{run_id}/
-│   │   └── {run_id}.pod5           # Merged per-run POD5
 │   ├── warpdemux_output/{run_id}/
 │   │   └── warpdemux_*/            # WarpDemuX results
 │   ├── read_ids/

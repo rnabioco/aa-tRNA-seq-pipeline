@@ -129,10 +129,9 @@ flowchart LR
 flowchart LR
     A[samples.yml] --> B[parse_samples]
     B --> C[find_raw_inputs per run]
-    C --> D[merge_pods_for_demux]
-    D --> E[warpdemux]
-    E --> F[split_pod5 per sample]
-    F --> G[Continue to rebasecall...]
+    C --> D[warpdemux]
+    D --> E[split_pod5 per sample]
+    E --> F[Continue to rebasecall...]
 ```
 
 ## Validation

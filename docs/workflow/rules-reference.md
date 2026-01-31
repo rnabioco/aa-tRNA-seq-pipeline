@@ -489,12 +489,6 @@ modkit extract full \
 
 See [Demultiplexing](demultiplexing.md) for detailed documentation.
 
-### merge_pods_for_demux
-
-Merge POD5s per run (not per sample) for demultiplexing.
-
-| Output | `demux/merged/{run_id}/{run_id}.pod5` |
-
 ### warpdemux
 
 Run WarpDemuX barcode prediction.
