@@ -112,6 +112,9 @@ r-scales = "*"
 r-sessioninfo = "*"
 r-pak = "*"
 r-cowplot = "*"
+r-yaml = "*"
+r-circlize = "*"
+bioconductor-complexheatmap = ">=2.10"
 
 [feature.report.tasks]
 install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }

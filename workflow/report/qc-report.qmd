@@ -554,7 +554,7 @@ draw(ht)
 
 ```{r}
 #| label: no-similarity-matrix
-#| eval: !expr !has_similarity_matrix
+#| eval: !expr (!has_similarity_matrix)
 #| results: asis
 
 cat("*Reference similarity matrix not available.*\n")
