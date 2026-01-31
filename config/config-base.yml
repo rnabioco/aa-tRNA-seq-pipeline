@@ -48,9 +48,10 @@ reference:
   # For build mode only: path to raw tRNA FASTA (without adapters, must end in CCA)
   raw_fasta: null
 
-# If a kmer table if provided then the pipeline will use get_signal_metrics.py to extract metrics using remora
+# Optional: provide a kmer table to extract signal metrics using remora
+# Set to a path (e.g. "resources/kmers/9mer_levels_v1.txt") to enable
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
-remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
+remora_kmer_table: null
 
 # read classification model - remora trained model to classify charged vs uncharged reads
 remora_cca_classifier: "resources/models/cca_classifier.pt"
