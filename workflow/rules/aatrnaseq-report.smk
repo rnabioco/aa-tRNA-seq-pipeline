@@ -16,7 +16,11 @@ rule render_combined_qc_report:
         ),
         charging_prob=expand(
             os.path.join(
-                outdir, "summary", "tables", "{sample}", "{sample}.charging_prob.tsv.gz"
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.charging_prob.tsv.gz",
             ),
             sample=samples.keys(),
         ),
