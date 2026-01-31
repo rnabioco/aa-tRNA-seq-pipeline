@@ -72,6 +72,7 @@ if (!is.null(config$samples))
     # TSV format: first column is sample name, second is run directory
     sample_metadata <- read_tsv(samples_path, col_names = c("sample", "run_path"),
                                 show_col_types = FALSE) |>
+      mutate(run_path = fs::path_abs(run_path, start = dirname(samples_path))) |>
       group_by(sample) |>
       summarise(run_path = paste(run_path, collapse = "; "), .groups = "drop")
     sample_list <- sample_metadata$sample
@@ -104,59 +105,7 @@ is_standard_trna <- function(trna_name) {
 }
 ```
 
-This report summarizes QC metrics for **`r length(sample_list)` samples** from the aa-tRNA-seq pipeline.
-
-### Samples
-
-```{r}
-#| label: sample-table
-
-if ("barcode" %in% colnames(sample_metadata)) {
-  sample_metadata |>
-    dplyr::select(Sample = sample, `Run Path` = run_path,
-                  Barcode = barcode, `Barcode Kit` = barcode_kit) |>
-    gt()
-} else {
-  sample_metadata |>
-    dplyr::select(Sample = sample, `Run Path` = run_path) |>
-    gt()
-}
-```
-
-### Pipeline Configuration
-
-```{r}
-#| label: config-table
-
-config_params <- tibble(
-  Parameter = c(
-    "Base Calling Model",
-    "Reference FASTA",
-    "Dorado Version",
-    "Charging ML Threshold",
-    "BWA Options",
-    "BAM Filter",
-    "5' Adapter",
-    "3' Adapter"
-  ),
-  Value = c(
-    config$base_calling_model %||% config$dorado_model %||% "N/A",
-    config$fasta %||% "N/A",
-    as.character(config$dorado_version %||% "N/A"),
-    as.character(ml_threshold),
-    trimws(config$opts$bwa %||% "N/A"),
-    trimws(config$opts$bam_filter %||% "N/A"),
-    config$adapters$five_prime %||% "N/A",
-    if (is.list(config$adapters$three_prime)) {
-      paste(sapply(config$adapters$three_prime, function(x) paste0(x$name, ": ", x$seq)), collapse = "; ")
-    } else {
-      config$adapters$three_prime %||% "N/A"
-    }
-  )
-)
-
-gt(config_params)
-```
+This report summarizes QC metrics for **`r length(sample_list)` samples** (`r paste(sample_list, collapse = ", ")`) from the aa-tRNA-seq pipeline. See [Sample Details](#sample-details) for run paths and barcodes.
 
 ```{r}
 #| label: load-all-data
@@ -540,7 +489,7 @@ gt(summary_tbl) |>
 
 {{< include _custom.qmd >}}
 
-## Appendix {.appendix}
+## Appendix
 
 ### Reference Sequence Similarity
 
@@ -722,6 +671,167 @@ tibble(
   )
 ) |>
   gt()
+```
+
+### Sample Details
+
+```{r}
+#| label: sample-details
+
+if ("barcode" %in% colnames(sample_metadata)) {
+  sample_metadata |>
+    dplyr::select(Sample = sample, `Run Path` = run_path,
+                  Barcode = barcode, `Barcode Kit` = barcode_kit) |>
+    gt()
+} else {
+  sample_metadata |>
+    dplyr::select(Sample = sample, `Run Path` = run_path) |>
+    gt()
+}
+```
+
+### Pipeline Manifest
+
+```{r}
+#| label: manifest-check
+#| include: false
+
+manifest_path <- fs::path(output_dir, "manifest.json")
+has_manifest <- fs::file_exists(manifest_path)
+```
+
+```{r}
+#| label: manifest-table
+#| eval: !expr has_manifest
+
+manifest <- yaml::read_yaml(manifest_path)
+
+# Format git commit as short hash
+short_commit <- if (!is.null(manifest$pipeline$git_commit)) {
+  substr(manifest$pipeline$git_commit, 1, 7)
+} else "N/A"
+
+# Format dirty flag
+dirty_label <- if (isTRUE(manifest$pipeline$git_dirty)) "Yes" else "No"
+
+# Format timestamps
+fmt_time <- function(ts) {
+  if (is.null(ts)) return("N/A")
+  format(as.POSIXct(ts, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC"), "%Y-%m-%d %H:%M:%S UTC")
+}
+
+# Format 3' adapter (may be list or string)
+three_prime_adapter <- if (is.list(manifest$config$adapters$three_prime)) {
+  paste(sapply(manifest$config$adapters$three_prime,
+    function(x) paste0(x$name, ": ", x$seq)), collapse = "; ")
+} else {
+  manifest$config$adapters$three_prime %||% "N/A"
+}
+
+# Determine reference FASTA display based on reference mode
+ref_mode <- manifest$config$reference$mode %||% "validate"
+if (ref_mode == "build") {
+  ref_fasta_label <- "Reference Source"
+  ref_fasta_value <- manifest$config$reference$raw_fasta %||% "N/A"
+} else {
+  ref_fasta_label <- "Reference FASTA"
+  ref_fasta_value <- manifest$config$fasta %||% "N/A"
+}
+
+# Build a single combined table
+manifest_tbl <- tribble(
+  ~Group, ~Field, ~Value,
+  # Execution
+  "Execution", "Status",   manifest$execution$status %||% "N/A",
+  "Execution", "Started",  fmt_time(manifest$execution$timestamp_start),
+  "Execution", "Finished", fmt_time(manifest$execution$timestamp_end),
+  "Execution", "Host",     manifest$execution$hostname %||% "N/A",
+  "Execution", "User",     manifest$execution$user %||% "N/A",
+  # Pipeline version
+  "Pipeline", "Git Commit",          short_commit,
+  "Pipeline", "Branch",              manifest$pipeline$git_branch %||% "N/A",
+  "Pipeline", "Tag",                 manifest$pipeline$git_tag %||% "N/A",
+  "Pipeline", "Uncommitted Changes", dirty_label,
+  # Configuration
+  "Configuration", ref_fasta_label,          ref_fasta_value,
+  "Configuration", "Reference Mode",         ref_mode,
+  "Configuration", "Base Calling Model",    manifest$config$dorado_model %||% "N/A",
+  "Configuration", "Dorado Options",        trimws(manifest$config$opts$dorado %||% "N/A"),
+  "Configuration", "BWA Options",           trimws(manifest$config$opts$bwa %||% "N/A"),
+  "Configuration", "BAM Filter",            trimws(manifest$config$opts$bam_filter %||% "N/A"),
+  "Configuration", "5' Adapter",            manifest$config$adapters$five_prime %||% "N/A",
+  "Configuration", "3' Adapter",            three_prime_adapter,
+  "Configuration", "Charging ML Threshold", as.character(ml_threshold),
+)
+
+# Append WarpDemuX row if enabled
+if (isTRUE(manifest$config$warpdemux$enabled)) {
+  manifest_tbl <- bind_rows(manifest_tbl, tibble(
+    Group = "Configuration",
+    Field = "WarpDemuX Barcode Kit",
+    Value = manifest$config$warpdemux$barcode_kit %||% "N/A"
+  ))
+}
+
+# Append tool versions
+tool_rows <- tibble(
+  Group = "Tools",
+  Field = names(manifest$tools),
+  Value = unlist(manifest$tools)
+)
+manifest_tbl <- bind_rows(manifest_tbl, tool_rows)
+
+# Render table
+manifest_tbl |>
+  gt(groupname_col = "Group") |>
+  cols_label(Field = "", Value = "") |>
+  tab_style(
+    style = cell_text(font = "monospace", size = "small"),
+    locations = cells_body(columns = Value,
+      rows = Field %in% c("Git Commit", "Dorado Options", "BWA Options",
+                           "BAM Filter", "5' Adapter", "3' Adapter"))
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold", color = if (manifest$execution$status == "success") "#2d8a4e" else "#c9372c"),
+    locations = cells_body(columns = Value, rows = Field == "Status")
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  ) |>
+  tab_footnote(
+    footnote = manifest$pipeline$git_commit %||% "",
+    locations = cells_body(columns = Value, rows = Field == "Git Commit")
+  ) |>
+  (\(tbl) {
+    if (ref_mode == "build") {
+      tbl |> tab_footnote(
+        footnote = "Adapted reference built from raw tRNA sequences with pipeline adapters prepended/appended",
+        locations = cells_body(columns = Value, rows = Field == "Reference Mode")
+      )
+    } else tbl
+  })() |>
+  tab_footnote(
+    footnote = "Requires reads with 24bp 5' adapter, 23bp 3' adapter, positive strand",
+    locations = cells_body(columns = Value, rows = Field == "BAM Filter")
+  ) |>
+  tab_footnote(
+    footnote = paste0("Reads with ML >= ", ml_threshold, " classified as charged"),
+    locations = cells_body(columns = Value, rows = Field == "Charging ML Threshold")
+  ) |>
+  tab_options(
+    row_group.padding = px(4),
+    data_row.padding = px(3),
+    footnotes.font.size = "small"
+  )
+```
+
+```{r}
+#| label: no-manifest
+#| eval: !expr (!has_manifest)
+#| results: asis
+
+cat("*Pipeline manifest not available. Manifest is generated on pipeline completion.*\n")
 ```
 
 ::: {.callout-note collapse="true"}

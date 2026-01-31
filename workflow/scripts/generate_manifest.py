@@ -175,6 +175,10 @@ def extract_config_params(config):
     if "remora_cca_classifier" in config:
         params["remora_cca_classifier"] = config["remora_cca_classifier"]
 
+    # Reference building/validation mode
+    if "reference" in config:
+        params["reference"] = config["reference"]
+
     # Adapter sequences
     if "adapters" in config:
         params["adapters"] = config["adapters"]
