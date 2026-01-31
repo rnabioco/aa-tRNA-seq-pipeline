@@ -85,18 +85,17 @@ flowchart TB
     end
 
     subgraph Demux[warpdemux.smk]
-        B[merge_pods_for_demux<br/>Merge per run]
-        C[warpdemux<br/>Barcode prediction]
-        D[parse_warpdemux<br/>Create mapping]
-        E[extract_sample_reads<br/>Per-sample IDs]
-        F[split_pod5<br/>Split by sample]
+        B[warpdemux<br/>Barcode prediction]
+        C[parse_warpdemux<br/>Create mapping]
+        D[extract_sample_reads<br/>Per-sample IDs]
+        E[split_pod5<br/>Split by sample]
     end
 
     subgraph Standard[Standard Pipeline]
-        G[rebasecall → align → classify...]
+        F[rebasecall → align → classify...]
     end
 
-    A --> B --> C --> D --> E --> F --> G
+    A --> B --> C --> D --> E --> F
 ```
 
 ## Rule Categories
@@ -152,7 +151,6 @@ Optional WarpDemuX barcode demultiplexing:
 
 | Rule | Purpose |
 |------|---------|
-| `merge_pods_for_demux` | Merge POD5s per run |
 | `warpdemux` | Run barcode prediction |
 | `parse_warpdemux` | Parse predictions to mapping |
 | `extract_sample_reads` | Filter reads by barcode |

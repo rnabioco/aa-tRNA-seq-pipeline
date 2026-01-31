@@ -58,7 +58,6 @@ set-resources:
   - modkit_extract_calls:mem_mb=96
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
-  - merge_pods_for_demux:mem_mb=16
 
 printshellcmds: True
 show-failed-logs: True
@@ -114,7 +113,6 @@ These rules are automatically submitted to the GPU queue:
 | `warpdemux` | 32 GB |
 | `remora_signal_stats` | 24 GB |
 | `bwa_align` | 24 GB |
-| `merge_pods_for_demux` | 16 GB |
 
 ## Customization
 

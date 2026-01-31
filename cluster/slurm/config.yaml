@@ -72,11 +72,6 @@ set-resources:
     mem_mb: 8000               # 8GB
     cpus_per_task: 1
 
-  merge_pods_for_demux:
-    runtime: 120               # 2 hours
-    mem_mb: 16000              # 16GB
-    cpus_per_task: 1
-
 # Rerun incomplete jobs
 rerun-incomplete: true
 keep-going: true

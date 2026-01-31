@@ -56,7 +56,7 @@ def get_barcode_kit_for_run(run_id):
 
 
 def get_run_raw_inputs(wildcards):
-    """Get all POD5 files for a run directory."""
+    """Get all POD5 files for a run directory (for Snakemake DAG tracking)."""
     POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
     ext = ".pod5"
     run_path = get_run_path(wildcards.run_id)
@@ -75,29 +75,44 @@ def get_run_raw_inputs(wildcards):
     return raw_fls
 
 
-rule merge_pods_for_demux:
-    """
-    Merge POD5s per run directory (not per sample) for demultiplexing.
-    """
-    input:
-        get_run_raw_inputs,
-    output:
-        os.path.join(outdir, "demux", "merged", "{run_id}", "{run_id}.pod5"),
-    log:
-        os.path.join(outdir, "logs", "merge_pods_for_demux", "{run_id}"),
-    threads: 12
-    shell:
-        """
-        pod5 merge -t {threads} -f -o {output} {input}
-        """
+def get_run_pod5_dirs(run_id):
+    """Get existing POD5 subdirectories for a run (for shell commands)."""
+    POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
+    run_path = get_run_path(run_id)
+    return [
+        os.path.join(run_path, d)
+        for d in POD5_DIRS
+        if os.path.isdir(os.path.join(run_path, d))
+    ]
+
+
+def get_sample_run_raw_inputs(wildcards):
+    """Get all raw POD5 files for a sample's run (for Snakemake DAG tracking)."""
+    run_id = samples[wildcards.sample]["run_id"]
+    POD5_DIRS = ["pod5_pass", "pod5_fail", "pod5"]
+    ext = ".pod5"
+    run_path = get_run_path(run_id)
+
+    raw_fls = []
+    for subdir in POD5_DIRS:
+        data_path = os.path.join(run_path, subdir, "*" + ext)
+        fls = glob.glob(data_path)
+        raw_fls += fls
+
+    if len(raw_fls) == 0:
+        sys.exit(
+            f"No input files found for run: {run_id} at {run_path}. "
+            "Please check the path in the samples file"
+        )
+    return raw_fls
 
 
 rule warpdemux:
     """
-    Run WarpDemuX barcode demultiplexing on merged POD5.
+    Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
     """
     input:
-        pod5=os.path.join(outdir, "demux", "merged", "{run_id}", "{run_id}.pod5"),
+        get_run_raw_inputs,
     output:
         outdir=directory(os.path.join(outdir, "demux", "warpdemux_output", "{run_id}")),
         done=os.path.join(outdir, "demux", "warpdemux_output", "{run_id}", ".done"),
@@ -110,11 +125,12 @@ rule warpdemux:
             if config.get("warpdemux", {}).get("save_boundaries", True)
             else "false"
         ),
+        pod5_dirs=lambda wildcards: " ".join(get_run_pod5_dirs(wildcards.run_id)),
     threads: config.get("warpdemux", {}).get("threads", 8)
     shell:
         """
         pixi run -e demux warpdemux demux \
-            -i {input.pod5} \
+            -i {params.pod5_dirs} \
             -o {output.outdir} \
             -m {params.model} \
             -j {threads} \
@@ -222,24 +238,26 @@ def get_sample_read_ids(wildcards):
     )
 
 
-def get_sample_merged_pod5(wildcards):
-    """Get the merged POD5 for a sample's run."""
+def get_sample_pod5_dirs(wildcards):
+    """Get POD5 directories for a sample's run (for shell commands)."""
     run_id = samples[wildcards.sample]["run_id"]
-    return os.path.join(outdir, "demux", "merged", run_id, f"{run_id}.pod5")
+    return " ".join(get_run_pod5_dirs(run_id))
 
 
 rule split_pod5:
     """
-    Split merged POD5 by sample using read IDs from demultiplexing.
+    Filter raw POD5 files by sample using read IDs from demultiplexing.
     """
     input:
-        pod5=get_sample_merged_pod5,
+        pod5=get_sample_run_raw_inputs,
         read_ids=get_sample_read_ids,
     output:
         os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "split_pod5", "{sample}"),
+    params:
+        pod5_dirs=get_sample_pod5_dirs,
     shell:
         """
-        pod5 filter {input.pod5} --ids {input.read_ids} --output {output} 2>&1 | tee {log}
+        pod5 filter {params.pod5_dirs} --ids {input.read_ids} --output {output} 2>&1 | tee {log}
         """

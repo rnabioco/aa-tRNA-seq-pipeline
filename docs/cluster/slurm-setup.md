@@ -87,11 +87,6 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 1
 
-  merge_pods_for_demux:
-    runtime: 120
-    mem_mb: 16000
-    cpus_per_task: 1
-
 rerun-incomplete: true
 keep-going: true
 printshellcmds: true
@@ -139,7 +134,6 @@ These rules are automatically submitted to the GPU partition:
 | `warpdemux` | 32 GB | 6 hours |
 | `remora_signal_stats` | 24 GB | 3 hours |
 | `bwa_align` | 24 GB | 4 hours |
-| `merge_pods_for_demux` | 16 GB | 2 hours |
 
 ## Customization
 
