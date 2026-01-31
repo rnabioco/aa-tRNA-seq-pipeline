@@ -43,6 +43,8 @@ library(patchwork)
 library(scales)
 library(yaml)
 library(cowplot)
+library(ComplexHeatmap)
+library(circlize)
 
 # Read pipeline config
 config <- read_yaml(params$config_file)
@@ -129,6 +131,15 @@ align_stats_all <- align_stats_all |> mutate(sample = factor(sample, levels = sa
 charging_prob_all <- charging_prob_all |> mutate(sample = factor(sample, levels = sample_list))
 charging_cpm_all <- charging_cpm_all |> mutate(sample = factor(sample, levels = sample_list))
 bcerror_all <- bcerror_all |> mutate(sample = factor(sample, levels = sample_list))
+
+# Load reference similarity matrix
+similarity_matrix_path <- fs::path(output_dir, "summary", "qc", "reference_similarity.tsv")
+similarity_matrix <- NULL
+if (fs::file_exists(similarity_matrix_path)) {
+  similarity_df <- read_tsv(similarity_matrix_path, show_col_types = FALSE)
+  similarity_matrix <- as.matrix(similarity_df[, -1])
+  rownames(similarity_matrix) <- similarity_df[[1]]
+}
 ```
 
 ## Alignment Summary
@@ -447,6 +458,188 @@ ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
   labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
   facet_wrap(~sample, scales = "free_y") +
   theme_minimal_hgrid()
+```
+
+## Reference Sequence Similarity
+
+This section shows pairwise sequence similarity across all sequences in the reference FASTA file. High similarity between sequences may indicate potential cross-mapping issues during alignment.
+
+```{r}
+#| label: reference-similarity-check
+#| include: false
+
+# Check if similarity matrix is available
+has_similarity_matrix <- !is.null(similarity_matrix)
+```
+
+```{r}
+#| label: fig-similarity-heatmap
+#| fig-width: 12
+#| fig-height: 10
+#| fig-cap: "Pairwise sequence identity heatmap. Amino acid annotations shown on axes. High similarity (>90%) shown in orange/red."
+#| eval: !expr has_similarity_matrix
+
+# Parse tRNA names to extract amino acid and anticodon
+parse_trna_name <- function(name) {
+  parts <- str_split(name, "-")[[1]]
+  if (length(parts) >= 3 && parts[1] == "tRNA") {
+    aa <- parts[2]
+    anticodon <- parts[3]
+  } else if (length(parts) >= 2) {
+    aa <- parts[1]
+    anticodon <- if (length(parts) >= 2) parts[2] else "unknown"
+  } else {
+    aa <- "unknown"
+    anticodon <- "unknown"
+  }
+  list(aa = aa, anticodon = anticodon)
+}
+
+# Parse all sequence names
+parsed <- lapply(rownames(similarity_matrix), parse_trna_name)
+aa_labels <- sapply(parsed, function(x) x$aa)
+
+# Create color palette for amino acids
+unique_aa <- unique(aa_labels)
+n_aa <- length(unique_aa)
+
+if (n_aa <= 20) {
+  aa_colors <- setNames(rainbow(n_aa, s = 0.7, v = 0.8), unique_aa)
+} else {
+  aa_colors <- setNames(
+    colorRampPalette(c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3",
+                       "#FF7F00", "#FFFF33", "#A65628", "#F781BF"))(n_aa),
+    unique_aa
+  )
+}
+
+# Color scale for similarity values
+col_fun <- colorRamp2(c(50, 75, 90, 100), c("white", "lightyellow", "orange", "red"))
+
+# Create annotations
+row_anno <- rowAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = TRUE,
+  annotation_name_side = "top"
+)
+
+col_anno <- HeatmapAnnotation(
+  AA = aa_labels,
+  col = list(AA = aa_colors),
+  show_annotation_name = FALSE
+)
+
+# Draw heatmap
+ht <- Heatmap(
+  similarity_matrix,
+  name = "% Identity",
+  col = col_fun,
+  left_annotation = row_anno,
+  top_annotation = col_anno,
+  show_row_names = nrow(similarity_matrix) <= 50,
+  show_column_names = nrow(similarity_matrix) <= 50,
+  row_names_gp = gpar(fontsize = 6),
+  column_names_gp = gpar(fontsize = 6),
+  clustering_distance_rows = "euclidean",
+  clustering_distance_columns = "euclidean",
+  clustering_method_rows = "complete",
+  clustering_method_columns = "complete",
+  row_title = "Reference Sequences",
+  column_title = "Reference Sequence Similarity"
+)
+
+draw(ht)
+```
+
+```{r}
+#| label: no-similarity-matrix
+#| eval: !expr !has_similarity_matrix
+#| results: asis
+
+cat("*Reference similarity matrix not available.*\n")
+```
+
+### Highly Similar Sequence Pairs
+
+Sequence pairs with >90% identity may be at risk for cross-mapping:
+
+```{r}
+#| label: high-similarity-pairs
+#| eval: !expr has_similarity_matrix
+
+high_sim_threshold <- 90
+
+# Find pairs with high similarity (excluding diagonal)
+pairs <- data.frame()
+for (i in 1:(nrow(similarity_matrix) - 1)) {
+  for (j in (i + 1):ncol(similarity_matrix)) {
+    if (similarity_matrix[i, j] >= high_sim_threshold) {
+      pairs <- rbind(pairs, data.frame(
+        Seq1 = rownames(similarity_matrix)[i],
+        Seq2 = colnames(similarity_matrix)[j],
+        Percent_Identity = round(similarity_matrix[i, j], 2)
+      ))
+    }
+  }
+}
+
+# Sort by similarity (descending)
+pairs <- pairs |> arrange(desc(Percent_Identity))
+
+if (nrow(pairs) > 0) {
+  gt(head(pairs, 50)) |>
+    cols_label(
+      Seq1 = "Sequence 1",
+      Seq2 = "Sequence 2",
+      Percent_Identity = "% Identity"
+    ) |>
+    fmt_number(columns = Percent_Identity, decimals = 1)
+} else {
+  cat(paste0("No sequence pairs found with >= ", high_sim_threshold, "% identity.\n"))
+}
+```
+
+### Similarity Distribution
+
+```{r}
+#| label: fig-similarity-histogram
+#| fig-width: 8
+#| fig-height: 4
+#| fig-cap: "Distribution of pairwise sequence similarities. Red dashed line indicates 90% threshold."
+#| eval: !expr has_similarity_matrix
+
+# Get upper triangle values (excluding diagonal)
+upper_tri <- similarity_matrix[upper.tri(similarity_matrix)]
+
+tibble(similarity = upper_tri) |>
+  ggplot(aes(x = similarity)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white", alpha = 0.8) +
+  geom_vline(xintercept = 90, linetype = "dashed", color = "red", linewidth = 1) +
+  scale_y_continuous(labels = comma) +
+  labs(x = "Percent Identity", y = "Number of Pairs") +
+  theme_minimal_hgrid()
+```
+
+```{r}
+#| label: similarity-summary-stats
+#| eval: !expr has_similarity_matrix
+
+upper_tri <- similarity_matrix[upper.tri(similarity_matrix)]
+
+tibble(
+  Statistic = c("Minimum", "Median", "Mean", "Maximum", "Pairs >= 90%", "Pairs >= 95%", "Total pairs"),
+  Value = c(
+    sprintf("%.1f%%", min(upper_tri)),
+    sprintf("%.1f%%", median(upper_tri)),
+    sprintf("%.1f%%", mean(upper_tri)),
+    sprintf("%.1f%%", max(upper_tri)),
+    as.character(sum(upper_tri >= 90)),
+    as.character(sum(upper_tri >= 95)),
+    as.character(length(upper_tri))
+  )
+) |>
+  gt()
 ```
 
 ## Summary
