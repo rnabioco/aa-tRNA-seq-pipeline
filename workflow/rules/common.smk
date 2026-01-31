@@ -342,9 +342,7 @@ def get_all_merged_pod5s():
                 os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")
             )
         else:
-            pod5_paths.append(
-                os.path.join(outdir, "pod5", sample, f"{sample}.pod5")
-            )
+            pod5_paths.append(os.path.join(outdir, "pod5", sample, f"{sample}.pod5"))
     return pod5_paths
 
 
