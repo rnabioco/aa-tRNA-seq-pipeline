@@ -58,12 +58,23 @@ if (!is.null(config$samples))
   samples_path <- fs::path_abs(config$samples, start = dirname(params$config_file))
   if (fs::path_ext(samples_path) %in% c("yml", "yaml")) {
     samples_config <- read_yaml(samples_path)
-    sample_list <- samples_config$runs |>
-      map(~ names(.x$samples)) |>
-      unlist()
+    sample_metadata <- samples_config$runs |>
+      purrr::map_dfr(function(run) {
+        tibble(
+          sample = names(run$samples),
+          barcode = unlist(run$samples),
+          run_path = run$path,
+          barcode_kit = run$barcode_kit %||% NA_character_
+        )
+      })
+    sample_list <- sample_metadata$sample
   } else {
-    # TSV format: first column is sample name
-    sample_list <- read_tsv(samples_path, col_names = FALSE, show_col_types = FALSE)$X1
+    # TSV format: first column is sample name, second is run directory
+    sample_metadata <- read_tsv(samples_path, col_names = c("sample", "run_path"),
+                                show_col_types = FALSE) |>
+      group_by(sample) |>
+      summarise(run_path = paste(run_path, collapse = "; "), .groups = "drop")
+    sample_list <- sample_metadata$sample
   }
 } else {
  stop("No samples defined in config file")
@@ -95,7 +106,57 @@ is_standard_trna <- function(trna_name) {
 
 This report summarizes QC metrics for **`r length(sample_list)` samples** from the aa-tRNA-seq pipeline.
 
-**Samples:** `r paste(sample_list, collapse = ", ")`
+### Samples
+
+```{r}
+#| label: sample-table
+
+if ("barcode" %in% colnames(sample_metadata)) {
+  sample_metadata |>
+    dplyr::select(Sample = sample, `Run Path` = run_path,
+                  Barcode = barcode, `Barcode Kit` = barcode_kit) |>
+    gt()
+} else {
+  sample_metadata |>
+    dplyr::select(Sample = sample, `Run Path` = run_path) |>
+    gt()
+}
+```
+
+### Pipeline Configuration
+
+```{r}
+#| label: config-table
+
+config_params <- tibble(
+  Parameter = c(
+    "Base Calling Model",
+    "Reference FASTA",
+    "Dorado Version",
+    "Charging ML Threshold",
+    "BWA Options",
+    "BAM Filter",
+    "5' Adapter",
+    "3' Adapter"
+  ),
+  Value = c(
+    config$base_calling_model %||% config$dorado_model %||% "N/A",
+    config$fasta %||% "N/A",
+    as.character(config$dorado_version %||% "N/A"),
+    as.character(ml_threshold),
+    trimws(config$opts$bwa %||% "N/A"),
+    trimws(config$opts$bam_filter %||% "N/A"),
+    config$adapters$five_prime %||% "N/A",
+    if (is.list(config$adapters$three_prime)) {
+      paste(sapply(config$adapters$three_prime, function(x) paste0(x$name, ": ", x$seq)), collapse = "; ")
+    } else {
+      config$adapters$three_prime %||% "N/A"
+    }
+  )
+)
+
+gt(config_params)
+```
 
 ```{r}
 #| label: load-all-data
@@ -180,7 +241,7 @@ for (s in sample_list) {
     fmt_number(columns = c(`Mean Length`, `Mean Quality`, `Mean MAPQ`), decimals = 1) |>
     fmt_number(columns = `% Mapped`, decimals = 1)
 
-  print(htmltools::tagList(tbl))
+  cat(as_raw_html(tbl))
   cat("\n\n")
 }
 ```
@@ -247,40 +308,29 @@ ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
 
 ### Charging Summary
 
-::: {.panel-tabset}
-
 ```{r}
-#| label: charging-summary-tabs
-#| results: asis
+#| label: charging-summary-table
 
-for (s in sample_list) {
-  cat("\n\n####", s, "\n\n")
-
+charging_summary_tbl <- map_dfr(sample_list, function(s) {
   sample_prob <- charging_prob_all |> filter(sample == s)
   n_charged <- sum(sample_prob$charging_likelihood >= ml_threshold)
   n_uncharged <- sum(sample_prob$charging_likelihood < ml_threshold)
   n_total <- nrow(sample_prob)
 
-  tbl_charging_summary <- tibble(
-    Status = c("Charged", "Uncharged", "Total"),
-    `Read Count` = c(n_charged, n_uncharged, n_total),
-    Percentage = c(
-      n_charged / n_total * 100,
-      n_uncharged / n_total * 100,
-      100
-    )
+  tibble(
+    Sample = s,
+    Charged = n_charged,
+    Uncharged = n_uncharged,
+    Total = n_total,
+    `% Charged` = n_charged / n_total * 100,
+    `% Uncharged` = n_uncharged / n_total * 100
   )
+})
 
-  tbl <- gt(tbl_charging_summary) |>
-    fmt_number(columns = Percentage, decimals = 1) |>
-    fmt_number(columns = `Read Count`, use_seps = TRUE, decimals = 0)
-
-  print(htmltools::tagList(tbl))
-  cat("\n\n")
-}
+gt(charging_summary_tbl) |>
+  fmt_number(columns = c(Charged, Uncharged, Total), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = c(`% Charged`, `% Uncharged`), decimals = 1)
 ```
-
-:::
 
 ### Per-tRNA Abundance
 
@@ -359,7 +409,6 @@ ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
 ```{r}
 #| label: top-trnas-tabs
 #| results: asis
-#| tbl-cap: "Top 20 tRNA isodecoders ranked by total read count."
 
 for (s in sample_list) {
   cat("\n\n####", s, "\n\n")
@@ -392,11 +441,12 @@ for (s in sample_list) {
     )
 
   tbl <- gt(tbl_top_trnas) |>
+    tab_header(title = paste("Top 20 tRNAs -", s)) |>
     fmt_number(columns = c(`Charged`, `Uncharged`, `Total`), use_seps = TRUE, decimals = 0) |>
     fmt_number(columns = `% Charged`, decimals = 1) |>
     fmt_number(columns = CPM, decimals = 0)
 
-  print(htmltools::tagList(tbl))
+  cat(as_raw_html(tbl))
   cat("\n\n")
 }
 ```
@@ -460,7 +510,39 @@ ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
   theme_minimal_hgrid()
 ```
 
-## Reference Sequence Similarity
+## Summary
+
+```{r}
+#| label: summary-table
+#| tbl-cap: "Charging classification summary across all samples."
+
+summary_tbl <- map_dfr(sample_list, function(s) {
+  sample_prob <- charging_prob_all |> filter(sample == s)
+  n_charged <- sum(sample_prob$charging_likelihood >= ml_threshold)
+  n_uncharged <- sum(sample_prob$charging_likelihood < ml_threshold)
+  n_total <- nrow(sample_prob)
+
+  tibble(
+    Sample = s,
+    `Total Classified Reads` = n_total,
+    `Charged Reads` = n_charged,
+    `Uncharged Reads` = n_uncharged,
+    `% Charged` = n_charged / n_total * 100
+  )
+})
+
+gt(summary_tbl) |>
+  fmt_number(columns = c(`Total Classified Reads`, `Charged Reads`, `Uncharged Reads`), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = `% Charged`, decimals = 1)
+```
+
+**ML threshold used:** `r ml_threshold`
+
+{{< include _custom.qmd >}}
+
+## Appendix {.appendix}
+
+### Reference Sequence Similarity
 
 This section shows pairwise sequence similarity across all sequences in the reference FASTA file. High similarity between sequences may indicate potential cross-mapping issues during alignment.
 
@@ -560,7 +642,7 @@ draw(ht)
 cat("*Reference similarity matrix not available.*\n")
 ```
 
-### Highly Similar Sequence Pairs
+#### Highly Similar Sequence Pairs
 
 Sequence pairs with >90% identity may be at risk for cross-mapping:
 
@@ -600,7 +682,7 @@ if (nrow(pairs) > 0) {
 }
 ```
 
-### Similarity Distribution
+#### Similarity Distribution
 
 ```{r}
 #| label: fig-similarity-histogram
@@ -641,36 +723,6 @@ tibble(
 ) |>
   gt()
 ```
-
-## Summary
-
-```{r}
-#| label: summary-table
-#| tbl-cap: "Charging classification summary across all samples."
-
-summary_tbl <- map_dfr(sample_list, function(s) {
-  sample_prob <- charging_prob_all |> filter(sample == s)
-  n_charged <- sum(sample_prob$charging_likelihood >= ml_threshold)
-  n_uncharged <- sum(sample_prob$charging_likelihood < ml_threshold)
-  n_total <- nrow(sample_prob)
-
-  tibble(
-    Sample = s,
-    `Total Classified Reads` = n_total,
-    `Charged Reads` = n_charged,
-    `Uncharged Reads` = n_uncharged,
-    `% Charged` = n_charged / n_total * 100
-  )
-})
-
-gt(summary_tbl) |>
-  fmt_number(columns = c(`Total Classified Reads`, `Charged Reads`, `Uncharged Reads`), use_seps = TRUE, decimals = 0) |>
-  fmt_number(columns = `% Charged`, decimals = 1)
-```
-
-**ML threshold used:** `r ml_threshold`
-
-{{< include _custom.qmd >}}
 
 ::: {.callout-note collapse="true"}
 ## Session Info
