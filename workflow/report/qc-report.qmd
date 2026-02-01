@@ -95,13 +95,13 @@ if (!is.null(config$report$sample_order)) {
 # Pattern: Genus_species_tRNA-Aaa-NNN-X-Y → Aaa-NNN (handles iMet with 4 chars)
 # Returns list with isodecoder name and whether it matched the tRNA pattern
 extract_isodecoder <- function(trna_name) {
-  isodecoder <- str_extract(trna_name, "(?<=tRNA-)[A-Za-z]{3,4}-[ACGT]{3}")
+  isodecoder <- str_extract(trna_name, "(?<=tRNA-)[A-Za-z]{3,4}[0-9]?-[ACGT]{3}")
   if_else(is.na(isodecoder), trna_name, isodecoder)
 }
 
 # Check if name matches standard tRNA isodecoder pattern
 is_standard_trna <- function(trna_name) {
- str_detect(trna_name, "tRNA-[A-Za-z]{3,4}-[ACGT]{3}")
+ str_detect(trna_name, "tRNA-[A-Za-z]{3,4}[0-9]?-[ACGT]{3}")
 }
 ```
 
@@ -122,13 +122,15 @@ charging_prob_all <- map_dfr(sample_list, function(s) {
   tables_dir <- fs::path(output_dir, "summary", "tables", s)
   read_tsv(fs::path(tables_dir, paste0(s, ".charging_prob.tsv.gz")), show_col_types = FALSE) |>
     mutate(sample = s)
-})
+}) |>
+  filter(!str_detect(tRNA, "tRNA-Und"))
 
 charging_cpm_all <- map_dfr(sample_list, function(s) {
   tables_dir <- fs::path(output_dir, "summary", "tables", s)
   read_tsv(fs::path(tables_dir, paste0(s, ".charging.cpm.tsv.gz")), show_col_types = FALSE) |>
     mutate(sample = s)
-})
+}) |>
+  filter(!str_detect(tRNA, "tRNA-Und"))
 
 bcerror_all <- map_dfr(sample_list, function(s) {
   tables_dir <- fs::path(output_dir, "summary", "tables", s)
@@ -149,6 +151,179 @@ if (fs::file_exists(similarity_matrix_path)) {
   similarity_df <- read_tsv(similarity_matrix_path, show_col_types = FALSE)
   similarity_matrix <- as.matrix(similarity_df[, -1])
   rownames(similarity_matrix) <- similarity_df[[1]]
+}
+```
+
+```{r}
+#| label: plot-helpers
+#| include: false
+
+plot_alignment_funnel <- function(s) {
+  tbl_funnel <- align_stats_all |>
+    filter(sample == s) |>
+    dplyr::select(sample, info, n_reads) |>
+    mutate(
+      stage = factor(info, levels = c("unmapped", "aligned", "classified")),
+      stage = recode(stage,
+        "unmapped" = "Rebasecalled",
+        "aligned" = "Aligned",
+        "classified" = "Classified"
+      )
+    )
+
+  ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = label_number(scale_cut = cut_short_scale(), accuracy = 0.1)(n_reads)),
+              vjust = -0.5, size = 3) +
+    scale_fill_brewer(palette = "Set2") +
+    scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                       expand = expansion(mult = c(0, 0.15))) +
+    labs(x = "Processing Stage", y = "Number of Reads") +
+    ggtitle("Read Progression") +
+    theme_minimal_hgrid() +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+plot_charging_density <- function(s) {
+  tbl_density <- charging_prob_all |>
+    filter(sample == s) |>
+    mutate(
+      charging_status = if_else(charging_likelihood >= ml_threshold, "Charged", "Uncharged")
+    )
+
+  ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
+    geom_histogram(binwidth = 5, alpha = 0.8, position = "identity") +
+    geom_vline(xintercept = ml_threshold, linetype = "dashed", linewidth = 1, color = "grey30") +
+    scale_fill_manual(values = c("Charged" = "#E69F00", "Uncharged" = "#56B4E9")) +
+    scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+    labs(x = "Charging Likelihood (ML tag, 0-255)", y = "Number of Reads", fill = "Classification") +
+    ggtitle("Charging Score Distribution") +
+    theme_minimal_hgrid() +
+    theme(legend.position = "top")
+}
+
+plot_trna_abundance <- function(s) {
+  tbl_abundance <- charging_cpm_all |>
+    filter(sample == s) |>
+    mutate(
+      is_standard = is_standard_trna(tRNA),
+      isodecoder = extract_isodecoder(tRNA)
+    ) |>
+    group_by(isodecoder) |>
+    summarise(
+      total_counts = sum(counts_charged) + sum(counts_uncharged),
+      total_cpm = sum(cpm_charged) + sum(cpm_uncharged),
+      is_standard = first(is_standard),
+      .groups = "drop"
+    ) |>
+    filter(total_counts >= 5) |>
+    mutate(isodecoder = fct_reorder(isodecoder, total_cpm))
+
+  ggplot(tbl_abundance, aes(x = isodecoder, y = total_cpm, fill = is_standard)) +
+    geom_col() +
+    scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+    scale_y_continuous(labels = comma) +
+    labs(x = NULL, y = "CPM") +
+    ggtitle("tRNA Abundance (CPM)") +
+    theme_minimal_hgrid() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
+}
+
+plot_trna_charging <- function(s) {
+  tbl_charging <- charging_cpm_all |>
+    filter(sample == s) |>
+    mutate(
+      is_standard = is_standard_trna(tRNA),
+      isodecoder = extract_isodecoder(tRNA)
+    ) |>
+    group_by(isodecoder) |>
+    summarise(
+      counts_charged = sum(counts_charged),
+      counts_uncharged = sum(counts_uncharged),
+      is_standard = first(is_standard),
+      .groups = "drop"
+    ) |>
+    mutate(
+      total_counts = counts_charged + counts_uncharged,
+      pct_charged = counts_charged / total_counts * 100
+    ) |>
+    filter(total_counts >= 5) |>
+    mutate(isodecoder = fct_reorder(isodecoder, pct_charged))
+
+  ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
+    geom_col() +
+    scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
+    labs(x = NULL, y = "% Charged") +
+    ggtitle("tRNA Charging (%)") +
+    theme_minimal_hgrid() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
+}
+
+plot_error_frequency <- function(s) {
+  tbl_error <- bcerror_all |>
+    filter(sample == s) |>
+    group_by(Position) |>
+    summarise(
+      mean_mismatch = mean(MismatchFreq, na.rm = TRUE),
+      mean_insertion = mean(InsertionFreq, na.rm = TRUE),
+      mean_deletion = mean(DeletionFreq, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  tbl_error_long <- tbl_error |>
+    dplyr::select(Position, Mismatch = mean_mismatch,
+                  Insertion = mean_insertion, Deletion = mean_deletion) |>
+    pivot_longer(cols = c(Mismatch, Insertion, Deletion),
+                 names_to = "Error Type", values_to = "Frequency")
+
+  ggplot(tbl_error_long, aes(x = Position, y = Frequency, color = `Error Type`)) +
+    geom_line(linewidth = 0.8) +
+    scale_color_brewer(palette = "Set2") +
+    scale_y_continuous(labels = percent_format(scale = 100)) +
+    labs(x = "Position in Reference", y = "Error Frequency") +
+    ggtitle("Error Frequency") +
+    theme_minimal_hgrid() +
+    theme(legend.position = "top")
+}
+
+plot_coverage_position <- function(s) {
+  tbl_coverage <- bcerror_all |>
+    filter(sample == s) |>
+    group_by(Position) |>
+    summarise(
+      mean_coverage = mean(Spanning_Reads, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
+    geom_area(fill = "#56B4E9", alpha = 0.6) +
+    geom_line(color = "#0072B2", linewidth = 0.5) +
+    scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
+    labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
+    ggtitle("Position Coverage") +
+    theme_minimal_hgrid()
+}
+
+make_sample_qc_panel <- function(s) {
+  p_a <- plot_alignment_funnel(s)
+  p_b <- plot_charging_density(s)
+  p_c <- plot_trna_abundance(s)
+  p_d <- plot_trna_charging(s)
+  p_e <- plot_error_frequency(s)
+  p_f <- plot_coverage_position(s)
+
+  design <- "
+AABB
+CCCC
+DDDD
+EEFF
+"
+
+  p_a + p_b + p_c + p_d + p_e + p_f +
+    plot_layout(design = design, heights = c(1, 1.3, 1.3, 1)) +
+    plot_annotation(tag_levels = "A")
 }
 ```
 
@@ -198,63 +373,35 @@ for (s in sample_list) {
 
 :::
 
-### Alignment Funnel
+## Per-Sample QC Overview
+
+Each tab shows a combined QC panel for one sample: (A) read progression through the pipeline, (B) charging score distribution, (C) tRNA abundance, (D) tRNA charging fraction, (E) base calling error frequency, and (F) position coverage.
+
+::: {.panel-tabset}
 
 ```{r}
-#| label: fig-alignment-funnel
-#| fig-width: 10
-#| fig-height: 4
-#| fig-cap: "Read counts at each processing stage showing retention through the pipeline."
+#| label: sample-qc-panels
+#| results: asis
 
-tbl_funnel <- align_stats_all |>
-  dplyr::select(sample, info, n_reads) |>
-  mutate(
-    stage = factor(info, levels = c("unmapped", "aligned", "classified")),
-    stage = recode(stage,
-      "unmapped" = "Rebasecalled",
-      "aligned" = "Aligned",
-      "classified" = "Classified"
-    )
-  )
-
-ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
-  geom_col(width = 0.7) +
-  geom_text(aes(label = label_number(scale_cut = cut_short_scale(), accuracy = 0.1)(n_reads)), vjust = -0.5, size = 3) +
-  scale_fill_brewer(palette = "Set2") +
-  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()), expand = expansion(mult = c(0, 0.15))) +
-  labs(x = "Processing Stage", y = "Number of Reads") +
-  facet_wrap(~sample, scales = "free_y") +
-  theme_minimal_hgrid() +
-  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+  res <- knitr::knit_child(text = c(
+    "```{r}",
+    "#| echo: false",
+    "#| fig-width: 14",
+    "#| fig-height: 18",
+    sprintf("make_sample_qc_panel('%s')", s),
+    "```",
+    ""
+  ), envir = environment(), quiet = TRUE)
+  cat(res, sep = "\n")
+  cat("\n\n")
+}
 ```
+
+:::
 
 ## Charging Classification
-
-### Charging Likelihood Distribution
-
-The Remora model assigns a charging likelihood score (0-255) to each read. Reads with scores >= `r ml_threshold` are classified as charged.
-
-```{r}
-#| label: fig-charging-density
-#| fig-width: 10
-#| fig-height: 5
-#| fig-cap: "Distribution of Remora charging likelihood scores. Dashed line indicates classification threshold."
-
-tbl_density <- charging_prob_all |>
-  mutate(
-    charging_status = if_else(charging_likelihood >= ml_threshold, "Charged", "Uncharged")
-  )
-
-ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
-  geom_histogram(binwidth = 5, alpha = 0.8, position = "identity") +
-  geom_vline(xintercept = ml_threshold, linetype = "dashed", linewidth = 1, color = "grey30") +
-  scale_fill_manual(values = c("Charged" = "#E69F00", "Uncharged" = "#56B4E9")) +
-  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
-  labs(x = "Charging Likelihood (ML tag, 0-255)", y = "Number of Reads", fill = "Classification") +
-  facet_wrap(~sample, scales = "free_y") +
-  theme_minimal_hgrid() +
-  theme(legend.position = "top")
-```
 
 ### Charging Summary
 
@@ -280,76 +427,6 @@ charging_summary_tbl <- map_dfr(sample_list, function(s) {
 gt(charging_summary_tbl) |>
   fmt_number(columns = c(Charged, Uncharged, Total), suffixing = TRUE, decimals = 1) |>
   fmt_number(columns = c(`% Charged`, `% Uncharged`), decimals = 1)
-```
-
-### Per-tRNA Abundance
-
-```{r}
-#| label: fig-trna-abundance
-#| fig-width: 10
-#| fig-height: 4
-#| fig-cap: "Total CPM per tRNA isodecoder. Non-standard tRNAs shown in red."
-
-tbl_abundance <- charging_cpm_all |>
-  mutate(
-    is_standard = is_standard_trna(tRNA),
-    isodecoder = extract_isodecoder(tRNA)
-  ) |>
-  group_by(sample, isodecoder) |>
-  summarise(
-    total_counts = sum(counts_charged) + sum(counts_uncharged),
-    total_cpm = sum(cpm_charged) + sum(cpm_uncharged),
-    is_standard = first(is_standard),
-    .groups = "drop"
-  ) |>
-  filter(total_counts >= 5) |>
-  mutate(isodecoder = fct_reorder(isodecoder, total_cpm, .fun = mean))
-
-ggplot(tbl_abundance, aes(x = isodecoder, y = total_cpm, fill = is_standard)) +
-  geom_col() +
-  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
-  scale_y_continuous(labels = comma) +
-  labs(x = NULL, y = "CPM") +
-  facet_wrap(~sample, scales = "free_y") +
-  theme_minimal_hgrid() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
-```
-
-### Per-tRNA Charging
-
-```{r}
-#| label: fig-trna-charging
-#| fig-width: 10
-#| fig-height: 4
-#| fig-cap: "Percent charged per tRNA isodecoder. Non-standard tRNAs shown in red."
-
-tbl_charging <- charging_cpm_all |>
-  mutate(
-    is_standard = is_standard_trna(tRNA),
-    isodecoder = extract_isodecoder(tRNA)
-  ) |>
-  group_by(sample, isodecoder) |>
-  summarise(
-    counts_charged = sum(counts_charged),
-    counts_uncharged = sum(counts_uncharged),
-    is_standard = first(is_standard),
-    .groups = "drop"
-  ) |>
-  mutate(
-    total_counts = counts_charged + counts_uncharged,
-    pct_charged = counts_charged / total_counts * 100
-  ) |>
-  filter(total_counts >= 5) |>
-  mutate(isodecoder = fct_reorder(isodecoder, pct_charged, .fun = mean))
-
-ggplot(tbl_charging, aes(x = isodecoder, y = pct_charged, fill = is_standard)) +
-  geom_col() +
-  scale_fill_manual(values = c("TRUE" = "grey60", "FALSE" = "#E41A1C"), guide = "none") +
-  scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
-  labs(x = NULL, y = "% Charged") +
-  facet_wrap(~sample, scales = "free_y") +
-  theme_minimal_hgrid() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)))
 ```
 
 ### Top tRNAs by Read Count
@@ -402,63 +479,6 @@ for (s in sample_list) {
 ```
 
 :::
-
-## Base Calling Quality
-
-### Error Frequency by Position
-
-```{r}
-#| label: fig-error-frequency
-#| fig-width: 10
-#| fig-height: 6
-#| fig-cap: "Mean error frequency across all tRNAs by reference position."
-
-tbl_error <- bcerror_all |>
-  group_by(sample, Position) |>
-  summarise(
-    mean_mismatch = mean(MismatchFreq, na.rm = TRUE),
-    mean_insertion = mean(InsertionFreq, na.rm = TRUE),
-    mean_deletion = mean(DeletionFreq, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-tbl_error_long <- tbl_error |>
-  dplyr::select(sample, Position, Mismatch = mean_mismatch, Insertion = mean_insertion, Deletion = mean_deletion) |>
-  pivot_longer(cols = c(Mismatch, Insertion, Deletion), names_to = "Error Type", values_to = "Frequency")
-
-ggplot(tbl_error_long, aes(x = Position, y = Frequency, color = `Error Type`)) +
-  geom_line(linewidth = 0.8) +
-  scale_color_brewer(palette = "Set2") +
-  scale_y_continuous(labels = percent_format(scale = 100)) +
-  labs(x = "Position in Reference", y = "Error Frequency") +
-  facet_wrap(~sample) +
-  theme_minimal_hgrid() +
-  theme(legend.position = "top")
-```
-
-### Coverage by Position
-
-```{r}
-#| label: fig-coverage-position
-#| fig-width: 10
-#| fig-height: 6
-#| fig-cap: "Mean read coverage across all tRNAs by reference position."
-
-tbl_coverage <- bcerror_all |>
-  group_by(sample, Position) |>
-  summarise(
-    mean_coverage = mean(Spanning_Reads, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
-  geom_area(fill = "#56B4E9", alpha = 0.6) +
-  geom_line(color = "#0072B2", linewidth = 0.5) +
-  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
-  labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
-  facet_wrap(~sample, scales = "free_y") +
-  theme_minimal_hgrid()
-```
 
 ## Summary
 
