@@ -187,6 +187,7 @@ for (s in sample_list) {
     )
 
   tbl <- gt(tbl_align) |>
+    fmt_number(columns = c(`Total Reads`, `Mapped Reads`), suffixing = TRUE, decimals = 1) |>
     fmt_number(columns = c(`Mean Length`, `Mean Quality`, `Mean MAPQ`), decimals = 1) |>
     fmt_number(columns = `% Mapped`, decimals = 1)
 
@@ -218,9 +219,9 @@ tbl_funnel <- align_stats_all |>
 
 ggplot(tbl_funnel, aes(x = stage, y = n_reads, fill = stage)) +
   geom_col(width = 0.7) +
-  geom_text(aes(label = comma(n_reads)), vjust = -0.5, size = 3) +
+  geom_text(aes(label = label_number(scale_cut = cut_short_scale(), accuracy = 0.1)(n_reads)), vjust = -0.5, size = 3) +
   scale_fill_brewer(palette = "Set2") +
-  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()), expand = expansion(mult = c(0, 0.15))) +
   labs(x = "Processing Stage", y = "Number of Reads") +
   facet_wrap(~sample, scales = "free_y") +
   theme_minimal_hgrid() +
@@ -248,7 +249,7 @@ ggplot(tbl_density, aes(x = charging_likelihood, fill = charging_status)) +
   geom_histogram(binwidth = 5, alpha = 0.8, position = "identity") +
   geom_vline(xintercept = ml_threshold, linetype = "dashed", linewidth = 1, color = "grey30") +
   scale_fill_manual(values = c("Charged" = "#E69F00", "Uncharged" = "#56B4E9")) +
-  scale_y_continuous(labels = comma) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
   labs(x = "Charging Likelihood (ML tag, 0-255)", y = "Number of Reads", fill = "Classification") +
   facet_wrap(~sample, scales = "free_y") +
   theme_minimal_hgrid() +
@@ -277,7 +278,7 @@ charging_summary_tbl <- map_dfr(sample_list, function(s) {
 })
 
 gt(charging_summary_tbl) |>
-  fmt_number(columns = c(Charged, Uncharged, Total), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = c(Charged, Uncharged, Total), suffixing = TRUE, decimals = 1) |>
   fmt_number(columns = c(`% Charged`, `% Uncharged`), decimals = 1)
 ```
 
@@ -391,7 +392,7 @@ for (s in sample_list) {
 
   tbl <- gt(tbl_top_trnas) |>
     tab_header(title = paste("Top 20 tRNAs -", s)) |>
-    fmt_number(columns = c(`Charged`, `Uncharged`, `Total`), use_seps = TRUE, decimals = 0) |>
+    fmt_number(columns = c(`Charged`, `Uncharged`, `Total`), suffixing = TRUE, decimals = 1) |>
     fmt_number(columns = `% Charged`, decimals = 1) |>
     fmt_number(columns = CPM, decimals = 0)
 
@@ -453,7 +454,7 @@ tbl_coverage <- bcerror_all |>
 ggplot(tbl_coverage, aes(x = Position, y = mean_coverage)) +
   geom_area(fill = "#56B4E9", alpha = 0.6) +
   geom_line(color = "#0072B2", linewidth = 0.5) +
-  scale_y_continuous(labels = comma) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale())) +
   labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
   facet_wrap(~sample, scales = "free_y") +
   theme_minimal_hgrid()
@@ -481,7 +482,7 @@ summary_tbl <- map_dfr(sample_list, function(s) {
 })
 
 gt(summary_tbl) |>
-  fmt_number(columns = c(`Total Classified Reads`, `Charged Reads`, `Uncharged Reads`), use_seps = TRUE, decimals = 0) |>
+  fmt_number(columns = c(`Total Classified Reads`, `Charged Reads`, `Uncharged Reads`), suffixing = TRUE, decimals = 1) |>
   fmt_number(columns = `% Charged`, decimals = 1)
 ```
 

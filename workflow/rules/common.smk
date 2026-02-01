@@ -98,9 +98,11 @@ def parse_samples(fl):
 
 
 def get_pipeline_commit():
-
-    repo = Repo(PIPELINE_DIR)
-    return repo.head.commit
+    try:
+        repo = Repo(PIPELINE_DIR)
+        return repo.head.commit
+    except Exception:
+        return None
 
 
 def get_pipeline_version():
@@ -109,24 +111,32 @@ def get_pipeline_version():
 
     Returns dict with commit, tag, branch, and dirty status.
     """
-    repo = Repo(PIPELINE_DIR)
-    commit = repo.head.commit
-
-    # Find tags pointing to current commit
-    tags = [tag.name for tag in repo.tags if tag.commit == commit]
-
-    # Get branch name (None if detached HEAD)
     try:
-        branch = repo.active_branch.name
-    except TypeError:
-        branch = None
+        repo = Repo(PIPELINE_DIR)
+        commit = repo.head.commit
 
-    return {
-        "git_commit": str(commit),
-        "git_tag": tags[0] if tags else None,
-        "git_branch": branch,
-        "git_dirty": repo.is_dirty(),
-    }
+        # Find tags pointing to current commit
+        tags = [tag.name for tag in repo.tags if tag.commit == commit]
+
+        # Get branch name (None if detached HEAD)
+        try:
+            branch = repo.active_branch.name
+        except TypeError:
+            branch = None
+
+        return {
+            "git_commit": str(commit),
+            "git_tag": tags[0] if tags else None,
+            "git_branch": branch,
+            "git_dirty": repo.is_dirty(),
+        }
+    except Exception:
+        return {
+            "git_commit": None,
+            "git_tag": None,
+            "git_branch": None,
+            "git_dirty": None,
+        }
 
 
 def format_config_values():
@@ -146,7 +156,10 @@ def report_metadata():
     from snakemake.logging import logger
 
     cid = get_pipeline_commit()
-    logger.info(f"Pipeline commit: {cid}")
+    if cid is not None:
+        logger.info(f"Pipeline commit: {cid}")
+    else:
+        logger.warning("Pipeline commit: unable to resolve git commit")
     logger.info(format_config_values())
 
 

@@ -17,24 +17,32 @@ def get_pipeline_version(pipeline_dir):
 
     Returns dict with commit, tag, branch, and dirty status.
     """
-    repo = Repo(pipeline_dir)
-    commit = repo.head.commit
-
-    # Find tags pointing to current commit
-    tags = [tag.name for tag in repo.tags if tag.commit == commit]
-
-    # Get branch name (None if detached HEAD)
     try:
-        branch = repo.active_branch.name
-    except TypeError:
-        branch = None
+        repo = Repo(pipeline_dir)
+        commit = repo.head.commit
 
-    return {
-        "git_commit": str(commit),
-        "git_tag": tags[0] if tags else None,
-        "git_branch": branch,
-        "git_dirty": repo.is_dirty(),
-    }
+        # Find tags pointing to current commit
+        tags = [tag.name for tag in repo.tags if tag.commit == commit]
+
+        # Get branch name (None if detached HEAD)
+        try:
+            branch = repo.active_branch.name
+        except TypeError:
+            branch = None
+
+        return {
+            "git_commit": str(commit),
+            "git_tag": tags[0] if tags else None,
+            "git_branch": branch,
+            "git_dirty": repo.is_dirty(),
+        }
+    except Exception:
+        return {
+            "git_commit": None,
+            "git_tag": None,
+            "git_branch": None,
+            "git_dirty": None,
+        }
 
 
 def parse_pixi_lock_version(lock_path, package_name):
