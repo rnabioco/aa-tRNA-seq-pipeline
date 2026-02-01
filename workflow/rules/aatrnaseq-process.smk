@@ -39,6 +39,7 @@ rule rebasecall:
         raw_data_dir=get_basecalling_dir,
         temp_pod5=os.path.join(outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
+        models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
     shell:
         """
     if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -46,7 +47,7 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES
     fi
 
-    dorado basecaller {params.dorado_opts} {params.model} {input} > {output}
+    dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input} > {output}
     """
 
 

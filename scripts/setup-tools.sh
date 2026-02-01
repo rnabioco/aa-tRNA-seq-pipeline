@@ -104,6 +104,29 @@ else
 fi
 
 # ============================================================================
+# Modification Models
+# ============================================================================
+download_mod_models() {
+    local mod_bases="${MODIFIED_BASES:-pseU m5C inosine_m6A}"
+    for mod in ${mod_bases}; do
+        local mod_model="${DORADO_MODEL}_${mod}@v1"
+        local mod_path="${MODEL_DIR}/${mod_model}"
+        if [ -d "${mod_path}" ]; then
+            echo "  Modification model ${mod_model} already exists"
+            continue
+        fi
+        echo "  Downloading ${mod_model}..."
+        if ! "${DORADO_DIR}/bin/dorado" download --model "${mod_model}" --models-directory "${MODEL_DIR}"; then
+            echo "Error: Failed to download modification model ${mod_model}" >&2
+            return 1
+        fi
+    done
+}
+
+echo "=== Checking modification models ==="
+download_mod_models
+
+# ============================================================================
 # Remora Setup (via uv)
 # ============================================================================
 echo "=== Checking remora ==="
