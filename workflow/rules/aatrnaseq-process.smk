@@ -104,9 +104,7 @@ rule bwa_align:
     shell:
         """
     bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-        | samtools view -F 20 -h \
-        | awk '($1 ~ /^@/ || $4 <= 25)' \
-        | samtools view -Sb - \
+        | samtools view -F 20 -Sb - \
         | samtools sort -o {output.bam}
 
     samtools index {output.bam}
