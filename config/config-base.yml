@@ -78,6 +78,12 @@ modkit:
     "17802": 0.995
     "17596": 0.99
 
+# Pairwise modification odds ratio parameters
+odds_ratios:
+  mod_threshold: 0.3    # mismatch freq threshold for calling modified
+  ml_threshold: 200     # CL tag threshold for charged classification
+  min_coverage: 10      # minimum spanning reads per position
+
 # additional options for particular commands
 opts:
   # additional options for dorado basecalling
