@@ -20,6 +20,36 @@ rule merge_pods:
     """
 
 
+rule download_mod_models:
+    """
+    Download dorado modified bases models if not already present.
+    Runs once on the submission node before basecalling to avoid
+    race conditions from parallel GPU jobs downloading simultaneously.
+    """
+    output:
+        sentinel=os.path.join(PIPELINE_DIR, "resources", "models", ".mod_models_ready"),
+    params:
+        models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
+        base_model=config["dorado_model"],
+        mod_bases=get_modified_bases(),
+    shell:
+        """
+        for mod in {params.mod_bases}; do
+            model="{params.base_model}_${{mod}}@v1"
+            model_path="{params.models_dir}/$model"
+            if [ -f "$model_path/.downloaded" ]; then
+                echo "Model $model already downloaded"
+            else
+                echo "Downloading $model..."
+                dorado download --model "$model" --models-directory {params.models_dir}
+                touch "$model_path/.downloaded"
+                echo "Downloaded $model"
+            fi
+        done
+        touch {output.sentinel}
+        """
+
+
 rule rebasecall:
     """
   rebasecall using different accuracy model
@@ -27,7 +57,8 @@ rule rebasecall:
   TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
   """
     input:
-        get_sample_pod5,
+        pod5=get_sample_pod5,
+        mod_models=rules.download_mod_models.output.sentinel,
     output:
         os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
     log:
@@ -45,7 +76,7 @@ rule rebasecall:
       export CUDA_VISIBLE_DEVICES
     fi
 
-    dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input} > {output}
+    dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} > {output}
     """
 
 

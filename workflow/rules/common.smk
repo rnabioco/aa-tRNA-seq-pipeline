@@ -300,6 +300,24 @@ def get_basecalling_dir(wildcards):
     return samples[wildcards.sample]["path"]
 
 
+def get_modified_bases():
+    """Parse modification names from the dorado opts string.
+
+    Returns list of modification names, e.g. ["pseU", "m5C", "inosine_m6A"].
+    """
+    dorado_opts = config.get("opts", {}).get("dorado", "")
+    if "--modified-bases" not in dorado_opts:
+        return []
+    # extract tokens after --modified-bases until the next flag or end of string
+    parts = dorado_opts.split("--modified-bases")[1].split()
+    mods = []
+    for part in parts:
+        if part.startswith("--"):
+            break
+        mods.append(part)
+    return mods
+
+
 def get_modkit_threshold_opts():
     """
     Build modkit threshold options from config.

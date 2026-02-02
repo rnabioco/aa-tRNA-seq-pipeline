@@ -40,6 +40,10 @@ include: "rules/aatrnaseq-odds-ratios.smk"
 include: "rules/aatrnaseq-report.smk"
 
 
+localrules:
+    download_mod_models,
+
+
 # Conditionally include WarpDemuX demultiplexing rules
 if config.get("warpdemux", {}).get("enabled", False):
 
