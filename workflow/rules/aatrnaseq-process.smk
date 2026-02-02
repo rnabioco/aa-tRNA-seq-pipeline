@@ -29,9 +29,7 @@ rule rebasecall:
     input:
         get_sample_pod5,
     output:
-        protected(
-            os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")
-        ),
+        os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
