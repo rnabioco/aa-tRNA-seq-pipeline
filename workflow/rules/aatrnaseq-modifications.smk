@@ -13,13 +13,11 @@ rule bam_to_coverage:
         cpm_tmp=temp(
             os.path.join(outdir, "summary", "tables", "{sample}", "{sample}.cpm.bg")
         ),
-        counts=protected(
-            os.path.join(
-                outdir, "summary", "tables", "{sample}", "{sample}.counts.bg.gz"
-            )
+        counts=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.counts.bg.gz"
         ),
-        cpm=protected(
-            os.path.join(outdir, "summary", "tables", "{sample}", "{sample}.cpm.bg.gz")
+        cpm=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.cpm.bg.gz"
         ),
     params:
         bg_opts=config["opts"]["coverage"],
