@@ -43,6 +43,7 @@ library(patchwork)
 library(scales)
 library(yaml)
 library(cowplot)
+library(ggrepel)
 library(ComplexHeatmap)
 library(circlize)
 
@@ -137,6 +138,22 @@ bcerror_all <- map_dfr(sample_list, function(s) {
   read_tsv(fs::path(tables_dir, paste0(s, ".bcerror.tsv.gz")), show_col_types = FALSE) |>
     mutate(sample = s)
 })
+
+odds_ratios_all <- map_dfr(sample_list, function(s) {
+  tables_dir <- fs::path(output_dir, "summary", "tables", s)
+  or_path <- fs::path(tables_dir, paste0(s, ".odds_ratios.tsv.gz"))
+  if (fs::file_exists(or_path)) {
+    read_tsv(or_path, show_col_types = FALSE) |> mutate(sample = s)
+  } else {
+    tibble()
+  }
+})
+
+has_odds_ratios <- nrow(odds_ratios_all) > 0
+if (has_odds_ratios) {
+  odds_ratios_all <- odds_ratios_all |>
+    mutate(sample = factor(sample, levels = sample_list))
+}
 
 # Convert sample to factor with correct ordering for all datasets
 align_stats_all <- align_stats_all |> mutate(sample = factor(sample, levels = sample_list))
@@ -304,6 +321,104 @@ plot_coverage_position <- function(s) {
     labs(x = "Position in Reference", y = "Mean Coverage (Reads)") +
     ggtitle("Position Coverage") +
     theme_minimal_hgrid()
+}
+
+plot_odds_ratio_volcano <- function(s, n_label = 15) {
+  or_data <- odds_ratios_all |>
+    filter(sample == s, is.finite(log_odds_ratio), !is.na(p_adjusted))
+
+  if (nrow(or_data) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No odds ratio data") + theme_void())
+  }
+
+  or_data <- or_data |>
+    mutate(
+      neg_log10_padj = -log10(p_adjusted),
+      significant = p_adjusted < 0.05,
+      involves_charging = str_detect(pos1, "charging") | str_detect(pos2, "charging"),
+      pair_label = paste0(pos1, " : ", pos2)
+    )
+
+  # Select top points to label (by significance and effect size)
+  top_pts <- or_data |>
+    filter(significant) |>
+    arrange(p_adjusted) |>
+    head(n_label)
+
+  p <- ggplot(or_data, aes(x = log_odds_ratio, y = neg_log10_padj)) +
+    geom_point(aes(color = significant, shape = involves_charging), alpha = 0.6, size = 1.5) +
+    geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "grey40") +
+    scale_color_manual(values = c("TRUE" = "#D55E00", "FALSE" = "grey70"),
+                       labels = c("TRUE" = "p_adj < 0.05", "FALSE" = "NS")) +
+    scale_shape_manual(values = c("TRUE" = 17, "FALSE" = 16),
+                       labels = c("TRUE" = "Yes", "FALSE" = "No")) +
+    labs(x = "Log Odds Ratio", y = expression(-log[10](p[adjusted])),
+         color = "Significant", shape = "Involves Charging") +
+    ggtitle("Pairwise Modification Odds Ratios") +
+    theme_minimal_hgrid() +
+    theme(legend.position = "top")
+
+  if (nrow(top_pts) > 0) {
+    p <- p + ggrepel::geom_text_repel(
+      data = top_pts,
+      aes(label = pair_label),
+      size = 2.5, max.overlaps = 20, segment.color = "grey50"
+    )
+  }
+
+  p
+}
+
+plot_odds_ratio_heatmap <- function(s) {
+  or_data <- odds_ratios_all |>
+    filter(sample == s, p_adjusted < 0.05, is.finite(log_odds_ratio))
+
+  if (nrow(or_data) < 3) {
+    return(
+      ggplot() +
+        annotate("text", x = 0.5, y = 0.5,
+                 label = "Fewer than 3 significant pairs;\nheatmap not shown.",
+                 size = 4, color = "grey40") +
+        theme_void()
+    )
+  }
+
+  # Build symmetric matrix of log odds ratios
+  positions <- sort(unique(c(or_data$pos1, or_data$pos2)))
+
+  mat <- matrix(0, nrow = length(positions), ncol = length(positions),
+                dimnames = list(positions, positions))
+
+  for (i in seq_len(nrow(or_data))) {
+    r <- or_data[i, ]
+    mat[r$pos1, r$pos2] <- r$log_odds_ratio
+    mat[r$pos2, r$pos1] <- r$log_odds_ratio
+  }
+
+  # Convert to long format for ggplot
+  mat_df <- as.data.frame(mat) |>
+    tibble::rownames_to_column("row") |>
+    pivot_longer(-row, names_to = "col", values_to = "log_or") |>
+    filter(row != col) |>
+    mutate(
+      row = factor(row, levels = positions),
+      col = factor(col, levels = positions)
+    )
+
+  max_abs <- max(abs(mat_df$log_or), na.rm = TRUE)
+
+  ggplot(mat_df, aes(x = col, y = row, fill = log_or)) +
+    geom_tile(color = "white", linewidth = 0.3) +
+    scale_fill_gradient2(low = "#2166AC", mid = "white", high = "#B2182B",
+                         midpoint = 0, limits = c(-max_abs, max_abs),
+                         name = "Log OR") +
+    labs(x = NULL, y = NULL) +
+    ggtitle("Significant Pairwise Log Odds Ratios") +
+    theme_minimal() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1, size = rel(0.7)),
+      axis.text.y = element_text(size = rel(0.7))
+    )
 }
 
 make_sample_qc_panel <- function(s) {
@@ -474,6 +589,83 @@ for (s in sample_list) {
     fmt_number(columns = CPM, decimals = 0)
 
   cat(as_raw_html(tbl))
+  cat("\n\n")
+}
+```
+
+:::
+
+## Modification Odds Ratios {.unnumbered}
+
+```{r}
+#| label: odds-ratios-section-guard
+#| include: false
+#| eval: !expr has_odds_ratios
+```
+
+This section shows pairwise odds ratios between modification positions (and charging status) for each sample. Odds ratios quantify co-occurrence patterns: a log OR > 0 indicates that modifications at two positions tend to co-occur on the same reads, while log OR < 0 indicates they tend to be mutually exclusive. P-values are FDR-adjusted (Benjamini-Hochberg).
+
+::: {.panel-tabset}
+
+```{r}
+#| label: odds-ratios-tabs
+#| results: asis
+#| eval: !expr has_odds_ratios
+
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+
+  # Volcano plot
+  res_volcano <- knitr::knit_child(text = c(
+    "```{r}",
+    "#| echo: false",
+    "#| fig-width: 10",
+    "#| fig-height: 7",
+    sprintf("plot_odds_ratio_volcano('%s')", s),
+    "```",
+    ""
+  ), envir = environment(), quiet = TRUE)
+  cat(res_volcano, sep = "\n")
+  cat("\n\n")
+
+  # Top 20 significant pairs table
+  or_top <- odds_ratios_all |>
+    dplyr::filter(sample == s, !is.na(p_adjusted)) |>
+    dplyr::arrange(p_adjusted) |>
+    dplyr::head(20) |>
+    dplyr::select(
+      `Position 1` = pos1,
+      `Position 2` = pos2,
+      `Log OR` = log_odds_ratio,
+      `SE` = se_log_or,
+      `Fisher OR` = fisher_or,
+      `p (adjusted)` = p_adjusted,
+      `Total Obs` = total_obs
+    )
+
+  if (nrow(or_top) > 0) {
+    tbl <- gt(or_top) |>
+      tab_header(title = paste("Top 20 Pairs by Significance -", s)) |>
+      fmt_number(columns = c(`Log OR`, `SE`, `Fisher OR`), decimals = 2) |>
+      fmt_scientific(columns = `p (adjusted)`, decimals = 2) |>
+      fmt_number(columns = `Total Obs`, decimals = 0)
+    cat(as_raw_html(tbl))
+  } else {
+    cat("*No significant pairs found.*\n")
+  }
+  cat("\n\n")
+
+  # Heatmap
+  res_heatmap <- knitr::knit_child(text = c(
+    "```{r}",
+    "#| echo: false",
+    "#| fig-width: 10",
+    "#| fig-height: 8",
+    sprintf("plot_odds_ratio_heatmap('%s')", s),
+    "```",
+    ""
+  ), envir = environment(), quiet = TRUE)
+  cat(res_heatmap, sep = "\n")
   cat("\n\n")
 }
 ```
