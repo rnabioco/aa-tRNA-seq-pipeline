@@ -116,6 +116,7 @@ r-ggrepel = "*"
 r-yaml = "*"
 r-circlize = "*"
 bioconductor-complexheatmap = ">=2.10"
+r-pheatmap = "*"
 
 [feature.report.tasks]
 install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }
