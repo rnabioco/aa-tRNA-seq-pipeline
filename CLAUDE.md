@@ -80,6 +80,7 @@ workflow/
 │   ├── aatrnaseq-modifications.smk    # Modification calling: coverage, modkit outputs (4 rules)
 │   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
+│   └── generate_squiggy_session.py    # Generate Squiggy/Positron session JSON
 └── envs/
     └── aatrnaseqpipe-env.yml          # Conda environment (legacy)
 ```
@@ -124,6 +125,9 @@ After classification, generates (split across three rule files):
 - Coverage bedGraph files (counts and CPM)
 - Modkit modification pileups
 - Modkit per-read modification calls
+
+**common.smk:**
+- Squiggy session JSON (`squiggy-session.json`) for loading outputs in Positron IDE
 
 ## Configuration
 
@@ -265,3 +269,6 @@ Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
 - `bam/final/{sample}/{sample}.bam` - Final BAM with CL/CM (charging) and PT (adapter positions) tags
+
+Pipeline-level outputs:
+- `squiggy-session.json` - Squiggy session file for loading samples in Positron

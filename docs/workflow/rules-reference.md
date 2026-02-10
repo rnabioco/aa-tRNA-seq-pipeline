@@ -485,6 +485,37 @@ modkit extract full \
 
 ---
 
+## Utility Rules
+
+### generate_squiggy_session
+
+Generate a Squiggy session JSON file for loading pipeline outputs in Positron IDE.
+
+**File:** `workflow/rules/common.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | All final BAMs, all merged POD5s, reference FASTA |
+| Output | `squiggy-session.json` (at output root) |
+| GPU | No |
+
+**Command:**
+```bash
+python generate_squiggy_session.py \
+    --samples {sample_names} \
+    --output-dir {output_dir} \
+    --fasta {fasta} \
+    --output {output.session}
+```
+
+**Notes:**
+
+- Generates relative paths to POD5, BAM, and FASTA files for each sample
+- Computes MD5 checksums for file integrity verification
+- Includes default plot options for the Squiggy viewer (eventalign mode, z-normalization)
+
+---
+
 ## Demultiplexing Rules
 
 See [Demultiplexing](demultiplexing.md) for detailed documentation.
@@ -531,4 +562,6 @@ flowchart LR
     add_adapter_tags --> bam_to_coverage
     add_adapter_tags --> modkit_pileup
     get_cca_trna --> get_cca_trna_cpm
+    add_adapter_tags --> generate_squiggy_session
+    merge_pods --> generate_squiggy_session
 ```
