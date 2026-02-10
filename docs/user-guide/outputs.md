@@ -13,7 +13,8 @@ This guide documents all output files produced by the pipeline.
 │   ├── tables/             # Tabular summaries
 │   └── modkit/             # Modification calling
 ├── demux/                   # Demultiplexing outputs (if enabled)
-└── logs/                    # Rule execution logs
+├── logs/                    # Rule execution logs
+└── squiggy-session.json     # Squiggy session file for Positron
 ```
 
 ## Data Flow and Outputs
@@ -207,6 +208,41 @@ Individual modification calls per read.
 `summary/modkit/{sample}/{sample}.mod_full.tsv.gz`
 
 Comprehensive modification information including all modkit fields.
+
+## Squiggy Session File
+
+`squiggy-session.json`
+
+A JSON session file generated at the root of the output directory for loading pipeline outputs in the [Squiggy](https://github.com/rnabioco/squiggy) extension for Positron IDE.
+
+**Contents:**
+
+- Relative paths to POD5, BAM, and reference FASTA files for each sample
+- MD5 checksums and file metadata for integrity verification
+- Default plot options (eventalign mode, z-normalization)
+
+**JSON structure:**
+
+```json
+{
+  "version": "1.0.0",
+  "timestamp": "...",
+  "sessionName": "aa-tRNA-seq: ...",
+  "samples": {
+    "sample1": {
+      "pod5Paths": ["pod5/sample1/sample1.pod5"],
+      "bamPath": "bam/final/sample1/sample1.bam",
+      "fastaPath": "../path/to/reference.fa"
+    }
+  },
+  "plotOptions": { ... },
+  "fileChecksums": { ... }
+}
+```
+
+**Usage:**
+
+Open the `squiggy-session.json` file in Positron to load all samples with their associated POD5, BAM, and reference files.
 
 ## Intermediate Files
 

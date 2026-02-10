@@ -14,6 +14,7 @@ Documentation for Python scripts in `workflow/scripts/`.
 | `get_align_stats.py` | Summarize alignment statistics |
 | `extract_signal_metrics.py` | Extract Remora signal metrics |
 | `filter_reads.py` | Filter BAM by quality criteria |
+| `generate_squiggy_session.py` | Generate Squiggy session JSON for Positron |
 
 ---
 
@@ -379,6 +380,48 @@ Tracks filtering reasons with methods:
 - `add(reason)`: Record filter reason
 - `summary()`: Get filter statistics
 - `write_stats(path)`: Write statistics to file
+
+---
+
+## generate_squiggy_session.py
+
+Generate a Squiggy session JSON file for loading pipeline outputs in Positron IDE.
+
+### Usage
+
+```bash
+python generate_squiggy_session.py \
+    --samples sample1 sample2 \
+    --output-dir /path/to/output \
+    --fasta /path/to/reference.fa \
+    --output squiggy-session.json \
+    [--session-name "My session"] \
+    [--no-checksums]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--samples` | Sample names to include (space-separated) |
+| `--output-dir` | Pipeline output directory (paths are relative to this) |
+| `--fasta` | Path to reference FASTA file |
+| `--output` | Output JSON file path |
+| `--session-name` | Optional session name (defaults to `aa-tRNA-seq: {directory}`) |
+| `--no-checksums` | Skip computing MD5 checksums (faster but no integrity verification) |
+
+### Output Format
+
+JSON with the following structure:
+
+| Key | Description |
+|-----|-------------|
+| `version` | Schema version (`1.0.0`) |
+| `timestamp` | ISO 8601 generation time |
+| `sessionName` | Display name for the session |
+| `samples` | Per-sample `pod5Paths`, `bamPath`, `fastaPath` (relative paths) |
+| `plotOptions` | Default plot settings (eventalign mode, z-normalization) |
+| `fileChecksums` | MD5, size, and last-modified per file (unless `--no-checksums`) |
 
 ---
 
