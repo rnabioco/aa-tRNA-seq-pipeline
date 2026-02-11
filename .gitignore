@@ -16,6 +16,7 @@ __pycache__/
 
 # ML model outputs
 model_best/
+resources/models/.mod_models_ready
 
 # generated at render time by Snakemake rule
 workflow/report/_custom.qmd
