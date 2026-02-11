@@ -1,16 +1,18 @@
 """
-Compute pairwise modification odds ratios across tRNA references.
+Compute per-tRNA pairwise modification odds ratios.
 
-For each pair of positions (including charging status), builds a 2x2
-contingency table across all tRNA genes in the sample and computes
-odds ratios with Fisher's exact test and BH-corrected p-values.
+For each tRNA, uses individual reads as the unit of observation to ask:
+"among reads of this tRNA, is modification at position X correlated with
+modification at position Y (and with charging status)?"
+
+Charging status is represented as position 999.
 
 Inputs:
-  - bcerror TSV (from get_bcerror_freqs.py): per-position error metrics
-  - charging probability TSV (from get_charging_table.py): per-read CL tag values
+  - modkit extract calls TSV: per-read, per-position modification calls
+  - charging probability TSV: per-read CL tag values
 
 Output:
-  - Gzipped TSV with pairwise odds ratios and statistics
+  - Gzipped TSV with pairwise odds ratios and statistics per tRNA
 """
 
 import argparse
@@ -22,137 +24,111 @@ import pandas as pd
 from scipy.stats import false_discovery_control, fisher_exact
 
 
-def binarize_modifications(bcerror_df, mod_threshold, min_coverage):
+def load_modkit_calls(path):
     """
-    Binarize modification calls from bcerror mismatch frequencies.
+    Load modkit extract calls TSV.
 
-    Filters positions by minimum coverage, then marks each
-    (reference, position) as modified (1) or unmodified (0).
-
-    Returns a DataFrame with columns: Reference, Position, modified
+    Expected columns include: read_id, chrom, ref_position, call_code
+    call_code is "-" for canonical, a letter code for modified.
     """
-    df = bcerror_df[bcerror_df["Spanning_Reads"] >= min_coverage].copy()
-    df["modified"] = (df["MismatchFreq"] >= mod_threshold).astype(int)
-    return df[["Reference", "Position", "modified"]]
+    df = pd.read_csv(path, sep="\t")
+    df["modified"] = (df["call_code"] != "-").astype(int)
+    return df
 
 
-def build_modification_matrix(mod_df):
+def load_charging(path, ml_threshold):
     """
-    Build binary matrix: rows = position labels, columns = tRNA references.
+    Load charging probability TSV and binarize.
 
-    Returns (matrix DataFrame, list of position labels).
-    Position labels are formatted as "pos_{Position}" from the bcerror data.
+    Returns DataFrame with read_id and charged (0/1) columns.
     """
-    mod_df = mod_df.copy()
-    mod_df["pos_label"] = "pos_" + mod_df["Position"].astype(str)
-
-    matrix = mod_df.pivot_table(
-        index="pos_label", columns="Reference", values="modified", aggfunc="max"
-    )
-    return matrix
+    df = pd.read_csv(path, sep="\t")
+    df["charged"] = (df["charging_likelihood"] >= ml_threshold).astype(int)
+    return df[["read_id", "charged"]]
 
 
-def compute_charging_row(charging_df, ml_threshold):
+def compute_or_for_pair(col_i, col_j):
     """
-    Aggregate per-read charging probabilities to per-reference binary calls.
+    Compute odds ratio statistics for a pair of binary columns.
 
-    A tRNA reference is called 'charged' (1) if >= 50% of its reads
-    have CL tag >= ml_threshold.
-
-    Returns a Series indexed by tRNA reference name.
+    Drops rows where either value is NaN. Returns None if no valid
+    observations, otherwise returns a dict of statistics.
     """
-    df = charging_df.copy()
-    df["is_charged"] = (df["charging_likelihood"] >= ml_threshold).astype(int)
-    frac_charged = df.groupby("tRNA")["is_charged"].mean()
-    return (frac_charged >= 0.5).astype(int)
+    valid = col_i.notna() & col_j.notna()
+    ci = col_i[valid].astype(int).values
+    cj = col_j[valid].astype(int).values
+    total = len(ci)
+
+    if total == 0:
+        return None
+
+    n11 = int(np.sum((ci == 1) & (cj == 1)))
+    n10 = int(np.sum((ci == 1) & (cj == 0)))
+    n01 = int(np.sum((ci == 0) & (cj == 1)))
+    n00 = int(np.sum((ci == 0) & (cj == 0)))
+
+    # Haldane correction when any cell is zero
+    if n00 == 0 or n01 == 0 or n10 == 0 or n11 == 0:
+        a, b, c, d = n11 + 0.5, n10 + 0.5, n01 + 0.5, n00 + 0.5
+    else:
+        a, b, c, d = n11, n10, n01, n00
+
+    odds_ratio = (a * d) / (b * c)
+    log_or = np.log(odds_ratio)
+    se = np.sqrt(1 / a + 1 / b + 1 / c + 1 / d)
+    ci_lower = np.exp(log_or - 1.96 * se)
+    ci_upper = np.exp(log_or + 1.96 * se)
+
+    table = np.array([[n11, n10], [n01, n00]])
+    fisher_or, p_value = fisher_exact(table)
+
+    return {
+        "n00": n00,
+        "n01": n01,
+        "n10": n10,
+        "n11": n11,
+        "total_obs": total,
+        "odds_ratio": odds_ratio,
+        "log_odds_ratio": log_or,
+        "se_log_or": se,
+        "ci_lower": ci_lower,
+        "ci_upper": ci_upper,
+        "fisher_or": fisher_or,
+        "p_value": p_value,
+    }
 
 
-def compute_pairwise_odds_ratios(matrix):
-    """
-    Compute odds ratios for all pairs of rows in the binary matrix.
-
-    For each pair (pos_i, pos_j), builds a 2x2 contingency table:
-        n00 = both 0, n01 = i=0 & j=1, n10 = i=1 & j=0, n11 = both 1
-
-    Applies Haldane correction (add 0.5) when any cell is zero.
-    Computes OR, log(OR), SE, 95% CI, and Fisher's exact test.
-
-    Returns a list of result dicts.
-    """
-    labels = matrix.index.tolist()
-    results = []
-
-    for label_i, label_j in combinations(labels, 2):
-        row_i = matrix.loc[label_i].values
-        row_j = matrix.loc[label_j].values
-
-        # Only use columns (tRNA refs) where both rows have data
-        valid = ~(np.isnan(row_i) | np.isnan(row_j))
-        ri = row_i[valid].astype(int)
-        rj = row_j[valid].astype(int)
-
-        if len(ri) == 0:
-            continue
-
-        n11 = int(np.sum((ri == 1) & (rj == 1)))
-        n10 = int(np.sum((ri == 1) & (rj == 0)))
-        n01 = int(np.sum((ri == 0) & (rj == 1)))
-        n00 = int(np.sum((ri == 0) & (rj == 0)))
-        total = n00 + n01 + n10 + n11
-
-        # Haldane correction when any cell is zero
-        if n00 == 0 or n01 == 0 or n10 == 0 or n11 == 0:
-            a, b, c, d = n11 + 0.5, n10 + 0.5, n01 + 0.5, n00 + 0.5
-        else:
-            a, b, c, d = n11, n10, n01, n00
-
-        odds_ratio = (a * d) / (b * c)
-        log_or = np.log(odds_ratio)
-        se = np.sqrt(1 / a + 1 / b + 1 / c + 1 / d)
-        ci_lower = np.exp(log_or - 1.96 * se)
-        ci_upper = np.exp(log_or + 1.96 * se)
-
-        # Fisher's exact test on original counts
-        table = np.array([[n11, n10], [n01, n00]])
-        fisher_or, p_value = fisher_exact(table)
-
-        results.append(
-            {
-                "pos1": label_i,
-                "pos2": label_j,
-                "n00": n00,
-                "n01": n01,
-                "n10": n10,
-                "n11": n11,
-                "total_obs": total,
-                "odds_ratio": odds_ratio,
-                "log_odds_ratio": log_or,
-                "se_log_or": se,
-                "ci_lower": ci_lower,
-                "ci_upper": ci_upper,
-                "fisher_or": fisher_or,
-                "p_value": p_value,
-            }
-        )
-
-    return results
+EMPTY_COLUMNS = [
+    "tRNA",
+    "pos1",
+    "pos2",
+    "n00",
+    "n01",
+    "n10",
+    "n11",
+    "total_obs",
+    "odds_ratio",
+    "log_odds_ratio",
+    "se_log_or",
+    "ci_lower",
+    "ci_upper",
+    "fisher_or",
+    "p_value",
+    "p_adjusted",
+]
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Compute pairwise modification odds ratios across tRNA references"
+        description="Compute per-tRNA pairwise modification odds ratios"
     )
-    parser.add_argument("--bcerror", required=True, help="Path to bcerror TSV (.gz)")
+    parser.add_argument(
+        "--modkit", required=True, help="Path to modkit extract calls TSV (.gz)"
+    )
     parser.add_argument(
         "--charging", required=True, help="Path to charging probability TSV (.gz)"
     )
     parser.add_argument("--output", required=True, help="Output path (.tsv.gz)")
-    parser.add_argument(
-        "--mod-threshold",
-        type=float,
-        default=0.3,
-        help="Mismatch frequency threshold for calling modified (default: 0.3)",
-    )
     parser.add_argument(
         "--ml-threshold",
         type=int,
@@ -163,96 +139,92 @@ def main():
         "--min-coverage",
         type=int,
         default=10,
-        help="Minimum spanning reads per position (default: 10)",
+        help="Minimum reads per tRNA or position pair (default: 10)",
     )
     args = parser.parse_args()
 
-    # Read input data
-    bcerror_df = pd.read_csv(args.bcerror, sep="\t")
-    charging_df = pd.read_csv(args.charging, sep="\t")
+    # Load data
+    modkit_df = load_modkit_calls(args.modkit)
+    charging_df = load_charging(args.charging, args.ml_threshold)
 
-    # Binarize modifications and build matrix
-    mod_df = binarize_modifications(bcerror_df, args.mod_threshold, args.min_coverage)
-    matrix = build_modification_matrix(mod_df)
-
-    # Add charging row
-    charging_row = compute_charging_row(charging_df, args.ml_threshold)
-
-    # Align charging row to matrix columns (tRNA references present in both)
-    common_refs = matrix.columns.intersection(charging_row.index)
-    if len(common_refs) == 0:
+    if modkit_df.empty:
         print(
-            "WARNING: No common tRNA references between bcerror and charging data. "
-            "Writing empty output.",
-            file=sys.stderr,
+            "WARNING: No modkit calls found. Writing empty output.", file=sys.stderr
         )
-        empty_df = pd.DataFrame(
-            columns=[
-                "pos1",
-                "pos2",
-                "n00",
-                "n01",
-                "n10",
-                "n11",
-                "total_obs",
-                "odds_ratio",
-                "log_odds_ratio",
-                "se_log_or",
-                "ci_lower",
-                "ci_upper",
-                "fisher_or",
-                "p_value",
-                "p_adjusted",
-            ]
+        pd.DataFrame(columns=EMPTY_COLUMNS).to_csv(
+            args.output, sep="\t", index=False, compression="gzip"
         )
-        empty_df.to_csv(args.output, sep="\t", index=False, compression="gzip")
         return
 
-    matrix = matrix[common_refs]
-    charging_series = charging_row[common_refs]
-    charging_frame = pd.DataFrame(
-        [charging_series.values], index=["charging"], columns=common_refs
-    )
-    matrix = pd.concat([matrix, charging_frame])
+    results = []
 
-    # Compute pairwise odds ratios
-    results = compute_pairwise_odds_ratios(matrix)
+    # Process each tRNA separately
+    for trna, trna_df in modkit_df.groupby("chrom"):
+        # Pivot to per-read matrix: rows=read_id, columns=ref_position, values=modified
+        read_matrix = trna_df.pivot_table(
+            index="read_id",
+            columns="ref_position",
+            values="modified",
+            aggfunc="max",
+        )
+
+        # Skip tRNAs with too few reads
+        if len(read_matrix) < args.min_coverage:
+            continue
+
+        # Add charging as position 999
+        read_matrix = read_matrix.merge(
+            charging_df.set_index("read_id"),
+            left_index=True,
+            right_index=True,
+            how="left",
+        )
+        read_matrix = read_matrix.rename(columns={"charged": 999})
+
+        # Get all column labels (positions + 999 for charging)
+        cols = read_matrix.columns.tolist()
+
+        if len(cols) < 2:
+            continue
+
+        for col_i, col_j in combinations(cols, 2):
+            # Drop reads with NaN at either position
+            pair_valid = read_matrix[[col_i, col_j]].dropna()
+
+            if len(pair_valid) < args.min_coverage:
+                continue
+
+            stats = compute_or_for_pair(pair_valid[col_i], pair_valid[col_j])
+            if stats is None:
+                continue
+
+            stats["tRNA"] = trna
+            stats["pos1"] = int(col_i)
+            stats["pos2"] = int(col_j)
+            results.append(stats)
 
     if len(results) == 0:
         print("WARNING: No valid pairs found. Writing empty output.", file=sys.stderr)
-        empty_df = pd.DataFrame(
-            columns=[
-                "pos1",
-                "pos2",
-                "n00",
-                "n01",
-                "n10",
-                "n11",
-                "total_obs",
-                "odds_ratio",
-                "log_odds_ratio",
-                "se_log_or",
-                "ci_lower",
-                "ci_upper",
-                "fisher_or",
-                "p_value",
-                "p_adjusted",
-            ]
+        pd.DataFrame(columns=EMPTY_COLUMNS).to_csv(
+            args.output, sep="\t", index=False, compression="gzip"
         )
-        empty_df.to_csv(args.output, sep="\t", index=False, compression="gzip")
         return
 
     results_df = pd.DataFrame(results)
 
-    # BH correction for multiple testing
+    # BH correction across all results from all tRNAs
     results_df["p_adjusted"] = false_discovery_control(results_df["p_value"].values)
+
+    # Order columns
+    results_df = results_df[EMPTY_COLUMNS]
 
     # Write output
     results_df.to_csv(args.output, sep="\t", index=False, compression="gzip")
 
     n_sig = (results_df["p_adjusted"] < 0.05).sum()
+    n_trnas = results_df["tRNA"].nunique()
     print(
-        f"Computed {len(results_df)} pairwise odds ratios, "
+        f"Computed {len(results_df)} pairwise odds ratios across {n_trnas} tRNAs, "
         f"{n_sig} significant (p_adj < 0.05)",
         file=sys.stderr,
     )
