@@ -15,6 +15,9 @@ Documentation for Python scripts in `workflow/scripts/`.
 | `extract_signal_metrics.py` | Extract Remora signal metrics |
 | `filter_reads.py` | Filter BAM by quality criteria |
 | `generate_squiggy_session.py` | Generate Squiggy session JSON for Positron |
+| `compute_odds_ratios.py` | Compute per-tRNA pairwise modification odds ratios |
+| `compute_seq_similarity.py` | Compute pairwise reference sequence similarity |
+| `collapse_gtrndb_fasta.py` | Collapse redundant GtRNAdb FASTA sequences |
 
 ---
 
@@ -422,6 +425,137 @@ JSON with the following structure:
 | `samples` | Per-sample `pod5Paths`, `bamPath`, `fastaPath` (relative paths) |
 | `plotOptions` | Default plot settings (eventalign mode, z-normalization) |
 | `fileChecksums` | MD5, size, and last-modified per file (unless `--no-checksums`) |
+
+---
+
+## compute_odds_ratios.py
+
+Compute per-tRNA pairwise modification odds ratios from modkit calls and charging data.
+
+### Usage
+
+```bash
+python compute_odds_ratios.py \
+    --modkit mod_calls.tsv.gz \
+    --charging charging_prob.tsv.gz \
+    --output odds_ratios.tsv.gz \
+    --ml-threshold 200 \
+    --min-coverage 10
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--modkit` | Path to modkit extract calls TSV (.gz) |
+| `--charging` | Path to charging probability TSV (.gz) |
+| `--output` | Output path (.tsv.gz) |
+| `--ml-threshold` | CL tag threshold for charged classification (default: 200) |
+| `--min-coverage` | Minimum reads per tRNA or position pair (default: 10) |
+
+### Behavior
+
+1. Loads modkit per-read modification calls and binarizes (canonical vs modified)
+2. Loads charging probabilities and binarizes at threshold
+3. For each tRNA, pivots to per-read matrix (rows=reads, columns=positions)
+4. Adds charging as position 999
+5. Tests all pairwise combinations via 2x2 contingency tables
+6. Applies Haldane correction for zero cells, Fisher's exact test
+7. Applies BH correction across all results
+
+### Output Format
+
+| Column | Description |
+|--------|-------------|
+| tRNA | Reference tRNA name |
+| pos1 | First position |
+| pos2 | Second position (999 = charging) |
+| n00, n01, n10, n11 | Contingency table counts |
+| total_obs | Total observations |
+| odds_ratio | Odds ratio |
+| log_odds_ratio | Log odds ratio |
+| se_log_or | Standard error of log OR |
+| ci_lower, ci_upper | 95% confidence interval |
+| fisher_or | Fisher's exact test OR |
+| p_value | Fisher's exact test p-value |
+| p_adjusted | BH-adjusted p-value |
+
+---
+
+## compute_seq_similarity.py
+
+Compute pairwise sequence similarity matrix for reference FASTA sequences.
+
+### Usage
+
+```bash
+python compute_seq_similarity.py reference.fa output.tsv
+```
+
+### Arguments
+
+| Position | Description |
+|----------|-------------|
+| 1 | Input reference FASTA file |
+| 2 | Output TSV file |
+
+### Behavior
+
+1. Reads all sequences from FASTA using pysam
+2. Computes all-vs-all pairwise Needleman-Wunsch global alignment using parasail
+3. Calculates percent identity = matches / max(len_seq1, len_seq2) * 100
+4. Writes square TSV similarity matrix
+
+### Output Format
+
+Square TSV matrix with sequence names as row and column headers. Values are percent identity (0-100). Diagonal entries are always 100.0.
+
+---
+
+## collapse_gtrndb_fasta.py
+
+Collapse redundant sequences in a GtRNAdb FASTA reference.
+
+### Usage
+
+```bash
+python collapse_gtrndb_fasta.py \
+    -i ecoliK12-mature-tRNAs.fa \
+    -o ecoliK12-collapsed.fa \
+    -m ecoliK12-mapping.tsv \
+    [--keep-unparsed]
+```
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `-i`, `--input` | Input GtRNAdb FASTA file |
+| `-o`, `--output` | Output collapsed FASTA file |
+| `-m`, `--mapping` | Output TSV mapping report |
+| `--keep-unparsed` | Pass through sequences with non-GtRNAdb headers (default: error) |
+
+### Behavior
+
+1. Parses GtRNAdb FASTA headers using end-anchored regex to extract tRNA identity
+2. Groups sequences by isodecoder family (amino acid + anticodon)
+3. Strips trailing CCA for sequence comparison
+4. Identifies redundant gene copies with identical sequences
+5. Writes collapsed FASTA (first occurrence as representative) and TSV mapping
+
+### Mapping Output Format
+
+| Column | Description |
+|--------|-------------|
+| collapsed_name | Representative sequence name |
+| original_name | Original GtRNAdb header |
+| isodecoder | Isodecoder family key |
+| amino_acid | Amino acid identity |
+| anticodon | Anticodon sequence |
+| family_num | Family number |
+| copy_num | Gene copy number |
+| is_representative | Whether this is the representative sequence |
+| sequence_length | Sequence length |
 
 ---
 

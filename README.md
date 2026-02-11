@@ -123,6 +123,10 @@ flowchart TD
         G --> J[bcerror<br/>basecalling errors]
         G --> K[align_stats]
         G --> L[modkit pileups]
+        L -.-> M[odds_ratios<br/>pairwise mod ORs]
+        H -.-> M
+        K -.-> N[qc_report<br/>Quarto HTML]
+        H -.-> N
     end
 
     POD5 -.-> W
@@ -141,7 +145,7 @@ Given a directory of POD5 files, this pipeline:
 
 The classification generates ML tag values (0-255) indicating the likelihood of aminoacylation. By default, ML values of 200-255 are treated as charged, and values <200 as uncharged. This threshold can be adjusted via the `ml-threshold` parameter in the `get_cca_trna_cpm` rule.
 
-The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`) and information on raw nanopore signal from Remora (`remora_signal_stats`).
+The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`), information on raw nanopore signal from Remora (`remora_signal_stats`), per-tRNA pairwise modification odds ratios (`compute_odds_ratios`), reference sequence similarity QC (`compute_reference_similarity`), and a combined Quarto QC report (`render_combined_qc_report`).
 
 ### Remora classification
 

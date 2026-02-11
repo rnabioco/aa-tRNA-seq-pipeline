@@ -2,6 +2,33 @@
 
 All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
+## [v0.1.1] - 2026-02-11
+
+### Added
+- Quarto QC report with per-sample tabs (#81)
+- Per-tRNA pairwise modification odds ratios (#85)
+- Reference sequence similarity QC (#84)
+- Squiggy session JSON export for Positron IDE
+- Utility to collapse redundant GtRNAdb FASTA sequences
+- Multiple 3' adapter support for PT tag detection
+- Skip mode for reference validation
+- Pre-download dorado mod base models rule (avoids race conditions)
+- nvitop GPU monitoring dependency
+
+### Changed
+- `classify_charging` switched from GPU to CPU with parallel workers (8 threads)
+- WarpDemuX workflow simplified: eliminated `merge_pods_for_demux`, passes raw POD5 dirs directly
+- `bwa_align` filtering changed from `-F 4` to `-F 20` (also excludes reverse-strand reads)
+- Removed redundant awk position filter from `bwa_align`
+- Removed `protected()` directive from `rebasecall` output
+
+### Fixed
+- Race condition when parallel GPU jobs download dorado modification models simultaneously
+- Reverse-strand reads not filtered at alignment step
+- Redundant awk position filter in `bwa_align` superseded by adapter-based filtering
+- Graceful fallback for `get_pipeline_commit` when git unavailable
+- Various snakefmt formatting and test corrections
+
 ## [v0.1.0] - 2025-01-16
 
 ### Added
