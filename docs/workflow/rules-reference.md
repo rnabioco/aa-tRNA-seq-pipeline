@@ -34,19 +34,19 @@ Re-basecall POD5 files with Dorado, emitting move tables for Remora.
 
 | Property | Value |
 |----------|-------|
-| Input | Merged POD5 |
-| Output | `bam/rebasecall/{sample}/{sample}.rbc.bam` (protected) |
+| Input | Merged POD5, mod model sentinel |
+| Output | `bam/rebasecall/{sample}/{sample}.rbc.bam` |
 | GPU | Yes |
-| Parameters | `base_calling_model`, `opts.dorado` |
+| Parameters | `base_calling_model`, `opts.dorado`, `models_dir` |
 
 **Command:**
 ```bash
-dorado basecaller {opts.dorado} {model} {input} > {output}
+dorado basecaller --models-directory {models_dir} {opts.dorado} {model} {input} > {output}
 ```
 
 **Notes:**
 
-- Output is protected (not deleted on pipeline restart)
+- Depends on `download_mod_models` rule to pre-download modification models
 - Respects `CUDA_VISIBLE_DEVICES` environment variable
 - Default options include `--modified-bases pseU m5C inosine_m6A --emit-moves`
 
@@ -109,17 +109,14 @@ Align reads to tRNA reference with BWA MEM.
 **Command:**
 ```bash
 bwa mem -C -t {threads} {opts.bwa} {index} {reads} \
-    | samtools view -F 4 -h \
-    | awk '($1 ~ /^@/ || $4 <= 25)' \
-    | samtools view -Sb - \
+    | samtools view -F 20 -Sb - \
     | samtools sort -o {output}
 samtools index {output}
 ```
 
 **Filtering:**
 
-- `-F 4`: Remove unmapped reads
-- `$4 <= 25`: Keep reads with start position ≤ 25
+- `-F 20`: Remove unmapped reads (`0x4`) and reverse-strand reads (`0x10`)
 
 **Default BWA options:**
 
@@ -137,7 +134,8 @@ Run Remora ML model to classify charged vs uncharged reads.
 |----------|-------|
 | Input | POD5, aligned BAM |
 | Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai` |
-| GPU | Yes |
+| Threads | 8 |
+| GPU | No (CPU) |
 | Parameters | `remora_cca_classifier` |
 
 **Command:**
@@ -146,8 +144,11 @@ remora infer from_pod5_and_bam {pod5} {bam} \
     --model {model} \
     --out-bam {output} \
     --reference-anchored \
-    --device 0
-samtools sort {output} > {temp}
+    --num-extract-alignment-workers 2 \
+    --num-prepare-read-workers 2 \
+    --num-prepare-nn-input-workers 2 \
+    --num-post-process-workers 2
+samtools sort -@ {threads} {output} > {temp}
 samtools index {output}
 ```
 
@@ -293,6 +294,31 @@ python get_trna_charging_cpm.py \
 ---
 
 ## Quality Control Rules
+
+### compute_reference_similarity
+
+Compute pairwise sequence similarity matrix for the reference FASTA.
+
+**File:** `workflow/rules/aatrnaseq-qc.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | Reference FASTA |
+| Output | `summary/qc/reference_similarity.tsv` |
+| GPU | No |
+
+**Command:**
+```bash
+python compute_seq_similarity.py {fasta} {output}
+```
+
+**Notes:**
+
+- Uses Needleman-Wunsch global alignment to compute all-vs-all pairwise similarity
+- Percent identity = matches / max(len_seq1, len_seq2) * 100
+- Identifies potential cross-mapping issues from homologous tRNA sequences
+
+---
 
 ### base_calling_error
 
@@ -516,6 +542,86 @@ python generate_squiggy_session.py \
 
 ---
 
+## Odds Ratio Rules
+
+### compute_odds_ratios
+
+Compute per-tRNA pairwise modification odds ratios.
+
+**File:** `workflow/rules/aatrnaseq-odds-ratios.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | Modkit extract calls TSV, charging probability TSV |
+| Output | `summary/tables/{sample}/{sample}.odds_ratios.tsv.gz` |
+| Parameters | `odds_ratios.ml_threshold` (default: 200), `odds_ratios.min_coverage` (default: 10) |
+
+**Command:**
+```bash
+python compute_odds_ratios.py \
+    --modkit {modkit_calls} \
+    --charging {charging_prob} \
+    --output {output} \
+    --ml-threshold {ml_thresh} \
+    --min-coverage {min_cov}
+```
+
+**Notes:**
+
+- For each tRNA, tests whether modification at position X is correlated with modification at position Y (and with charging status) via 2x2 contingency tables
+- Uses Haldane correction for zero cells and Fisher's exact test
+- Applies BH correction across all results
+- Charging status is represented as position 999
+
+**Output columns:**
+
+| Column | Description |
+|--------|-------------|
+| `tRNA` | Reference tRNA name |
+| `pos1` | First position |
+| `pos2` | Second position (999 = charging) |
+| `n00`, `n01`, `n10`, `n11` | Contingency table counts |
+| `total_obs` | Total observations |
+| `odds_ratio` | Odds ratio |
+| `log_odds_ratio` | Log odds ratio |
+| `se_log_or` | Standard error of log OR |
+| `ci_lower`, `ci_upper` | 95% confidence interval |
+| `fisher_or` | Fisher's exact test OR |
+| `p_value` | Fisher's exact test p-value |
+| `p_adjusted` | BH-adjusted p-value |
+
+---
+
+## Report Rules
+
+### render_combined_qc_report
+
+Render a combined Quarto QC report with per-sample tabs.
+
+**File:** `workflow/rules/aatrnaseq-report.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | Alignment stats, charging probabilities, charging CPM, basecalling errors (all samples) |
+| Output | `reports/qc_report.html` |
+| Parameters | `ml-threshold`, `report.custom_include` |
+
+**Command:**
+```bash
+quarto render qc-report.qmd \
+    -P config_file:{config} \
+    -P ml_threshold:{threshold} \
+    --output-dir {output_dir}
+```
+
+**Notes:**
+
+- Requires the `report` pixi environment: `pixi run -e report snakemake render_combined_qc_report`
+- Generates faceted QC plots with per-sample patchwork tabs
+- Supports optional custom Quarto include via `report.custom_include` config
+
+---
+
 ## Demultiplexing Rules
 
 See [Demultiplexing](demultiplexing.md) for detailed documentation.
@@ -561,7 +667,15 @@ flowchart LR
     add_adapter_tags --> align_stats
     add_adapter_tags --> bam_to_coverage
     add_adapter_tags --> modkit_pileup
+    add_adapter_tags --> modkit_extract_calls
     get_cca_trna --> get_cca_trna_cpm
+    get_cca_trna --> compute_odds_ratios
+    modkit_extract_calls --> compute_odds_ratios
     add_adapter_tags --> generate_squiggy_session
     merge_pods --> generate_squiggy_session
+    add_adapter_tags --> compute_reference_similarity
+    align_stats --> render_combined_qc_report
+    get_cca_trna --> render_combined_qc_report
+    get_cca_trna_cpm --> render_combined_qc_report
+    base_calling_error --> render_combined_qc_report
 ```

@@ -13,6 +13,8 @@ flowchart TB
         B[aatrnaseq-charging.smk<br/>Charging analysis]
         C[aatrnaseq-qc.smk<br/>Quality control]
         D[aatrnaseq-modifications.smk<br/>Modification calling]
+        OR[aatrnaseq-odds-ratios.smk<br/>Odds ratio analysis]
+        R[aatrnaseq-report.smk<br/>QC report]
         E[warpdemux.smk<br/>Demultiplexing<br/><i>conditional</i>]
     end
 
@@ -64,6 +66,14 @@ flowchart TB
         P[modkit_extract_full<br/>Full export]
     end
 
+    subgraph OddsRatios[aatrnaseq-odds-ratios.smk]
+        Q[compute_odds_ratios<br/>Pairwise OR]
+    end
+
+    subgraph Report[aatrnaseq-report.smk]
+        R[render_combined_qc_report<br/>QC report]
+    end
+
     A --> B --> C --> D --> E --> F --> G --> G2
 
     G2 --> H --> I
@@ -74,6 +84,12 @@ flowchart TB
     G2 --> N
     G2 --> O
     G2 --> P
+    O --> Q
+    H --> Q
+    J --> R
+    H --> R
+    I --> R
+    K --> R
 ```
 
 ### With Demultiplexing (WarpDemuX)
@@ -111,7 +127,7 @@ Core data processing from raw signal to classified reads:
 | `ubam_to_fastq` | Extract reads for alignment | No |
 | `bwa_idx` | Build BWA index | No |
 | `bwa_align` | Align reads to reference | No |
-| `classify_charging` | ML charging classification | Yes |
+| `classify_charging` | ML charging classification | No |
 | `transfer_bam_tags` | Rename ML→CL tags | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 
@@ -130,6 +146,7 @@ Generate QC metrics and statistics:
 
 | Rule | Purpose |
 |------|---------|
+| `compute_reference_similarity` | Pairwise reference sequence similarity matrix |
 | `base_calling_error` | Per-position error frequencies |
 | `align_stats` | Read counts through pipeline |
 | `remora_signal_stats` | Raw signal metrics |
@@ -144,6 +161,22 @@ RNA modification calling with Modkit:
 | `modkit_pileup` | Per-site modification consensus |
 | `modkit_extract_calls` | Per-read modification calls |
 | `modkit_extract_full` | Comprehensive modification export |
+
+### Odds Ratio Rules
+
+Per-tRNA pairwise modification odds ratios:
+
+| Rule | Purpose |
+|------|---------|
+| `compute_odds_ratios` | Pairwise modification odds ratios per tRNA |
+
+### Report Rules
+
+QC report generation:
+
+| Rule | Purpose |
+|------|---------|
+| `render_combined_qc_report` | Combined Quarto QC report with per-sample tabs |
 
 ### Demultiplexing Rules
 
@@ -181,8 +214,7 @@ Dorado re-basecalls with:
 BWA MEM with RNA-optimized parameters:
 
 - `-x ont2d` preset for ONT reads
-- Position filtering (read start ≤ 25)
-- Unmapped read removal
+- `-F 20`: Unmapped and reverse-strand read removal
 
 ### 4. Charging Classification
 
@@ -224,7 +256,6 @@ These rules require GPU access:
 | Rule | Typical Runtime | Memory |
 |------|-----------------|--------|
 | `rebasecall` | 30-60 min/sample | 24 GB |
-| `classify_charging` | 10-30 min/sample | 24 GB |
 
 ### CPU-Intensive Rules
 
@@ -232,6 +263,7 @@ These rules require GPU access:
 |------|---------|--------|
 | `merge_pods` | 12 | 16 GB |
 | `bwa_align` | 12 | 24 GB |
+| `classify_charging` | 8 | 24 GB |
 | `modkit_extract_full` | 12 | 48 GB |
 
 ### Memory-Intensive Rules

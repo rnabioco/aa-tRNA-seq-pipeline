@@ -11,7 +11,9 @@ This guide documents all output files produced by the pipeline.
 ├── fq/                      # Extracted FASTQ files
 ├── summary/                 # Analysis outputs
 │   ├── tables/             # Tabular summaries
-│   └── modkit/             # Modification calling
+│   ├── modkit/             # Modification calling
+│   └── qc/                 # Reference QC metrics
+├── reports/                 # Rendered QC reports
 ├── demux/                   # Demultiplexing outputs (if enabled)
 ├── logs/                    # Rule execution logs
 └── squiggy-session.json     # Squiggy session file for Positron
@@ -37,11 +39,18 @@ flowchart TB
     subgraph Outputs
         H[summary/tables/<br/>Charging & Stats]
         I[summary/modkit/<br/>Modifications]
+        J[summary/qc/<br/>Reference similarity]
+        K[summary/tables/<br/>Odds ratios]
+        L[reports/<br/>QC report]
     end
 
     A --> B --> C --> D --> E --> F --> G
     G --> H
     G --> I
+    G --> J
+    I --> K
+    H --> K
+    H --> L
 ```
 
 ## Core Outputs
@@ -209,6 +218,59 @@ Individual modification calls per read.
 
 Comprehensive modification information including all modkit fields.
 
+## Reference Similarity Matrix
+
+`summary/qc/reference_similarity.tsv`
+
+Pairwise sequence similarity matrix for the reference FASTA, useful for identifying potential cross-mapping issues.
+
+!!! info "Separate invocation"
+    This rule is not part of the default pipeline outputs. Run it explicitly:
+    ```bash
+    pixi run snakemake compute_reference_similarity --configfile=config/config.yml
+    ```
+
+**Format:** Square TSV matrix with sequence names as row and column headers, values are percent identity (0-100).
+
+## Modification Odds Ratios
+
+`summary/tables/{sample}/{sample}.odds_ratios.tsv.gz`
+
+Per-tRNA pairwise modification odds ratios testing whether modification at one position is correlated with modification at another position (or with charging status).
+
+!!! info "Separate invocation"
+    This rule is not part of the default pipeline outputs. Run it explicitly:
+    ```bash
+    pixi run snakemake compute_odds_ratios --configfile=config/config.yml
+    ```
+
+| Column | Description |
+|--------|-------------|
+| `tRNA` | Reference tRNA name |
+| `pos1` | First position |
+| `pos2` | Second position (999 = charging) |
+| `n00`, `n01`, `n10`, `n11` | 2x2 contingency table counts |
+| `total_obs` | Total observations |
+| `odds_ratio` | Odds ratio |
+| `log_odds_ratio` | Log odds ratio |
+| `se_log_or` | Standard error of log OR |
+| `ci_lower`, `ci_upper` | 95% confidence interval |
+| `fisher_or` | Fisher's exact test OR |
+| `p_value` | Fisher's exact test p-value |
+| `p_adjusted` | BH-adjusted p-value |
+
+## QC Report
+
+`reports/qc_report.html`
+
+A combined Quarto HTML report with per-sample QC tabs, including alignment statistics, charging distributions, and basecalling error metrics.
+
+!!! info "Separate invocation"
+    This report requires the `report` pixi environment:
+    ```bash
+    pixi run -e report snakemake render_combined_qc_report --configfile=config/config.yml
+    ```
+
 ## Squiggy Session File
 
 `squiggy-session.json`
@@ -258,7 +320,7 @@ Merged POD5 file containing all raw signal data for the sample.
 
 `bam/rebasecall/{sample}/{sample}.rbc.bam`
 
-Dorado output with basecalls and move tables. Protected output (not deleted).
+Dorado output with basecalls and move tables.
 
 ### Aligned BAM
 
@@ -325,6 +387,9 @@ Approximate file sizes for a typical sample:
 | Charging CPM | 10-50 KB |
 | Charging Prob | 1-10 MB |
 | Modkit pileup | 1-5 MB |
+| Odds ratios | 100 KB-1 MB |
+| Reference similarity | 10-500 KB |
+| QC report (HTML) | 1-5 MB |
 
 ## Cleanup
 
