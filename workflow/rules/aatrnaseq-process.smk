@@ -143,6 +143,7 @@ rule bwa_align:
 rule classify_charging:
     """
   run remora trained model to classify charged and uncharged reads
+  runs on CPU by default (no --device flag)
   """
     input:
         pod5=get_sample_pod5,
@@ -161,24 +162,23 @@ rule classify_charging:
         ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
+    threads: 8
     params:
         model=config["remora_cca_classifier"],
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
-
     remora infer from_pod5_and_bam {input.pod5} {input.bam} \
       --model {params.model} \
       --out-bam {output.charging_bam} \
       --log-filename {log} \
       --reference-anchored \
-      --device 0
+      --num-extract-alignment-workers 2 \
+      --num-prepare-read-workers 2 \
+      --num-prepare-nn-input-workers 2 \
+      --num-post-process-workers 2
 
     # sort the result
-    samtools sort {output.charging_bam} > {output.temp_sorted_bam}
+    samtools sort -@ {threads} {output.charging_bam} > {output.temp_sorted_bam}
     cp {output.temp_sorted_bam} {output.charging_bam}
 
     samtools index {output.charging_bam}
