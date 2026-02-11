@@ -32,6 +32,7 @@ ont-modkit = "*"
 # Linting tools
 ruff = "*"
 yamllint = "*"
+nvitop = ">=1.6.2,<2"
 
 [activation]
 scripts = ["scripts/setup-env.sh"]
