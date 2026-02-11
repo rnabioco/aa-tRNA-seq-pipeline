@@ -36,16 +36,17 @@ rule render_combined_qc_report:
             ),
             sample=samples.keys(),
         ),
-        odds_ratios=expand(
-            os.path.join(
-                outdir,
-                "summary",
-                "tables",
-                "{sample}",
-                "{sample}.odds_ratios.tsv.gz",
-            ),
-            sample=samples.keys(),
-        ),
+        # TODO: odds_ratios temporarily disabled
+        # odds_ratios=expand(
+        #     os.path.join(
+        #         outdir,
+        #         "summary",
+        #         "tables",
+        #         "{sample}",
+        #         "{sample}.odds_ratios.tsv.gz",
+        #     ),
+        #     sample=samples.keys(),
+        # ),
     output:
         html=os.path.join(outdir, "reports", "qc_report.html"),
     log:

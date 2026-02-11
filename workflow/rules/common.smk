@@ -270,13 +270,13 @@ def pipeline_outputs():
             sample=samples.keys(),
         )
 
-    # Pairwise modification odds ratios
-    outs += expand(
-        os.path.join(
-            outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
-        ),
-        sample=samples.keys(),
-    )
+    # TODO: Pairwise modification odds ratios (temporarily disabled)
+    # outs += expand(
+    #     os.path.join(
+    #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
+    #     ),
+    #     sample=samples.keys(),
+    # )
 
     # Squiggy session file for loading samples in Positron
     outs.append(os.path.join(outdir, "squiggy-session.json"))
