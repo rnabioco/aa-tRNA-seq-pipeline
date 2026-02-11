@@ -15,7 +15,7 @@ default-resources:
   - queue="rna"
   - gpu_opts=""
 
-jobs: 50
+jobs: 100
 
 # amc-bodhi has 8 GPUs
 # this setting controls the number of concurrent GPU jobs run by snakemake
@@ -25,17 +25,16 @@ resources:
 # set rule specific requirements
 set-resources:
   - rebasecall:queue="gpu"
-  - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes"
+  - rebasecall:gpu_opts="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-  - classify_charging:queue="gpu"
-  - classify_charging:gpu_opts="-gpu num=1:j_exclusive=yes"
-  - classify_charging:ngpu=1
   - classify_charging:mem_mb=24
   - remora_signal_stats:mem_mb=24
   - bwa_align:mem_mb=24
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48
+  - warpdemux:mem_mb=32
+  - parse_warpdemux:mem_mb=8
 
 
 printshellcmds: True

@@ -7,8 +7,8 @@
 
 # Executor settings
 executor: slurm
-jobs: 300                      # Maximum concurrent jobs
-latency-wait: 15               # Wait time for output files (seconds)
+jobs: 100                      # Maximum concurrent jobs
+latency-wait: 60               # Wait time for output files (seconds)
 
 # Slurm-specific settings (customize paths for your cluster)
 slurm-logdir: "logs/slurm"     # Directory for Slurm job logs
@@ -17,8 +17,8 @@ slurm-delete-logfiles-older-than: 10  # Days
 
 # Default resources for all rules
 default-resources:
-  slurm_partition: "cpu"       # Default CPU partition (customize for your cluster)
-  slurm_account: "aatrnaseq"   # SLURM account/allocation (customize for your cluster)
+  slurm_partition: "normal"       # Default CPU partition (customize for your cluster)
+  # slurm_account: "aatrnaseq"   # SLURM account/allocation (customize for your cluster)
   runtime: 120                 # Default walltime in minutes (2 hours)
   mem_mb: 8000                 # Default memory in MB (8GB)
   cpus_per_task: 1             # Default CPUs per task
@@ -30,14 +30,12 @@ set-resources:
   rebasecall:
     slurm_partition: "gpu"     # GPU partition (customize for your cluster)
     gres: "gpu:1"              # Request 1 GPU
-    runtime: 480               # 8 hours (basecalling can be slow)
+    runtime: 960               # 16 hours (basecalling can be slow)
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
 
-  # Remora charging classification - requires GPU
+  # Remora charging classification
   classify_charging:
-    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
-    gres: "gpu:1"              # Request 1 GPU
     runtime: 240               # 4 hours
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
@@ -46,8 +44,8 @@ set-resources:
   # BWA alignment
   bwa_align:
     runtime: 240               # 4 hours
-    mem_mb: 24000              # 24GB
-    cpus_per_task: 8
+    mem_mb: 48000              # 48GB
+    cpus_per_task: 12          # Match rule's thread count
 
   # Remora signal statistics
   remora_signal_stats:
@@ -59,6 +57,12 @@ set-resources:
   modkit_extract_calls:
     runtime: 360               # 6 hours
     mem_mb: 96000              # 96GB
+    cpus_per_task: 4
+
+  # Modkit full modification extraction
+  modkit_extract_full:
+    runtime: 360               # 6 hours
+    mem_mb: 48000              # 48GB
     cpus_per_task: 4
 
   # WarpDemuX demultiplexing rules
