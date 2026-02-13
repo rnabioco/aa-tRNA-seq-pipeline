@@ -19,6 +19,7 @@ set-resources:
   - rebasecall:mem_mb=24
   - classify_charging:mem_mb=24
   - remora_signal_stats:mem_mb=24
+  - inject_ubam_tags:mem_mb=16
   - bwa_align:mem_mb=24
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48

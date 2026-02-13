@@ -75,15 +75,19 @@ def adapter_matches(expected, actual):
     return True
 
 
-def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_3p):
+def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapters_3p):
     """
     Validate an existing adapted reference FASTA.
 
     Checks:
     1. All sequences have correct 5' adapter (allowing N wildcards)
     2. All tRNA portions end with CCA
-    3. All sequences have correct 3' adapter (must start with GGC)
+    3. All sequences have correct 3' adapter matching any provided adapter (must start with GGC)
     4. No duplicate sequence names
+
+    Args:
+        adapters_3p: List of 3' adapter sequences. A sequence passes if it
+            matches any adapter in the list.
     """
     errors = []
     warnings = []
@@ -92,13 +96,23 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
     seen_names = set()
 
     len_5p = len(adapter_5p)
-    len_3p = len(adapter_3p)
 
-    # Verify 3' adapter starts with GGC
-    if not adapter_3p.startswith("GGC"):
+    # All adapters must be the same length and start with GGC
+    adapter_lengths = set(len(a) for a in adapters_3p)
+    if len(adapter_lengths) != 1:
         errors.append(
-            f"3' adapter must start with GGC for CCAGGC junction. Got: {adapter_3p[:3]}"
+            f"All 3' adapters must have the same length. Got lengths: {sorted(adapter_lengths)}"
         )
+        # Use the first adapter's length as fallback
+        len_3p = len(adapters_3p[0])
+    else:
+        len_3p = adapter_lengths.pop()
+
+    for adapter_3p in adapters_3p:
+        if not adapter_3p.startswith("GGC"):
+            errors.append(
+                f"3' adapter must start with GGC for CCAGGC junction. Got: {adapter_3p[:3]}"
+            )
 
     for name, seq in read_fasta(input_fasta):
         stats["total_sequences"] += 1
@@ -136,12 +150,18 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
         else:
             stats["valid_5p_adapter"] += 1
 
-        # Check 3' adapter
-        if not adapter_matches(adapter_3p, actual_3p):
+        # Check 3' adapter - passes if it matches ANY of the provided adapters
+        matched_adapter = None
+        for adapter_3p in adapters_3p:
+            if adapter_matches(adapter_3p, actual_3p):
+                matched_adapter = adapter_3p
+                break
+
+        if matched_adapter is None:
             errors.append(
                 f"{name}: Invalid 3' adapter.\n"
-                f"    Expected: {adapter_3p}\n"
-                f"    Got:      {actual_3p}"
+                f"    Expected one of: {adapters_3p}\n"
+                f"    Got:             {actual_3p}"
             )
             stats["invalid_3p_adapter"] += 1
         else:
@@ -177,7 +197,9 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
         f.write("Configuration:\n")
         f.write(f"  Input file: {input_fasta}\n")
         f.write(f"  5' adapter: {adapter_5p} ({len_5p} bp)\n")
-        f.write(f"  3' adapter: {adapter_3p} ({len_3p} bp)\n\n")
+        for i, adapter_3p in enumerate(adapters_3p):
+            f.write(f"  3' adapter [{i + 1}]: {adapter_3p} ({len(adapter_3p)} bp)\n")
+        f.write("\n")
 
         f.write("Statistics:\n")
         f.write(f"  Total sequences: {stats['total_sequences']}\n")
@@ -397,19 +419,24 @@ charging classification model to work correctly.
     )
     parser.add_argument(
         "--adapter-3p",
-        default="GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA",
-        help="3' adapter sequence (default: %(default)s)",
+        action="append",
+        default=None,
+        help="3' adapter sequence (may be specified multiple times for multi-adapter references)",
     )
 
     args = parser.parse_args()
 
+    # Default 3' adapter if none specified
+    adapters_3p = args.adapter_3p or ["GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"]
+
     if args.mode == "validate":
         validate_reference(
-            args.input, args.output, args.report, args.adapter_5p, args.adapter_3p
+            args.input, args.output, args.report, args.adapter_5p, adapters_3p
         )
     else:
+        # Build mode uses only the first adapter
         build_reference(
-            args.input, args.output, args.report, args.adapter_5p, args.adapter_3p
+            args.input, args.output, args.report, args.adapter_5p, adapters_3p[0]
         )
 
 
