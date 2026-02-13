@@ -4,6 +4,9 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [v0.1.1] - 2026-02-11
 
+### Fixed
+- `bwa_align` OOM at 48 GB: decoupled dorado tags from alignment by stripping tags from FASTQ, dropping `bwa mem -C`, and injecting tags from the unaligned BAM afterward via new `inject_ubam_tags` rule
+
 ### Added
 - Quarto QC report with per-sample tabs (#81)
 - Per-tRNA pairwise modification odds ratios (#85)
