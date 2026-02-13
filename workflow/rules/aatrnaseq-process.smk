@@ -92,7 +92,7 @@ rule ubam_to_fastq:
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
         """
-    samtools fastq -T "*" {input} | gzip > {output}
+    samtools fastq {input} | gzip > {output}
     """
 
 
@@ -132,9 +132,36 @@ rule bwa_align:
     threads: 12
     shell:
         """
-    bwa mem -C -t {threads} {params.bwa_opts} {params.index} {input.reads} \
+    bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
         | samtools view -F 20 -Sb - \
-        | samtools sort -o {output.bam}
+        | samtools sort -m 4G -o {output.bam}
+
+    samtools index {output.bam}
+    """
+
+
+rule inject_ubam_tags:
+    """Transfer all tags from unaligned BAM (dorado) to aligned BAM by read ID."""
+    input:
+        source_bam=rules.rebasecall.output,
+        target_bam=rules.bwa_align.output.bam,
+        target_bai=rules.bwa_align.output.bai,
+    output:
+        bam=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
+        bai=os.path.join(
+            outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
+        ),
+    params:
+        src=SCRIPT_DIR,
+    log:
+        os.path.join(outdir, "logs", "inject_ubam_tags", "{sample}"),
+    shell:
+        """
+    python {params.src}/transfer_tags.py \
+      --all-tags \
+      --source {input.source_bam} \
+      --target {input.target_bam} \
+      --output {output.bam}
 
     samtools index {output.bam}
     """
@@ -147,7 +174,7 @@ rule classify_charging:
   """
     input:
         pod5=get_sample_pod5,
-        bam=rules.bwa_align.output.bam,
+        bam=rules.inject_ubam_tags.output.bam,
     output:
         charging_bam=os.path.join(
             outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
@@ -194,7 +221,7 @@ rule transfer_bam_tags:
   """
     input:
         source_bam=rules.classify_charging.output.charging_bam,
-        target_bam=rules.bwa_align.output.bam,
+        target_bam=rules.inject_ubam_tags.output.bam,
     output:
         classified_bam=os.path.join(
             outdir, "bam", "classified", "{sample}", "{sample}.bam"
