@@ -104,7 +104,9 @@ rule validate_reference:
     params:
         script=os.path.join(SCRIPT_DIR, "build_trna_reference.py"),
         adapter_5p=get_adapter_5p(),
-        adapter_3p=get_adapter_3p(),
+        adapter_3p_args=lambda wc: " ".join(
+            f'--adapter-3p "{seq}"' for _, seq in get_adapter_3p_list()
+        ),
     shell:
         """
         python {params.script} \
@@ -113,7 +115,7 @@ rule validate_reference:
             --output {output.validated} \
             --report {output.report} \
             --adapter-5p "{params.adapter_5p}" \
-            --adapter-3p "{params.adapter_3p}" \
+            {params.adapter_3p_args} \
             2>&1 | tee {log}
         """
 
