@@ -6,43 +6,57 @@ Transfer tags from one BAM file to another based on read IDs.
 Output only primary alignments with transferred tags.
 
 Use `--rename` to rename tags during transfer.
+Use `--all-tags` to transfer every tag from source reads.
 """
 
-from collections import defaultdict
-from pysam import AlignmentFile
+from pysam import AlignmentFile, IndexedReads
 
 
-def transfer_tags(tags, rename, source_bam, target_bam, output_bam):
+def transfer_tags(tags, rename, source_bam, target_bam, output_bam, all_tags=False):
     renamed_tags = parse_tag_items(rename)
 
     with (
-        AlignmentFile(source_bam, "rb") as source,
+        AlignmentFile(source_bam, "rb", check_sq=False) as source,
         AlignmentFile(target_bam, "rb") as target,
         AlignmentFile(output_bam, "wb", template=target) as output,
     ):
-        # Store tags from the source BAM based on read ID
-        source_tags = defaultdict(dict)
+        # Build read-name index for random access into source BAM
+        source_idx = IndexedReads(source)
+        source_idx.build()
 
-        for read in source:
-            if not read.is_unmapped:
-                for tag in tags:
-                    if read.has_tag(tag):
-                        source_tags[read.query_name][tag] = read.get_tag(tag)
-
-        # Transfer tags and write only primary alignments with transferred tags
         for read in target:
-            # Skip secondary alignments (those marked with the 0x100 flag)
             if read.is_secondary or read.is_supplementary:
                 continue
 
-            if read.query_name in source_tags:
-                for tag, tag_val in source_tags[read.query_name].items():
+            # Look up source read by name
+            try:
+                source_reads = source_idx.find(read.query_name)
+            except KeyError:
+                if all_tags:
+                    output.write(read)
+                continue
+
+            # Get tags from the first matching source read
+            source_read = next(source_reads)
+            if not all_tags and source_read.is_unmapped:
+                continue
+
+            if all_tags:
+                read_tags = dict(source_read.get_tags())
+            else:
+                read_tags = {}
+                for tag in tags:
+                    if source_read.has_tag(tag):
+                        read_tags[tag] = source_read.get_tag(tag)
+
+            if read_tags:
+                for tag, tag_val in read_tags.items():
                     if tag in renamed_tags:
                         read.set_tag(renamed_tags[tag], tag_val)
                     else:
                         read.set_tag(tag, tag_val)
 
-                # Write read only if tags were transferred
+            if all_tags or read_tags:
                 output.write(read)
 
 
@@ -61,7 +75,13 @@ if __name__ == "__main__":
         description="Transfer tags from one BAM file to another based on read IDs, and output only primary alignments with transferred tags."
     )
     parser.add_argument(
-        "-t", "--tags", metavar="MM", nargs="+", required=True, help="Tags to transfer"
+        "-t", "--tags", metavar="MM", nargs="+", help="Tags to transfer"
+    )
+
+    parser.add_argument(
+        "--all-tags",
+        action="store_true",
+        help="Transfer all tags from source reads (ignores --tags)",
     )
 
     parser.add_argument(
@@ -82,4 +102,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    transfer_tags(args.tags, args.rename, args.source, args.target, args.output)
+    if not args.all_tags and not args.tags:
+        parser.error("either --tags or --all-tags is required")
+
+    transfer_tags(
+        args.tags or [],
+        args.rename or [],
+        args.source,
+        args.target,
+        args.output,
+        all_tags=args.all_tags,
+    )

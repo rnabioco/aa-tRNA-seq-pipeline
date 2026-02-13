@@ -168,7 +168,7 @@ class TestValidateReference:
             str(output_fa),
             str(report),
             ADAPTER_5P,
-            ADAPTER_3P,
+            [ADAPTER_3P],
         )
 
         assert result is True
@@ -192,7 +192,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                ADAPTER_3P,
+                [ADAPTER_3P],
             )
 
         assert "VALIDATION FAILED" in report.read_text()
@@ -214,7 +214,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                ADAPTER_3P,
+                [ADAPTER_3P],
             )
 
         assert "VALIDATION FAILED" in report.read_text()
@@ -236,7 +236,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                ADAPTER_3P,
+                [ADAPTER_3P],
             )
 
         assert "does not end with CCA" in report.read_text()
@@ -258,7 +258,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                ADAPTER_3P,
+                [ADAPTER_3P],
             )
 
         assert "Duplicate sequence name" in report.read_text()
@@ -277,7 +277,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                ADAPTER_3P,
+                [ADAPTER_3P],
             )
 
         assert "too short" in report.read_text()
@@ -299,7 +299,7 @@ class TestValidateReference:
                 str(output_fa),
                 str(report),
                 ADAPTER_5P,
-                bad_3p,
+                [bad_3p],
             )
 
         assert "must start with GGC" in report.read_text()
