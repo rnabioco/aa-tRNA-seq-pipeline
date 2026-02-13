@@ -148,9 +148,7 @@ rule inject_ubam_tags:
         target_bai=rules.bwa_align.output.bai,
     output:
         bam=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
-        bai=os.path.join(
-            outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
-        ),
+        bai=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"),
     params:
         src=SCRIPT_DIR,
     log:
