@@ -129,12 +129,12 @@ rule bwa_align:
         bwa_opts=config["opts"]["bwa"],
     log:
         os.path.join(outdir, "logs", "bwa_align", "{sample}"),
-    threads: 12
+    threads: 16
     shell:
         """
     bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
         | samtools view -F 20 -Sb - \
-        | samtools sort -m 4G -o {output.bam}
+        | samtools sort -m 2G -@ 4 -o {output.bam}
 
     samtools index {output.bam}
     """

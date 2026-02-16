@@ -411,5 +411,6 @@ rule generate_squiggy_session:
             --output-dir {params.outdir} \
             --fasta {input.fasta} \
             --output {output.session} \
+            --no-checksums \
             2>&1 | tee {log}
         """
