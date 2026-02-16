@@ -68,8 +68,8 @@ set-resources:
   # Modkit full modification extraction
   modkit_extract_full:
     runtime: 360               # 6 hours
-    mem_mb: 48000              # 48GB
-    cpus_per_task: 4
+    mem_mb: 96000              # 96GB
+    cpus_per_task: 12
 
   # WarpDemuX demultiplexing rules
   warpdemux:
