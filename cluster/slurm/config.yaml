@@ -47,11 +47,11 @@ set-resources:
     cpus_per_task: 1
 
   # CPU-intensive rules
-  # BWA alignment (tags stripped; no longer needs high memory)
+  # BWA alignment (OOM at 64GB for larger samples)
   bwa_align:
-    runtime: 240               # 4 hours
-    mem_mb: 24000              # 24GB
-    cpus_per_task: 12          # Match rule's thread count
+    runtime: 720               # 12 hours (large samples with -k 6 are slow)
+    mem_mb: 96000              # 96GB
+    cpus_per_task: 16          # Match rule's thread count
 
   # Remora signal statistics
   remora_signal_stats:

@@ -42,6 +42,7 @@ include: "rules/aatrnaseq-report.smk"
 
 localrules:
     download_mod_models,
+    generate_squiggy_session,
 
 
 # Conditionally include WarpDemuX demultiplexing rules
