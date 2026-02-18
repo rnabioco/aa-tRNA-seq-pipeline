@@ -266,15 +266,20 @@ rule split_pod5:
 # --- EDX (3' adapter barcode) concordance analysis ---
 
 
+def get_edx_samples():
+    """Get sample names that have EDX adapter assignments."""
+    return [s for s, info in samples.items() if info.get("edx")]
+
+
 rule edx_concordance:
     """
     Build concordance table of WDX sample assignment vs EDX adapter identity.
     Reads PT tags from final BAMs to determine which 3' adapter each read matched.
     """
     input:
-        bams=expand(
+        bams=lambda wildcards: expand(
             os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
-            sample=samples.keys(),
+            sample=get_edx_samples(),
         ),
     output:
         concordance=os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"),
@@ -282,7 +287,7 @@ rule edx_concordance:
         os.path.join(outdir, "logs", "edx", "edx_concordance.log"),
     params:
         src=SCRIPT_DIR,
-        sample_names=" ".join(samples.keys()),
+        sample_names=lambda wildcards: " ".join(get_edx_samples()),
     shell:
         """
         python {params.src}/edx_concordance.py \

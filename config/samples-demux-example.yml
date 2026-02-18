@@ -10,6 +10,7 @@
 
 runs:
   # Pooled Nano-tRNAseq run with barcoded samples
+  # Simple format: value is the WDX barcode string (no EDX tracking)
   - path: /path/to/pooled/sequencing/run
     barcode_kit: "WDX4_tRNA_rna004_v1_0"  # optional, uses config default if omitted
     samples:
@@ -18,11 +19,17 @@ runs:
       control_sample: "barcode05"
       replicate_sample: "barcode07"
 
-  # Another pooled run (using default barcode_kit from config)
+  # Dict format: value is a dict with wdx and/or edx keys
+  # Use this when samples have EDX (3' adapter) barcode assignments
   - path: /path/to/another/pooled/run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
     samples:
-      experimental_bc03: "barcode03"
-      experimental_bc04: "barcode04"
+      experimental_bc03:
+        wdx: "barcode03"
+        edx: "edx1"
+      experimental_bc04:
+        wdx: "barcode04"
+        edx: "edx2"
 
   # Non-multiplexed run (no barcodes, direct processing)
   # Set barcode to null (~) to skip demultiplexing for this sample
