@@ -31,13 +31,13 @@ Do **not** use when:
 
 ## Setup
 
-### 1. Install Demux Environment
+### 1. Install WarpDemuX
 
 ```bash
-pixi install -e demux
+pixi run setup
 ```
 
-This installs the demux environment dependencies. WarpDemuX itself is automatically installed on first use via the environment activation script.
+This installs WarpDemuX along with other pipeline tools (dorado, remora).
 
 ### 2. Create YAML Sample File
 
@@ -213,17 +213,17 @@ Filters raw POD5 files by sample using read ID list.
 ### Dry Run
 
 ```bash
-pixi run -e demux snakemake -n --configfile=config/config-demux.yml
+pixi run snakemake -n --configfile=config/config-demux.yml
 ```
 
 ### Execute
 
 ```bash
 # Local
-pixi run -e demux snakemake --cores 12 --configfile=config/config-demux.yml
+pixi run snakemake --cores 12 --configfile=config/config-demux.yml
 
 # Cluster
-pixi run -e demux snakemake --profile cluster/lsf --configfile=config/config-demux.yml
+pixi run snakemake --profile cluster/lsf --configfile=config/config-demux.yml
 ```
 
 ## Output Structure
@@ -299,7 +299,7 @@ If barcode distribution is very unbalanced:
 
 1. **Verify barcode distribution** before running full pipeline:
    ```bash
-   pixi run -e demux snakemake demux/read_ids/{run_id}/demux_summary.tsv.gz \
+   pixi run snakemake demux/read_ids/{run_id}/demux_summary.tsv.gz \
        --configfile=config/config-demux.yml
    ```
 

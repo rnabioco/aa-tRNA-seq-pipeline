@@ -241,14 +241,14 @@ pixi run snakemake --report report.html --configfile=config/config.yml
 
 ## With Demultiplexing
 
-For demultiplexed samples, use the `demux` environment:
+For demultiplexed samples, ensure WarpDemuX is installed (`pixi run setup`), then run as usual:
 
 ```bash
 # Dry run
-pixi run -e demux snakemake -n --configfile=config/config-demux.yml
+pixi run snakemake -n --configfile=config/config-demux.yml
 
 # Execute
-pixi run -e demux snakemake --profile cluster/lsf \
+pixi run snakemake --profile cluster/lsf \
     --configfile=config/config-demux.yml
 ```
 

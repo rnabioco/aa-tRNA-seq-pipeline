@@ -159,7 +159,7 @@ The pipeline supports optional barcode demultiplexing using WarpDemuX for pooled
 
 ### Enabling Demultiplexing
 
-1. **Install demux environment**: `pixi install -e demux && pixi run -e demux install-warpdemux`
+1. **Install WarpDemuX**: `pixi run setup` (installs WarpDemuX along with other tools)
 2. **Create YAML sample file** with barcode assignments (see `config/samples-demux-example.yml`)
 3. **Enable in config**: Set `warpdemux.enabled: true`
 
@@ -185,10 +185,10 @@ runs:
 
 ```bash
 # Dry run with demux config
-pixi run -e demux snakemake -n --configfile=config/config-demux-test.yml
+pixi run snakemake -n --configfile=config/config-demux-test.yml
 
 # Execute with demux
-pixi run -e demux snakemake --configfile=config/config-demux-test.yml --cores 8
+pixi run snakemake --configfile=config/config-demux-test.yml --cores 8
 ```
 
 ## Charged vs Uncharged Classification

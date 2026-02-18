@@ -1,7 +1,7 @@
 # Test config for WarpDemuX demultiplexing
 #
 # This config enables WarpDemuX barcode demultiplexing.
-# Use with: pixi run -e demux snakemake -n --configfile=config/config-demux-test.yml
+# Use with: pixi run snakemake -n --configfile=config/config-demux-test.yml
 
 # Sample file in YAML format with barcode assignments
 samples: config/samples-demux-test.yml

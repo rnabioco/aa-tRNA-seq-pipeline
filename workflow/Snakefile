@@ -48,7 +48,7 @@ localrules:
 # Conditionally include WarpDemuX demultiplexing rules
 if config.get("warpdemux", {}).get("enabled", False):
 
-    include: "rules/warpdemux.smk"
+    include: "rules/demux.smk"
 
 
 # Add scripts directory to path for manifest generation

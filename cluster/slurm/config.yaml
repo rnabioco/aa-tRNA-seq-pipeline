@@ -18,7 +18,7 @@ slurm-delete-logfiles-older-than: 10  # Days
 # Default resources for all rules
 default-resources:
   slurm_partition: "normal"       # Default CPU partition (customize for your cluster)
-  # slurm_account: "aatrnaseq"   # SLURM account/allocation (customize for your cluster)
+  slurm_account: "gpu_rbi"       # SLURM account/allocation (customize for your cluster)
   runtime: 120                 # Default walltime in minutes (2 hours)
   mem_mb: 8000                 # Default memory in MB (8GB)
   cpus_per_task: 1             # Default CPUs per task
