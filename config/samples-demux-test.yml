@@ -9,5 +9,9 @@ runs:
   - path: .tests/sample1
     barcode_kit: "WDX4_tRNA_rna004_v1_0"
     samples:
-      sample1_bc03: "barcode03"
-      sample1_bc04: "barcode04"
+      sample1_bc03:
+        wdx: "barcode03"
+        edx: "edx1"
+      sample1_bc04:
+        wdx: "barcode04"
+        edx: "edx2"

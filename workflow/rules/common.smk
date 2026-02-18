@@ -32,7 +32,7 @@ def parse_samples_tsv(fl):
             if sample in samples:
                 samples[sample]["path"].add(path)
             else:
-                samples[sample] = {"path": {path}, "barcode": None, "run_id": None}
+                samples[sample] = {"path": {path}, "barcode": None, "edx": None, "run_id": None}
     return samples
 
 
@@ -72,12 +72,24 @@ def parse_samples_yaml(fl):
             "barcode_kit", config.get("warpdemux", {}).get("barcode_kit")
         )
 
-        for sample_name, barcode in run["samples"].items():
+        for sample_name, sample_val in run["samples"].items():
             if sample_name in samples:
                 sys.exit(f"Duplicate sample name '{sample_name}' in samples file: {fl}")
+
+            # Backward compat: plain string or null = wdx barcode only
+            if isinstance(sample_val, str) or sample_val is None:
+                barcode = sample_val
+                edx = None
+            elif isinstance(sample_val, dict):
+                barcode = sample_val.get("wdx")
+                edx = sample_val.get("edx")
+            else:
+                sys.exit(f"Invalid sample value for '{sample_name}': {sample_val}")
+
             samples[sample_name] = {
                 "path": {run_path},
                 "barcode": barcode,
+                "edx": edx,
                 "run_id": run_id,
                 "barcode_kit": barcode_kit,
             }
