@@ -284,6 +284,10 @@ def pipeline_outputs():
     # Reference sequence similarity QC (runs once per pipeline execution)
     outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
 
+    # EDX (3' adapter barcode) concordance table
+    if config.get("edx", {}).get("enabled", False):
+        outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
+
     return outs
 
 
@@ -340,7 +344,7 @@ def get_modkit_threshold_opts():
     return " ".join(opts)
 
 
-# WarpDemuX helper functions (additional functions in warpdemux.smk)
+# WarpDemuX helper functions (additional functions in demux.smk)
 
 
 def sample_needs_demux(sample):

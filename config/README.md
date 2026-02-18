@@ -69,7 +69,7 @@ warpdemux:
 Run with the demux environment:
 
 ```bash
-pixi run -e demux snakemake --configfile=config/config-demux.yml --cores 8
+pixi run snakemake --configfile=config/config-demux.yml --cores 8
 ```
 
 See `config-demux-test.yml` for a complete example.

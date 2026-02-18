@@ -352,10 +352,10 @@ warpdemux: command not found
 
 **Solution:**
 
-Install the demux environment (WarpDemuX is auto-installed on first use):
+Install WarpDemuX via the setup command:
 
 ```bash
-pixi install -e demux
+pixi run setup
 ```
 
 ### Invalid Barcode Kit

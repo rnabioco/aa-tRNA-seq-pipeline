@@ -142,4 +142,18 @@ else
     echo "Remora installed successfully"
 fi
 
+# ============================================================================
+# WarpDemuX Setup (via uv)
+# ============================================================================
+echo "=== Checking WarpDemuX ==="
+if python -c "import warpdemux" 2>/dev/null; then
+    echo "WarpDemuX already installed"
+else
+    echo "Cloning WarpDemuX..."
+    [ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX
+    echo "Installing WarpDemuX..."
+    uv pip install -e resources/tools/WarpDemuX
+    echo "WarpDemuX installed successfully"
+fi
+
 echo "=== Setup complete ==="

@@ -1,5 +1,5 @@
 """
-Rules for WarpDemuX barcode demultiplexing.
+Rules for WarpDemuX barcode demultiplexing and EDX (3' adapter barcode) concordance.
 Only loaded when warpdemux.enabled is true in config.
 """
 
@@ -129,7 +129,7 @@ rule warpdemux:
     threads: config.get("warpdemux", {}).get("threads", 8)
     shell:
         """
-        pixi run -e demux warpdemux demux \
+        warpdemux demux \
             -i {params.pod5_dirs} \
             -o {output.outdir} \
             -m {params.model} \
@@ -260,4 +260,34 @@ rule split_pod5:
     shell:
         """
         pod5 filter {params.pod5_dirs} --ids {input.read_ids} --output {output} 2>&1 | tee {log}
+        """
+
+
+# --- EDX (3' adapter barcode) concordance analysis ---
+
+
+rule edx_concordance:
+    """
+    Build concordance table of WDX sample assignment vs EDX adapter identity.
+    Reads PT tags from final BAMs to determine which 3' adapter each read matched.
+    """
+    input:
+        bams=expand(
+            os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+            sample=samples.keys(),
+        ),
+    output:
+        concordance=os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"),
+    log:
+        os.path.join(outdir, "logs", "edx", "edx_concordance.log"),
+    params:
+        src=SCRIPT_DIR,
+        sample_names=" ".join(samples.keys()),
+    shell:
+        """
+        python {params.src}/edx_concordance.py \
+            --bams {input.bams} \
+            --samples {params.sample_names} \
+            --output {output.concordance} \
+            2>&1 | tee {log}
         """

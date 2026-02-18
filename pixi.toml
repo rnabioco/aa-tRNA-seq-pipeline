@@ -33,12 +33,20 @@ ont-modkit = "*"
 ruff = "*"
 yamllint = "*"
 nvitop = ">=1.6.2,<2"
+# WarpDemuX dependencies (compiled packages best from conda)
+dtaidistance = "*"
+scikit-learn = "*"
+scipy = "*"
+cython = "*"
+catboost = "*"
+ruptures = "*"
+bottleneck = "*"
 
 [activation]
 scripts = ["scripts/setup-env.sh"]
 
 [tasks]
-setup = { cmd = "bash scripts/setup-tools.sh && pixi run -e demux install-warpdemux", description = "One-time setup: install dorado, models, remora, and WarpDemuX" }
+setup = { cmd = "bash scripts/setup-tools.sh", description = "One-time setup: install dorado, models, remora, and WarpDemuX" }
 dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Download test data" }
 # Pipeline execution
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }
@@ -54,6 +62,9 @@ collapse-ref = { cmd = "python workflow/scripts/collapse_gtrndb_fasta.py", descr
 lint-snakefmt = { cmd = "snakefmt --check workflow/", description = "Check Snakemake formatting" }
 lint-python = { cmd = "ruff check workflow/scripts/ && ruff format --check workflow/scripts/", description = "Lint and check Python formatting" }
 lint-yaml = { cmd = "yamllint -d \"{extends: default, rules: {line-length: {max: 120}, document-start: disable}}\" config/ .github/", description = "Lint YAML files" }
+# WarpDemuX tasks
+install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
+dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
 # Testing feature
 [feature.test]
@@ -69,33 +80,6 @@ pysam = "*"
 test-unit = { cmd = "pytest tests/unit/ -v --cov=workflow/scripts", description = "Run unit tests with coverage" }
 test-integration = { cmd = "pytest tests/integration/ -v", description = "Run integration tests" }
 test-all = { cmd = "pytest tests/ -v --cov=workflow/scripts", description = "Run all tests with coverage" }
-
-# WarpDemuX demultiplexing feature
-[feature.demux]
-platforms = ["linux-64"]
-
-[feature.demux.activation]
-scripts = ["scripts/demux-activate.sh"]
-
-[feature.demux.dependencies]
-# WarpDemuX dependencies
-libstdcxx-ng = ">=12"
-pytorch = "*"
-dtaidistance = "*"
-scikit-learn = "*"
-scipy = "*"
-cython = "*"
-toml = "*"
-tqdm = "*"
-numpy = "<2"
-joblib = "*"
-bottleneck = "*"
-ruptures = "*"
-catboost = "*"
-
-[feature.demux.tasks]
-install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
-dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
 # QC Report rendering feature
 [feature.report]
@@ -126,5 +110,4 @@ render-qc = { cmd = "snakemake render_all_qc_reports --configfile=config/config-
 [environments]
 default = []
 test = ["test"]
-demux = ["demux"]
 report = ["report"]
