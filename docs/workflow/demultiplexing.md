@@ -76,16 +76,27 @@ Create a config file with demux enabled:
 
 ## Barcode Kits
 
+[WarpDemuX](https://github.com/KleistLab/WarpDemuX) provides adapter-based barcode demultiplexing for Oxford Nanopore direct RNA sequencing. This pipeline uses tRNA-specific WarpDemuX models trained for the Nano-tRNAseq protocol.
+
+### Naming Convention
+
+Model names follow the format: `WDX[n_barcodes][alt_set]_tRNA_rna004_v1_0`
+
+- **`WDX`** — WarpDemuX prefix
+- **`[n_barcodes]`** — number of barcodes in the set (e.g., `4`)
+- **`[alt_set]`** — optional letter for alternative adapter sets (e.g., `b`)
+- **`_tRNA_`** — indicates tRNA-specific model
+- **`rna004_v1_0`** — ONT RNA004 chemistry version
+
 ### Available Kits
 
-| Kit | Barcodes | Notes |
-|-----|----------|-------|
-| `WDX4_tRNA_rna004_v1_0` | barcode03, barcode04, barcode05, barcode07 | **Recommended** |
-| `WDX4b_tRNA_rna004_v1_0` | barcode04, barcode05, barcode07, barcode11 | Alternative |
+| Kit | # Barcodes | Barcode IDs | Notes |
+|-----|------------|-------------|-------|
+| `WDX4_tRNA_rna004_v1_0` | 4 | barcode03, barcode04, barcode05, barcode07 | **Recommended**, +3-7% recovery |
+| `WDX4b_tRNA_rna004_v1_0` | 4 | barcode04, barcode05, barcode07, barcode11 | Alternative adapter set |
 
-### Performance
-
-`WDX4_tRNA_rna004_v1_0` provides +3-7% improved read recovery compared to `WDX4b_tRNA_rna004_v1_0`.
+!!! info "Standard RNA004 Models"
+    WarpDemuX also offers standard RNA004 models (WDX4, WDX6, WDX10) for mRNA and other direct RNA applications. See the [WarpDemuX README](https://github.com/KleistLab/WarpDemuX) for details. This pipeline requires the **`_tRNA_`** variants.
 
 !!! warning "Protocol Compatibility"
     WarpDemuX-tRNA models are developed specifically for the **Nano-tRNAseq protocol**. They do **NOT** work with data using the Thomas splint adapter.

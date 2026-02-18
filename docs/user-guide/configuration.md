@@ -218,6 +218,8 @@ opts:
 
 ## WarpDemuX Demultiplexing
 
+See [WarpDemuX](https://github.com/KleistLab/WarpDemuX) for more information.
+
 For multiplexed samples, enable barcode demultiplexing:
 
 ```yaml
