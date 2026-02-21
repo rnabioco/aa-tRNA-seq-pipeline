@@ -75,7 +75,7 @@ pixi run setup
 
 This downloads and installs:
 
-- **Dorado** v1.3.1 - Oxford Nanopore basecaller
+- **Dorado** - Oxford Nanopore basecaller (version set in `config/config-base.yml`)
 - **Dorado model** - `rna004_130bps_sup@v5.1.0` basecalling model
 - **Remora** - ONT signal analysis for charging classification
 - **WarpDemuX** - Barcode demultiplexing (optional, for multiplexed samples)
@@ -101,7 +101,7 @@ Verify everything is installed correctly:
 pixi run snakemake --version
 
 # Check Dorado installation
-resources/tools/dorado/1.3.1/bin/dorado --version
+resources/tools/dorado/*/bin/dorado --version
 
 # Check Modkit installation (managed by pixi)
 pixi run modkit --version
@@ -117,7 +117,7 @@ aa-tRNA-seq-pipeline/
 ├── .pixi/                    # Pixi environment (includes modkit, remora)
 ├── resources/
 │   ├── tools/
-│   │   ├── dorado/1.3.1/    # Dorado binaries
+│   │   ├── dorado/<version>/  # Dorado binaries
 │   │   └── WarpDemuX/       # WarpDemuX (if demux enabled)
 │   ├── models/
 │   │   ├── rna004_130bps_sup@v5.1.0/  # Basecalling model

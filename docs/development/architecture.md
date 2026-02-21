@@ -47,8 +47,7 @@ configfile: "config/config-base.yml"
 onstart:
     # Add dorado and modkit to PATH
     dorado_path = f"resources/tools/dorado/{config['dorado_version']}/bin"
-    modkit_path = f"resources/tools/modkit/{config['modkit_version']}/bin"
-    os.environ["PATH"] = f"{dorado_path}:{modkit_path}:{os.environ['PATH']}"
+    os.environ["PATH"] = f"{dorado_path}:{os.environ['PATH']}"
 
 # Include rule modules
 include: "rules/common.smk"
@@ -201,8 +200,7 @@ flowchart TB
 ```yaml
 # Tool paths and versions
 base_calling_model: "resources/models/..."
-dorado_version: 0.9.1
-modkit_version: 0.4.3
+dorado_version: 1.4.0
 
 # Reference files
 fasta: "resources/ref/..."
@@ -233,11 +231,8 @@ Tools are installed to `resources/tools/`:
 ```
 resources/tools/
 ├── dorado/
-│   └── 0.9.1/
+│   └── <version>/
 │       └── bin/dorado
-└── modkit/
-    └── 0.4.3/
-        └── bin/modkit
 ```
 
 ### PATH Setup
@@ -247,8 +242,7 @@ Tools are added to PATH dynamically in `Snakefile`:
 ```python
 onstart:
     dorado_path = f"resources/tools/dorado/{config['dorado_version']}/bin"
-    modkit_path = f"resources/tools/modkit/{config['modkit_version']}/bin"
-    os.environ["PATH"] = f"{dorado_path}:{modkit_path}:{os.environ['PATH']}"
+    os.environ["PATH"] = f"{dorado_path}:{os.environ['PATH']}"
 ```
 
 ## Python Scripts

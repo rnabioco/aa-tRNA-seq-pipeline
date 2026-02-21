@@ -256,10 +256,10 @@ pixi list
 
 ```bash
 # Dorado
-resources/tools/dorado/0.9.1/bin/dorado --version
+resources/tools/dorado/*/bin/dorado --version
 
-# Modkit
-resources/tools/modkit/0.4.3/bin/modkit --version
+# Modkit (managed by pixi)
+pixi run modkit --version
 
 # Snakemake
 pixi run snakemake --version
