@@ -47,7 +47,7 @@ def main():
         print(f"Processing {sample_name}: {tsv_path}", file=sys.stderr)
 
         with gzip.open(tsv_path, "rt") as f:
-            header = f.readline()  # skip header
+            f.readline()  # skip header
             for line in f:
                 parts = line.rstrip("\n").split("\t", 1)
                 if len(parts) == 2:

@@ -32,7 +32,12 @@ def parse_samples_tsv(fl):
             if sample in samples:
                 samples[sample]["path"].add(path)
             else:
-                samples[sample] = {"path": {path}, "barcode": None, "edx": None, "run_id": None}
+                samples[sample] = {
+                    "path": {path},
+                    "barcode": None,
+                    "edx": None,
+                    "run_id": None,
+                }
     return samples
 
 
@@ -400,7 +405,11 @@ def get_alignment_fastq(wildcards):
     """
     if sample_has_edx(wildcards.sample):
         return os.path.join(
-            outdir, "demux", "edx", "fq", wildcards.sample,
+            outdir,
+            "demux",
+            "edx",
+            "fq",
+            wildcards.sample,
             f"{wildcards.sample}.fq.gz",
         )
     return os.path.join(outdir, "fq", wildcards.sample, f"{wildcards.sample}.fq.gz")
@@ -416,7 +425,11 @@ def get_classification_pod5(wildcards):
     """
     if sample_has_edx(wildcards.sample):
         return os.path.join(
-            outdir, "demux", "edx", "pod5", wildcards.sample,
+            outdir,
+            "demux",
+            "edx",
+            "pod5",
+            wildcards.sample,
             f"{wildcards.sample}.pod5",
         )
     return get_sample_pod5(wildcards)
@@ -441,9 +454,7 @@ def get_all_merged_pod5s():
     for sample in samples.keys():
         if sample_has_edx(sample):
             pod5_paths.append(
-                os.path.join(
-                    outdir, "demux", "edx", "pod5", sample, f"{sample}.pod5"
-                )
+                os.path.join(outdir, "demux", "edx", "pod5", sample, f"{sample}.pod5")
             )
         elif sample_needs_demux(sample):
             pod5_paths.append(

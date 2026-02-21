@@ -263,7 +263,9 @@ rule add_adapter_tags:
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
         bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"),
+        bai=os.path.join(
+            outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"
+        ),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
