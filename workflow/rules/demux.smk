@@ -278,7 +278,7 @@ rule edx_concordance:
     """
     input:
         bams=lambda wildcards: expand(
-            os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+            rules.finalize_bam.output.bam,
             sample=get_edx_samples(),
         ),
     output:

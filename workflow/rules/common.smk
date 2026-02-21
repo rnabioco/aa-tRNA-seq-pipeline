@@ -367,6 +367,16 @@ def sample_needs_demux(sample):
     return is_demux_enabled() and samples[sample].get("barcode") is not None
 
 
+def sample_has_edx(sample):
+    """Check if a sample has an EDX adapter assignment."""
+    return samples[sample].get("edx") is not None
+
+
+def get_sample_edx(wildcards):
+    """Return the EDX adapter name for a sample, or None if not set."""
+    return samples[wildcards.sample].get("edx")
+
+
 def get_sample_pod5(wildcards):
     """
     Return the correct POD5 path for a sample.

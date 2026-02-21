@@ -31,8 +31,8 @@ rule base_calling_error:
   extract base calling error metrics to tsv file
   """
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
     output:
         tsv=os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.bcerror.tsv.gz"
@@ -62,7 +62,7 @@ rule align_stats:
     input:
         unmapped=rules.rebasecall.output,
         aligned=rules.bwa_align.output.bam,
-        classified=rules.add_adapter_tags.output.bam,
+        classified=rules.finalize_bam.output.bam,
     output:
         tsv=os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.align_stats.tsv.gz"
@@ -88,8 +88,8 @@ rule remora_signal_stats:
   run remora to get signal stats
   """
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
         pod5=get_sample_pod5,
     output:
         tsv=os.path.join(

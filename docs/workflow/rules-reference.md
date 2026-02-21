@@ -199,7 +199,7 @@ Detect adapter positions using parasail alignment and add PT tags to create fina
 | Property | Value |
 |----------|-------|
 | Input | Classified BAM |
-| Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
+| Output | `bam/adapter_tagged/{sample}/{sample}.bam`, `.bai` |
 | Parameters | `adapters.*` config options |
 
 **Command:**
@@ -224,6 +224,30 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 - Uses parasail Smith-Waterman alignment to find adapter positions
 - Can infer 5' adapter presence from alignment position when adapter is truncated
+- Output goes to `bam/adapter_tagged/`; the downstream `finalize_bam` rule produces the final BAM at `bam/final/`
+
+---
+
+### finalize_bam
+
+Produce the final BAM for downstream analysis. For samples with an EDX (3' adapter barcode) assignment, filters reads to keep only those whose PT-tag 3' adapter matches the expected EDX value. For samples without EDX, symlinks the adapter-tagged BAM unchanged.
+
+**File:** `workflow/rules/aatrnaseq-process.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | `bam/adapter_tagged/{sample}/{sample}.bam`, `.bai` |
+| Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
+| Parameters | `edx` (from sample config, or None) |
+
+**Behavior:**
+
+- **EDX samples:** Runs `filter_by_edx.py` to keep only reads whose PT tag 3' adapter name matches the expected EDX value
+- **Non-EDX samples:** Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
+
+**Notes:**
+
+- EDX adapter identity is determined from the PT tag added by `add_adapter_tags`
 - This is the final BAM with all tags: CL/CM (charging) and PT (adapters)
 
 ---
@@ -662,18 +686,19 @@ flowchart LR
     bwa_align --> classify_charging
     classify_charging --> transfer_bam_tags
     transfer_bam_tags --> add_adapter_tags
-    add_adapter_tags --> get_cca_trna
-    add_adapter_tags --> base_calling_error
-    add_adapter_tags --> align_stats
-    add_adapter_tags --> bam_to_coverage
-    add_adapter_tags --> modkit_pileup
-    add_adapter_tags --> modkit_extract_calls
+    add_adapter_tags --> finalize_bam
+    finalize_bam --> get_cca_trna
+    finalize_bam --> base_calling_error
+    finalize_bam --> align_stats
+    finalize_bam --> bam_to_coverage
+    finalize_bam --> modkit_pileup
+    finalize_bam --> modkit_extract_calls
     get_cca_trna --> get_cca_trna_cpm
     get_cca_trna --> compute_odds_ratios
     modkit_extract_calls --> compute_odds_ratios
-    add_adapter_tags --> generate_squiggy_session
+    finalize_bam --> generate_squiggy_session
     merge_pods --> generate_squiggy_session
-    add_adapter_tags --> compute_reference_similarity
+    finalize_bam --> compute_reference_similarity
     align_stats --> render_combined_qc_report
     get_cca_trna --> render_combined_qc_report
     get_cca_trna_cpm --> render_combined_qc_report

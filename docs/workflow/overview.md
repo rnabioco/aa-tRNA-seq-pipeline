@@ -46,6 +46,7 @@ flowchart TB
         F[classify_charging<br/>Remora ML]
         G[transfer_bam_tags<br/>Rename tags]
         G2[add_adapter_tags<br/>PT tags]
+        G3[finalize_bam<br/>EDX filter/passthrough]
     end
 
     subgraph Charging[aatrnaseq-charging.smk]
@@ -74,16 +75,16 @@ flowchart TB
         R[render_combined_qc_report<br/>QC report]
     end
 
-    A --> B --> C --> D --> E --> F --> G --> G2
+    A --> B --> C --> D --> E --> F --> G --> G2 --> G3
 
-    G2 --> H --> I
-    G2 --> J
-    G2 --> K
-    G2 --> L
-    G2 --> M
-    G2 --> N
-    G2 --> O
-    G2 --> P
+    G3 --> H --> I
+    G3 --> J
+    G3 --> K
+    G3 --> L
+    G3 --> M
+    G3 --> N
+    G3 --> O
+    G3 --> P
     O --> Q
     H --> Q
     J --> R
@@ -130,6 +131,7 @@ Core data processing from raw signal to classified reads:
 | `classify_charging` | ML charging classification | No |
 | `transfer_bam_tags` | Rename ML→CL tags | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
+| `finalize_bam` | Filter by EDX adapter or passthrough | No |
 
 ### Charging Analysis Rules
 
