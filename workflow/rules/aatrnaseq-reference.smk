@@ -209,6 +209,12 @@ rule trim_reference:
     Removes the 5' adapter + N position from the start and 3' adapter
     from the end of each reference sequence. The output is used by
     clover for MODOMICS annotation and tRNA structure visualization.
+
+    Note: only the first 3' adapter is used here because trimming is
+    length-based (fixed offset), not sequence-based. This is safe because
+    validate_reference enforces that all configured 3' adapters have equal
+    length. If adapters of different lengths are ever needed, this rule
+    must be updated to handle per-adapter offsets.
     """
     input:
         fasta=get_validated_reference(),
