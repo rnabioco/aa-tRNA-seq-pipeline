@@ -146,6 +146,51 @@ runs:
       direct_sample: ~  # null = skip demux
 ```
 
+## Dual Barcoding (WDX + EDX)
+
+The pipeline supports **dual barcoding** — combining WDX (5' signal-based) and EDX (3' adapter sequence-based) barcodes for additional sample tracking and cross-validation.
+
+- **WDX** (WarpDemuX): 5' signal barcode predicted from the raw nanopore signal by WarpDemuX. This is the primary demultiplexing barcode used to split reads into samples.
+- **EDX**: 3' adapter sequence variant (e.g., `edx1`, `edx2`). Different adapter sequences at the 3' end identify which adapter was used during library prep.
+
+### When to Use Dual Barcoding
+
+Use dual barcoding when samples are multiplexed with **both** WDX adapters at the 5' end **and** different EDX adapter sequences at the 3' end. This enables concordance analysis to verify that WDX demultiplexing assignments match expected EDX identities.
+
+### Dict Format for Samples
+
+When using dual barcoding, specify sample values as a dict with `wdx` and `edx` keys instead of a plain barcode string:
+
+```yaml
+runs:
+  - path: /data/pooled_run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    samples:
+      # Dict format: wdx + edx
+      sample_bc03:
+        wdx: "barcode03"
+        edx: "edx1"
+      sample_bc04:
+        wdx: "barcode04"
+        edx: "edx2"
+```
+
+### EDX Concordance Output
+
+When samples have EDX assignments, the `edx_concordance` rule produces a concordance table at `summary/edx/edx_concordance.tsv.gz`. This table shows how reads assigned to each WDX sample distribute across EDX adapter identities.
+
+**Output columns:**
+
+| Column | Description |
+|--------|-------------|
+| `sample` | WDX sample name |
+| `edx_adapter` | 3' adapter identity detected from PT tag (e.g., `edx1`, `edx2`, `default`, `no_3p_adapter`) |
+| `n_reads` | Number of reads with this adapter |
+| `pct` | Percentage of the sample's reads with this adapter |
+
+!!! tip "Enable EDX concordance"
+    EDX concordance output requires `edx.enabled: true` in the pipeline config. The rule runs automatically when enabled and at least one sample has an `edx` assignment.
+
 ## Pipeline Flow
 
 With demultiplexing enabled, the pipeline adds these steps before standard processing:
@@ -219,6 +264,16 @@ Filters raw POD5 files by sample using read ID list.
 | Input | Raw POD5 files from run, read ID list |
 | Output | `demux/pod5/{sample}.pod5` |
 
+### edx_concordance
+
+Builds a concordance table of WDX sample assignment vs EDX (3' adapter) identity. Only runs when `edx.enabled: true` and samples have EDX assignments.
+
+| Property | Value |
+|----------|-------|
+| Input | Final BAM files for all EDX-assigned samples |
+| Output | `summary/edx/edx_concordance.tsv.gz` |
+| Script | `workflow/scripts/edx_concordance.py` |
+
 ## Running
 
 ### Dry Run
@@ -256,6 +311,8 @@ With demultiplexing, outputs include:
 ├── bam/
 │   └── ...                         # Standard outputs
 └── summary/
+    ├── edx/
+    │   └── edx_concordance.tsv.gz  # EDX concordance (if edx.enabled)
     └── ...                         # Standard outputs
 ```
 

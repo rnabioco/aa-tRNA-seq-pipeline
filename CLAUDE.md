@@ -181,6 +181,22 @@ runs:
       uncharged_sample: "barcode05"
 ```
 
+**YAML format (dual barcoding — WDX + EDX):**
+```yaml
+runs:
+  - path: /path/to/pooled/run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    samples:
+      sample_bc03:
+        wdx: "barcode03"
+        edx: "edx1"
+      sample_bc04:
+        wdx: "barcode04"
+        edx: "edx2"
+```
+
+When `edx.enabled: true` in config, the `edx_concordance` rule produces `summary/edx/edx_concordance.tsv.gz` — a concordance table of WDX assignment vs EDX (3' adapter) identity per sample.
+
 ### Running with Demux
 
 ```bash
