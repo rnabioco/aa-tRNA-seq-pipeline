@@ -42,12 +42,16 @@ rule base_calling_error:
     params:
         src=SCRIPT_DIR,
         fa=get_validated_reference(),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     shell:
         """
     python {params.src}/get_bcerror_freqs.py \
       {input.bam} \
       {params.fa} \
-      {output.tsv}
+      {output.tsv} \
+      --offset-5p {params.offset_5p} \
+      --offset-3p {params.offset_3p}
     """
 
 

@@ -56,6 +56,16 @@ def get_reference_mode():
     return config.get("reference", {}).get("mode", "validate")
 
 
+def get_5p_offset():
+    """Total 5' prefix length: adapter (23bp) + N variable position (1bp)."""
+    return len(get_adapter_5p()) + 1
+
+
+def get_3p_offset():
+    """3' adapter length."""
+    return len(get_adapter_3p())
+
+
 def get_validated_reference():
     """
     Return path to validated/built reference based on mode.
@@ -79,6 +89,11 @@ def get_raw_reference():
     if mode == "build":
         return config["reference"]["raw_fasta"]
     return config["fasta"]
+
+
+def get_trna_fasta():
+    """Return path to tRNA-only FASTA (adapters stripped)."""
+    return os.path.join(outdir, "reference", "trna_only.fa")
 
 
 rule validate_reference:
@@ -184,4 +199,34 @@ rule skip_reference_validation:
         echo "Output: {output.reference}" >> {output.report}
         echo "WARNING: No adapter structure validation performed." >> {output.report}
         echo "Reference copied without validation." | tee {log}
+        """
+
+
+rule trim_reference:
+    """
+    Produce tRNA-only FASTA by stripping adapter sequences.
+
+    Removes the 5' adapter + N position from the start and 3' adapter
+    from the end of each reference sequence. The output is used by
+    clover for MODOMICS annotation and tRNA structure visualization.
+    """
+    input:
+        fasta=get_validated_reference(),
+    output:
+        trna_fasta=os.path.join(outdir, "reference", "trna_only.fa"),
+    log:
+        os.path.join(outdir, "logs", "reference", "trim.log"),
+    params:
+        script=os.path.join(SCRIPT_DIR, "build_trna_reference.py"),
+        adapter_5p=get_adapter_5p(),
+        adapter_3p=get_adapter_3p(),
+    shell:
+        """
+        python {params.script} \
+            --mode trim \
+            --input {input.fasta} \
+            --output {output.trna_fasta} \
+            --adapter-5p "{params.adapter_5p}" \
+            --adapter-3p "{params.adapter_3p}" \
+            2>&1 | tee {log}
         """

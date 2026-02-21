@@ -24,6 +24,33 @@ import pandas as pd
 from scipy.stats import false_discovery_control, fisher_exact
 
 
+def read_fasta_lengths(fasta_path):
+    """
+    Read FASTA file and return dict of {name: sequence_length}.
+    """
+    lengths = {}
+    name = None
+    seq_len = 0
+
+    with open(fasta_path, "r") as f:
+        for line in f:
+            line = line.rstrip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                if name is not None:
+                    lengths[name] = seq_len
+                name = line[1:].split()[0]
+                seq_len = 0
+            else:
+                seq_len += len(line)
+
+        if name is not None:
+            lengths[name] = seq_len
+
+    return lengths
+
+
 def load_modkit_calls(path):
     """
     Load modkit extract calls TSV.
@@ -141,11 +168,51 @@ def main():
         default=10,
         help="Minimum reads per tRNA or position pair (default: 10)",
     )
+    parser.add_argument(
+        "--offset-5p",
+        type=int,
+        default=0,
+        help="Number of bases to skip at 5' end of each reference (adapter + N). "
+        "Positions are renumbered to 1-indexed tRNA coordinates.",
+    )
+    parser.add_argument(
+        "--offset-3p",
+        type=int,
+        default=0,
+        help="Number of bases to skip at 3' end of each reference (3' adapter).",
+    )
+    parser.add_argument(
+        "--reference",
+        default=None,
+        help="Reference FASTA file (required when --offset-3p > 0 to determine "
+        "per-tRNA reference lengths).",
+    )
     args = parser.parse_args()
+
+    if args.offset_3p > 0 and args.reference is None:
+        parser.error("--reference is required when --offset-3p > 0")
+
+    # Load reference lengths for 3' adapter filtering
+    ref_lengths = {}
+    if args.reference:
+        ref_lengths = read_fasta_lengths(args.reference)
 
     # Load data
     modkit_df = load_modkit_calls(args.modkit)
     charging_df = load_charging(args.charging, args.ml_threshold)
+
+    # Filter adapter positions and convert to tRNA coordinates
+    if args.offset_5p > 0 or args.offset_3p > 0:
+        # Filter 5' adapter positions (ref_position is 0-indexed)
+        modkit_df = modkit_df[modkit_df["ref_position"] >= args.offset_5p]
+
+        # Filter 3' adapter positions using per-tRNA reference lengths
+        if args.offset_3p > 0:
+            max_pos = modkit_df["chrom"].map(ref_lengths) - args.offset_3p
+            modkit_df = modkit_df[modkit_df["ref_position"] < max_pos]
+
+        # Convert to 1-indexed tRNA coordinates
+        modkit_df["ref_position"] = modkit_df["ref_position"] - args.offset_5p + 1
 
     if modkit_df.empty:
         print(
