@@ -80,6 +80,7 @@ workflow/
 │   ├── aatrnaseq-modifications.smk    # Modification calling: coverage, modkit outputs (4 rules)
 │   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
+│   ├── filter_by_edx.py               # Filter BAM by EDX (3' adapter) identity
 │   └── generate_squiggy_session.py    # Generate Squiggy/Positron session JSON
 └── envs/
     └── aatrnaseqpipe-env.yml          # Conda environment (legacy)
@@ -95,7 +96,7 @@ workflow/
 
 ```
 POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
-classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → Summary tables
+classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
@@ -107,6 +108,7 @@ classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → Summar
 5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
 6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→CL, MM→CM)
 7. **add_adapter_tags**: Detect adapter positions and add PT tags with 5'/3' boundaries
+8. **finalize_bam**: Filter by EDX (3' adapter barcode) if configured, otherwise symlink
 
 ### Summary Generation
 

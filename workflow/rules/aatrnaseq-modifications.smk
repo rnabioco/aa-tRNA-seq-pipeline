@@ -5,8 +5,8 @@
 
 rule bam_to_coverage:
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
     output:
         counts_tmp=temp(
             os.path.join(outdir, "summary", "tables", "{sample}", "{sample}.counts.bg")
@@ -68,8 +68,8 @@ rule modkit_pileup:
     """
     """
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
     output:
         bed=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.pileup.bed.gz"
@@ -105,8 +105,8 @@ rule modkit_extract_calls:
     Positions are converted to 1-indexed tRNA-only coordinates.
     """
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
     output:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
@@ -144,8 +144,8 @@ rule modkit_extract_full:
     Positions are converted to 1-indexed tRNA-only coordinates.
     """
     input:
-        bam=rules.add_adapter_tags.output.bam,
-        bai=rules.add_adapter_tags.output.bai,
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
     output:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"

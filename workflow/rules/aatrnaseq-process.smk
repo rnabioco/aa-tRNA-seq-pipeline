@@ -258,8 +258,8 @@ rule add_adapter_tags:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
-        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
+        bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
@@ -290,4 +290,40 @@ rule add_adapter_tags:
       2> {log}
 
     samtools index {output.bam}
+    """
+
+
+rule finalize_bam:
+    """
+    Produce the final BAM for downstream analysis.
+
+    For samples with an EDX (3' adapter barcode) assignment, filter reads
+    to keep only those whose PT-tag 3' adapter matches the expected EDX value.
+    For samples without EDX, symlink the adapter-tagged BAM unchanged.
+    """
+    input:
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
+    output:
+        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
+    log:
+        os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+        edx=get_sample_edx,
+    shell:
+        """
+    if [ "{params.edx}" != "None" ]; then
+        python {params.src}/filter_by_edx.py \
+            --bam {input.bam} \
+            --edx {params.edx} \
+            --output {output.bam} \
+            2>&1 | tee {log}
+        samtools index {output.bam}
+    else
+        ln -sf $(realpath {input.bam}) {output.bam}
+        ln -sf $(realpath {input.bai}) {output.bai}
+        echo "No EDX filter — symlinked adapter-tagged BAM" > {log}
+    fi
     """

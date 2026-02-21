@@ -148,14 +148,14 @@ runs:
 
 ## Dual Barcoding (WDX + EDX)
 
-The pipeline supports **dual barcoding** — combining WDX (5' signal-based) and EDX (3' adapter sequence-based) barcodes for additional sample tracking and cross-validation.
+The pipeline supports **dual barcoding** — combining WDX (5' signal-based) and EDX (3' adapter sequence-based) barcodes for two-axis demultiplexing.
 
-- **WDX** (WarpDemuX): 5' signal barcode predicted from the raw nanopore signal by WarpDemuX. This is the primary demultiplexing barcode used to split reads into samples.
-- **EDX**: 3' adapter sequence variant (e.g., `edx1`, `edx2`). Different adapter sequences at the 3' end identify which adapter was used during library prep.
+- **WDX** (WarpDemuX): 5' signal barcode predicted from the raw nanopore signal by WarpDemuX. This is the primary demultiplexing barcode used to split POD5 reads into samples.
+- **EDX**: 3' adapter sequence variant (e.g., `edx1`, `edx2`). Different adapter sequences at the 3' end identify which adapter was used during library prep. The `finalize_bam` rule filters the final BAM to keep only reads whose 3' adapter matches the expected EDX value.
 
 ### When to Use Dual Barcoding
 
-Use dual barcoding when samples are multiplexed with **both** WDX adapters at the 5' end **and** different EDX adapter sequences at the 3' end. This enables concordance analysis to verify that WDX demultiplexing assignments match expected EDX identities.
+Use dual barcoding when samples are multiplexed with **both** WDX adapters at the 5' end **and** different EDX adapter sequences at the 3' end. This enables true two-axis demultiplexing: WDX splits reads at the POD5 level, then EDX filters reads at the BAM level based on 3' adapter identity. An optional concordance analysis can verify agreement between the two axes.
 
 ### Dict Format for Samples
 
@@ -175,9 +175,13 @@ runs:
         edx: "edx2"
 ```
 
-### EDX Concordance Output
+### EDX Filtering
 
-When samples have EDX assignments, the `edx_concordance` rule produces a concordance table at `summary/edx/edx_concordance.tsv.gz`. This table shows how reads assigned to each WDX sample distribute across EDX adapter identities.
+When a sample has an `edx` assignment, the `finalize_bam` rule (in `aatrnaseq-process.smk`) automatically filters the adapter-tagged BAM to retain only reads whose PT-tag 3' adapter matches the expected EDX value. Reads without a matching 3' adapter (or without a PT tag) are excluded. For samples without an `edx` assignment, the BAM is passed through unchanged via symlink.
+
+### EDX Concordance Output (QC)
+
+When samples have EDX assignments and `edx.enabled: true`, the `edx_concordance` rule produces a QC concordance table at `summary/edx/edx_concordance.tsv.gz`. This table shows how reads assigned to each WDX sample distribute across EDX adapter identities, useful for verifying demultiplexing accuracy.
 
 **Output columns:**
 
