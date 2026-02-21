@@ -1,5 +1,6 @@
 # Rules for modification calling and coverage analysis
 # Uses modkit for RNA modification detection and deeptools for coverage
+# All outputs are converted to tRNA-only coordinates (adapter positions removed)
 
 
 rule bam_to_coverage:
@@ -19,6 +20,10 @@ rule bam_to_coverage:
         cpm=os.path.join(outdir, "summary", "tables", "{sample}", "{sample}.cpm.bg.gz"),
     params:
         bg_opts=config["opts"]["coverage"],
+        convert_script=os.path.join(SCRIPT_DIR, "convert_to_trna_coords.py"),
+        fa=get_validated_reference(),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     log:
         os.path.join(outdir, "logs", "bg", "{sample}.txt"),
     threads: 4
@@ -41,8 +46,21 @@ rule bam_to_coverage:
       -p {threads} \
       {params.bg_opts}
 
-    gzip -c {output.counts_tmp} > {output.counts}
-    gzip -c {output.cpm_tmp} > {output.cpm}
+    python {params.convert_script} \
+      --input {output.counts_tmp} \
+      --output {output.counts} \
+      --format bedgraph \
+      --reference {params.fa} \
+      --offset-5p {params.offset_5p} \
+      --offset-3p {params.offset_3p}
+
+    python {params.convert_script} \
+      --input {output.cpm_tmp} \
+      --output {output.cpm} \
+      --format bedgraph \
+      --reference {params.fa} \
+      --offset-5p {params.offset_5p} \
+      --offset-3p {params.offset_3p}
     """
 
 
@@ -61,6 +79,9 @@ rule modkit_pileup:
     params:
         fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
+        convert_script=os.path.join(SCRIPT_DIR, "convert_to_trna_coords.py"),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     shell:
         """
     modkit pileup \
@@ -68,13 +89,20 @@ rule modkit_pileup:
         --ref {params.fa} \
         {params.threshold_opts} \
         {input.bam} - \
-        | gzip -9 -c > {output.bed}
+        | python {params.convert_script} \
+            --input - \
+            --output {output.bed} \
+            --format bedmethyl \
+            --reference {params.fa} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p}
     """
 
 
 rule modkit_extract_calls:
     """
     Extract per-read modification calls with optimized thresholds.
+    Positions are converted to 1-indexed tRNA-only coordinates.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,
@@ -88,22 +116,32 @@ rule modkit_extract_calls:
     params:
         fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
+        convert_script=os.path.join(SCRIPT_DIR, "convert_to_trna_coords.py"),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     shell:
         """
     modkit extract calls \
-        --bgzf \
         --reference {params.fa} \
         --log-filepath {log} \
         --edge-filter 10 \
         --mapped --pass \
         {params.threshold_opts} \
-        {input.bam} {output.tsv}
+        {input.bam} - \
+        | python {params.convert_script} \
+            --input - \
+            --output {output.tsv} \
+            --format modkit_calls \
+            --reference {params.fa} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p}
     """
 
 
 rule modkit_extract_full:
     """
     Extract full modification information.
+    Positions are converted to 1-indexed tRNA-only coordinates.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,
@@ -117,14 +155,23 @@ rule modkit_extract_full:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
         fa=get_validated_reference(),
+        convert_script=os.path.join(SCRIPT_DIR, "convert_to_trna_coords.py"),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     shell:
         """
     modkit extract full \
-        --bgzf \
         --threads {threads} \
         --reference {params.fa} \
         --log-filepath {log} \
         --edge-filter 10 \
         --mapped-only \
-        {input.bam} {output.tsv}
+        {input.bam} - \
+        | python {params.convert_script} \
+            --input - \
+            --output {output.tsv} \
+            --format modkit_full \
+            --reference {params.fa} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p}
     """
