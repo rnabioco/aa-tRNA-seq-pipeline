@@ -28,7 +28,7 @@ snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
 pod5 = "*"
 libstdcxx-ng = ">=12"
-ont-modkit = "*"
+ont-modkit = ">=0.6.1"
 # Linting tools
 ruff = "*"
 yamllint = "*"
