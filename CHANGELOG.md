@@ -2,6 +2,16 @@
 
 All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Pipeline summary outputs (bcerror, odds_ratios) now report positions in tRNA-only coordinates (1-indexed) instead of full-reference coordinates that included adapter sequences. This fixes incorrect nucleotide positions in downstream tools like clover's `plot_tRNA_structure()`.
+
+### Added
+- `trim_reference` rule produces a tRNA-only FASTA (`trna_only.fa`) by stripping 5'/3' adapter sequences from the adapted reference. This FASTA is used by clover for MODOMICS annotation and structure visualization.
+- `build_trna_reference.py --mode trim` for generating adapter-stripped tRNA-only FASTA files.
+- `get_bcerror_freqs.py` and `compute_odds_ratios.py` accept `--offset-5p` and `--offset-3p` to filter adapter positions and convert to tRNA-only coordinates.
+
 ## [v0.1.1] - 2026-02-11
 
 ### Fixed

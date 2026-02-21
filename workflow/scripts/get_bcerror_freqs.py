@@ -1,11 +1,10 @@
 import argparse
 import pysam
 import pandas as pd
-import gzip
 
 """
-This script processes a BAM file to calculate per-nucleotide error frequencies, 
-considering only alignments on the positive strand. The script computes metrics 
+This script processes a BAM file to calculate per-nucleotide error frequencies,
+considering only alignments on the positive strand. The script computes metrics
 such as mismatch, insertion, and deletion frequencies, along with the mean quality score
 for each position in the reference sequence.
 
@@ -20,6 +19,10 @@ not spanning read coverage.
 The script requires a BAM file and a corresponding FASTA file as input.
 The results are outputted as a TSV file.
 
+When --offset-5p and --offset-3p are provided, adapter positions are excluded
+from the output and remaining positions are reported in tRNA-only coordinates
+(1-indexed from the first tRNA nucleotide).
+
 Where:
     bam_file: Path to the input BAM file.
     fasta_file: Path to the reference FASTA file.
@@ -27,10 +30,11 @@ Where:
 
 Example:
     python get_bcerror_freqs.py sample.bam reference.fasta output.tsv
+    python get_bcerror_freqs.py --offset-5p 24 --offset-3p 40 sample.bam reference.fasta output.tsv
 """
 
 
-def calculate_error_frequencies(bam_file, fasta_file):
+def calculate_error_frequencies(bam_file, fasta_file, trim_5p=0, trim_3p=0):
     samfile = pysam.AlignmentFile(bam_file, "rb")
     faidx = pysam.FastaFile(fasta_file)
 
@@ -102,10 +106,17 @@ def calculate_error_frequencies(bam_file, fasta_file):
                     read_pos += cigar_len if cigar_op == 4 else 0
                 # Hard clipped bases and padding (5 and 6) are ignored
 
-        for pos in range(ref_len):
+        # Determine tRNA region bounds (0-indexed)
+        trna_start = trim_5p
+        trna_end = ref_len - trim_3p
+
+        for pos in range(trna_start, trna_end):
+            # Report position in tRNA-only coordinates (1-indexed)
+            trna_pos = pos - trim_5p + 1
+
             pos_data = {
                 "Reference": ref,
-                "Position": pos + 1,
+                "Position": trna_pos,
                 "Spanning_Reads": coverage[pos],
                 "Bases_Mapped": bases_mapped[pos],
                 "A_Freq": (
@@ -169,7 +180,22 @@ if __name__ == "__main__":
     parser.add_argument("bam_file", help="Path to the BAM file")
     parser.add_argument("fasta_file", help="Path to the FASTA file")
     parser.add_argument("output_tsv", help="Path for the output TSV file")
+    parser.add_argument(
+        "--offset-5p",
+        type=int,
+        default=0,
+        help="Number of bases to skip at 5' end of each reference (adapter + N). "
+        "Output positions are renumbered starting at 1 after this offset.",
+    )
+    parser.add_argument(
+        "--offset-3p",
+        type=int,
+        default=0,
+        help="Number of bases to skip at 3' end of each reference (3' adapter).",
+    )
     args = parser.parse_args()
 
-    error_freq_df = calculate_error_frequencies(args.bam_file, args.fasta_file)
+    error_freq_df = calculate_error_frequencies(
+        args.bam_file, args.fasta_file, args.offset_5p, args.offset_3p
+    )
     error_freq_df.to_csv(args.output_tsv, sep="\t", index=False, compression="gzip")

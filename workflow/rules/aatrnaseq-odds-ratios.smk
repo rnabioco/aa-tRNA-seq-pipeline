@@ -24,6 +24,9 @@ rule compute_odds_ratios:
         src=SCRIPT_DIR,
         ml_thresh=config.get("odds_ratios", {}).get("ml_threshold", 200),
         min_cov=config.get("odds_ratios", {}).get("min_coverage", 10),
+        fa=get_validated_reference(),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
     shell:
         """
         python {params.src}/compute_odds_ratios.py \
@@ -32,5 +35,8 @@ rule compute_odds_ratios:
             --output {output.tsv} \
             --ml-threshold {params.ml_thresh} \
             --min-coverage {params.min_cov} \
+            --reference {params.fa} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p} \
             2>&1 | tee {log}
         """

@@ -290,6 +290,9 @@ def pipeline_outputs():
     #     sample=samples.keys(),
     # )
 
+    # tRNA-only reference FASTA (adapters stripped)
+    outs.append(get_trna_fasta())
+
     # Squiggy session file for loading samples in Positron
     outs.append(os.path.join(outdir, "squiggy-session.json"))
 

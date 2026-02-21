@@ -372,6 +372,50 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
     return True
 
 
+def trim_reference(input_fasta, output_fasta, adapter_5p, adapter_3p):
+    """
+    Trim adapter sequences from an adapted reference to produce tRNA-only FASTA.
+
+    The adapted reference structure is:
+      5' adapter + N (first tRNA base) + tRNA sequence + 3' adapter
+
+    This function strips the 5' prefix (adapter + N variable position) and
+    the 3' adapter to produce sequences containing only the tRNA portion.
+
+    Args:
+        input_fasta: Path to adapted reference FASTA
+        output_fasta: Path for tRNA-only output FASTA
+        adapter_5p: 5' adapter sequence (used to compute prefix length)
+        adapter_3p: 3' adapter sequence (used to compute suffix length)
+    """
+    offset_5p = len(adapter_5p) + 1  # adapter + N variable position
+    offset_3p = len(adapter_3p)
+
+    trimmed_sequences = []
+
+    for name, seq in read_fasta(input_fasta):
+        if len(seq) <= offset_5p + offset_3p:
+            print(
+                f"WARNING: {name} too short to trim ({len(seq)} bp, "
+                f"need > {offset_5p + offset_3p} bp). Skipping.",
+                file=sys.stderr,
+            )
+            continue
+
+        trna_seq = seq[offset_5p:-offset_3p] if offset_3p > 0 else seq[offset_5p:]
+        trimmed_sequences.append((name, trna_seq))
+
+    write_fasta(trimmed_sequences, output_fasta)
+
+    print(
+        f"Trimmed {len(trimmed_sequences)} sequences "
+        f"(removed {offset_5p} bp 5' prefix, {offset_3p} bp 3' suffix)"
+    )
+    print(f"Output written to: {output_fasta}")
+
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Validate or build tRNA reference FASTA with adapters",
@@ -386,6 +430,10 @@ Examples:
   python build_trna_reference.py --mode build \\
       --input raw_trnas.fa --output adapted.fa --report report.txt
 
+  # Trim adapters to produce tRNA-only FASTA
+  python build_trna_reference.py --mode trim \\
+      --input adapted.fa --output trna_only.fa
+
 Build mode will:
   - Add CCA to sequences that don't already have it (with warning)
   - Prepend 5' adapter sequence
@@ -398,19 +446,22 @@ charging classification model to work correctly.
 
     parser.add_argument(
         "--mode",
-        choices=["validate", "build"],
+        choices=["validate", "build", "trim"],
         required=True,
-        help="Operation mode: validate existing reference or build new one",
+        help="Operation mode: validate existing reference, build new one, or trim adapters",
     )
     parser.add_argument(
         "--input",
         "-i",
         required=True,
-        help="Input FASTA file (adapted reference for validate, raw tRNAs for build)",
+        help="Input FASTA file (adapted reference for validate/trim, raw tRNAs for build)",
     )
     parser.add_argument("--output", "-o", required=True, help="Output FASTA file")
     parser.add_argument(
-        "--report", "-r", required=True, help="Output validation/build report file"
+        "--report",
+        "-r",
+        default=None,
+        help="Output validation/build report file (not used for trim mode)",
     )
     parser.add_argument(
         "--adapter-5p",
@@ -430,14 +481,21 @@ charging classification model to work correctly.
     adapters_3p = args.adapter_3p or ["GGCTTCTTCTTGCTCTTCCAACCTTGCCTTAAAAAAAAAA"]
 
     if args.mode == "validate":
+        if not args.report:
+            parser.error("--report is required for validate mode")
         validate_reference(
             args.input, args.output, args.report, args.adapter_5p, adapters_3p
         )
-    else:
+    elif args.mode == "build":
+        if not args.report:
+            parser.error("--report is required for build mode")
         # Build mode uses only the first adapter
         build_reference(
             args.input, args.output, args.report, args.adapter_5p, adapters_3p[0]
         )
+    else:
+        # Trim mode uses the first adapter for length calculation
+        trim_reference(args.input, args.output, args.adapter_5p, adapters_3p[0])
 
 
 if __name__ == "__main__":
