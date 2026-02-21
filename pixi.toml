@@ -107,7 +107,19 @@ r-pheatmap = "*"
 install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }
 render-qc = { cmd = "snakemake render_all_qc_reports --configfile=config/config-test.yml --cores 1", description = "Render QC reports for test data" }
 
+# Documentation feature
+[feature.docs.dependencies]
+python = ">=3.10"
+
+[feature.docs.pypi-dependencies]
+zensical = "*"
+
+[feature.docs.tasks]
+docs-build = "zensical build"
+docs-serve = "zensical serve"
+
 [environments]
 default = []
 test = ["test"]
 report = ["report"]
+docs = { features = ["docs"], solve-group = "default" }
