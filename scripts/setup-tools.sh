@@ -107,7 +107,7 @@ fi
 # Modification Models
 # ============================================================================
 download_mod_models() {
-    local mod_bases="${MODIFIED_BASES:-pseU m5C inosine_m6A}"
+    local mod_bases="${MODIFIED_BASES:-m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG}"
     for mod in ${mod_bases}; do
         local mod_model="${DORADO_MODEL}_${mod}@v1"
         local mod_path="${MODEL_DIR}/${mod_model}"

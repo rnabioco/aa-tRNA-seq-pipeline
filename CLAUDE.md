@@ -149,7 +149,7 @@ After classification, generates (split across three rule files):
 ### Important Config Parameters
 
 - **opts.bam_filter**: Controls full-length read filtering (`-5 24 -3 23 -s` requires 24bp 5' adapter, 23bp 3' adapter, positive strand)
-- **opts.dorado**: Includes `--modified-bases pseU m5C inosine_m6A --emit-moves` for modification calling and move tables
+- **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
 - **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
 - **ml-threshold**: Currently hardcoded in `get_cca_trna_cpm` rule (200-255 = charged, <200 = uncharged)
 
