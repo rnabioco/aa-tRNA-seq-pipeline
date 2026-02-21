@@ -221,7 +221,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/numpydoc-1.10.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvidia-ml-py-13.590.48-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvitop-1.6.2-pyh707e725_1.conda
-      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.0-hcdda2d0_0.conda
+      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.1-hcdda2d0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.5.3-h55fea9a_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.0-h26f9b46_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/orc-2.2.1-hd747db4_0.conda
@@ -605,7 +605,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/numpydoc-1.10.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvidia-ml-py-13.590.48-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvitop-1.6.2-pyh707e725_1.conda
-      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.0-hcdda2d0_0.conda
+      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.1-hcdda2d0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.5.4-h55fea9a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.0-h26f9b46_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/orc-2.2.1-hd747db4_0.conda
@@ -1117,7 +1117,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/numpydoc-1.10.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvidia-ml-py-13.590.48-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/nvitop-1.6.2-pyh707e725_1.conda
-      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.0-hcdda2d0_0.conda
+      - conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.1-hcdda2d0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.5.3-h55fea9a_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.0-h26f9b46_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/orc-2.2.1-hd747db4_0.conda
@@ -4908,9 +4908,9 @@ packages:
   license_family: GPL
   size: 150523
   timestamp: 1769944931609
-- conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.0-hcdda2d0_0.conda
-  sha256: 97320c35b27b6e68c62dda46a7dfd21a34eacf4b2345b4a6c51c5a4ba72482c3
-  md5: 526e59046b83d5c7a424e036a0630cf9
+- conda: https://conda.anaconda.org/bioconda/linux-64/ont-modkit-0.6.1-hcdda2d0_0.conda
+  sha256: 9e1031e5c1be00ffaf2ebe4a3083246becb1b10b95144d9e1cdc5b4fe5757721
+  md5: 59474f2023ce2d532dc41ef77dfd3a19
   depends:
   - libgcc >=13
   - libstdcxx >=13
@@ -4919,8 +4919,8 @@ packages:
   - __glibc >=2.17
   license: Oxford Nanopore Technologies PLC. Public License Version 1.0
   license_family: PROPRIETARY
-  size: 6588504
-  timestamp: 1764531444331
+  size: 6553368
+  timestamp: 1768796899525
 - conda: https://conda.anaconda.org/conda-forge/linux-64/openjpeg-2.5.3-h55fea9a_1.conda
   sha256: 0b7396dacf988f0b859798711b26b6bc9c6161dca21bacfd778473da58730afa
   md5: 01243c4aaf71bde0297966125aea4706
