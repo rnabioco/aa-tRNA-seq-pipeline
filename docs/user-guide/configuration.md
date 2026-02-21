@@ -39,7 +39,7 @@ output_directory: "results/myproject"
 
 ```yaml
 # Path to Dorado model directory or model name for auto-download
-base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
+base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
 ```
 
 The model is downloaded automatically if using a model name.
@@ -137,7 +137,7 @@ remora_cca_classifier: "resources/models/cca_classifier.pt"
 ```yaml
 # Dorado basecaller version
 dorado_version: 1.4.0
-dorado_model: rna004_130bps_sup@v5.1.0
+dorado_model: rna004_130bps_sup@v5.3.0
 ```
 
 Modkit is managed via Pixi and specified in `pixi.toml`.

@@ -13,9 +13,10 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 - `get_bcerror_freqs.py` and `compute_odds_ratios.py` accept `--offset-5p` and `--offset-3p` to filter adapter positions and convert to tRNA-only coordinates.
 
 ### Changed
-- Updated dorado from 1.3.1 to 1.4.0 and modkit from 0.6.0 to >=0.6.1.
+- Updated dorado from 1.3.1 to 1.4.0, basecalling model from v5.1.0 to v5.3.0, and modkit from 0.6.0 to >=0.6.1.
 - Shell scripts (`setup-env.sh`, `setup-tools.sh`) now read `dorado_version` and `dorado_model` from `config/config-base.yml` instead of hardcoding defaults.
 - Updated stale documentation references for dorado and modkit paths/versions.
+- Pipeline now warns on startup if installed dorado version does not match `dorado_version` in config.
 
 ## [v0.1.1] - 2026-02-11
 

@@ -76,7 +76,7 @@ pixi run setup
 This downloads and installs:
 
 - **Dorado** - Oxford Nanopore basecaller (version set in `config/config-base.yml`)
-- **Dorado model** - `rna004_130bps_sup@v5.1.0` basecalling model
+- **Dorado model** - `rna004_130bps_sup@v5.3.0` basecalling model
 - **Remora** - ONT signal analysis for charging classification
 - **WarpDemuX** - Barcode demultiplexing (optional, for multiplexed samples)
 
@@ -120,7 +120,7 @@ aa-tRNA-seq-pipeline/
 │   │   ├── dorado/<version>/  # Dorado binaries
 │   │   └── WarpDemuX/       # WarpDemuX (if demux enabled)
 │   ├── models/
-│   │   ├── rna004_130bps_sup@v5.1.0/  # Basecalling model
+│   │   ├── rna004_130bps_sup@v5.3.0/  # Basecalling model
 │   │   └── cca_classifier.pt          # Remora charging model
 │   ├── ref/                  # Reference sequences
 │   └── kmers/               # Kmer level tables

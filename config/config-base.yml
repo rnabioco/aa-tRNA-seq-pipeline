@@ -2,7 +2,7 @@
 # this is included in the main Snakefile
 
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
-base_calling_model: "resources/models/rna004_130bps_sup@v5.1.0"
+base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
 
 # path to fasta file to use for bwa alignment.
 # a BWA index will be built if it does not exist for this fasta file
@@ -56,8 +56,11 @@ remora_kmer_table: null
 remora_cca_classifier: "resources/models/cca_classifier.pt"
 
 # software tools (modkit and remora managed by pixi)
+# NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
+# check the release notes for new models:
+# https://github.com/nanoporetech/dorado/releases
 dorado_version: 1.4.0
-dorado_model: rna004_130bps_sup@v5.1.0
+dorado_model: rna004_130bps_sup@v5.3.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
