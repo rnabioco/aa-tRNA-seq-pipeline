@@ -82,6 +82,25 @@ runs:
           control_sample: ~
     ```
 
+### Dual Barcoded Samples (WDX + EDX)
+
+When samples use both WDX (5' signal) and EDX (3' adapter) barcodes, specify sample values as a dict with `wdx` and `edx` keys:
+
+```yaml
+runs:
+  - path: /data/sequencing/dual_barcoded_run
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    samples:
+      sample_bc03:
+        wdx: "barcode03"
+        edx: "edx1"
+      sample_bc04:
+        wdx: "barcode04"
+        edx: "edx2"
+```
+
+Both formats (plain string and dict) can be mixed across runs within the same file. See the [Demultiplexing guide](../workflow/demultiplexing.md#dual-barcoding-wdx-edx) for details on EDX concordance analysis.
+
 ### Structure
 
 | Field | Required | Description |
@@ -89,7 +108,13 @@ runs:
 | `runs` | Yes | List of sequencing runs |
 | `runs[].path` | Yes | Path to run directory |
 | `runs[].barcode_kit` | No | Barcode kit (uses config default if omitted) |
-| `runs[].samples` | Yes | Map of sample_id → barcode_name |
+| `runs[].samples` | Yes | Map of sample_id → barcode value (string or dict) |
+
+Sample values can be:
+
+- **String**: WDX barcode name only (e.g., `"barcode03"`)
+- **Dict**: `wdx` and/or `edx` keys (e.g., `{wdx: "barcode03", edx: "edx1"}`)
+- **Null** (`~`): Skip demultiplexing for this sample
 
 ### Barcode Names
 
