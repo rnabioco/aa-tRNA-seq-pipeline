@@ -151,15 +151,15 @@ runs:
 The pipeline supports **dual barcoding** — combining WDX (5' signal-based) and EDX (3' adapter sequence-based) barcodes for two-axis demultiplexing.
 
 - **WDX** (WarpDemuX): 5' signal barcode predicted from the raw nanopore signal by WarpDemuX. This is the primary demultiplexing barcode used to split POD5 reads into samples.
-- **EDX**: 3' adapter sequence variant (e.g., `edx1`, `edx2`). Different adapter sequences at the 3' end identify which adapter was used during library prep. The `finalize_bam` rule filters the final BAM to keep only reads whose 3' adapter matches the expected EDX value.
+- **EDX**: 3' adapter sequence variant (e.g., `edx01`, `edx02`). Different adapter sequences at the 3' end identify which adapter was used during library prep. EDX filtering happens **early** — right after basecalling, before alignment — so downstream rules only process matching reads.
 
 ### When to Use Dual Barcoding
 
-Use dual barcoding when samples are multiplexed with **both** WDX adapters at the 5' end **and** different EDX adapter sequences at the 3' end. This enables true two-axis demultiplexing: WDX splits reads at the POD5 level, then EDX filters reads at the BAM level based on 3' adapter identity. An optional concordance analysis can verify agreement between the two axes.
+Use dual barcoding when samples are multiplexed with **both** WDX adapters at the 5' end **and** different EDX adapter sequences at the 3' end. This enables true two-axis demultiplexing: WDX splits reads at the POD5 level, then EDX splits both FASTQ and POD5 before alignment based on 3' adapter identity. An optional concordance analysis can verify agreement between the two axes.
 
 ### Dict Format for Samples
 
-When using dual barcoding, specify sample values as a dict with `wdx` and `edx` keys instead of a plain barcode string:
+When using dual barcoding, specify sample values as a dict with `wdx` and `edx` keys instead of a plain barcode string. The `edx` value must match a name from `adapters.three_prime` in the config (e.g., `edx01`, `edx02`):
 
 ```yaml
 runs:
@@ -167,33 +167,47 @@ runs:
     barcode_kit: "WDX4_tRNA_rna004_v1_0"
     samples:
       # Dict format: wdx + edx
+      # edx values must match adapter names from adapters.three_prime config
       sample_bc03:
         wdx: "barcode03"
-        edx: "edx1"
+        edx: "edx01"
       sample_bc04:
         wdx: "barcode04"
-        edx: "edx2"
+        edx: "edx02"
 ```
 
-### EDX Filtering
+### EDX Early Splitting
 
-When a sample has an `edx` assignment, the `finalize_bam` rule (in `aatrnaseq-process.smk`) automatically filters the adapter-tagged BAM to retain only reads whose PT-tag 3' adapter matches the expected EDX value. Reads without a matching 3' adapter (or without a PT tag) are excluded. For samples without an `edx` assignment, the BAM is passed through unchanged via symlink.
+When a sample has an `edx` assignment, the pipeline detects 3' adapter identity on the unaligned BAM right after basecalling, then splits both FASTQ and POD5 by adapter **before alignment**. This avoids redundant processing when two samples share a WDX barcode but have different EDX adapters.
+
+The EDX splitting flow:
+
+```
+rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids
+                                            ├── filter_fastq_by_edx → bwa_align → ...
+                                            └── filter_pod5_by_edx → classify_charging
+```
+
+Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. For samples without an `edx` assignment, the pipeline flow is unchanged.
 
 ### EDX Concordance Output (QC)
 
-When samples have EDX assignments and `edx.enabled: true`, the `edx_concordance` rule produces a QC concordance table at `summary/edx/edx_concordance.tsv.gz`. This table shows how reads assigned to each WDX sample distribute across EDX adapter identities, useful for verifying demultiplexing accuracy.
+When samples have EDX assignments and `edx.enabled: true`, the `edx_concordance` rule produces a QC concordance table at `summary/edx/edx_concordance.tsv.gz`. This table shows how reads assigned to each WDX sample distribute across EDX adapter identities, useful for verifying demultiplexing accuracy. The concordance is computed from the pre-alignment adapter detection TSVs (which contain ALL reads), not from final BAMs.
 
 **Output columns:**
 
 | Column | Description |
 |--------|-------------|
 | `sample` | WDX sample name |
-| `edx_adapter` | 3' adapter identity detected from PT tag (e.g., `edx1`, `edx2`, `default`, `no_3p_adapter`) |
+| `edx_adapter` | 3' adapter identity detected (e.g., `edx01`, `edx02`, `none`) |
 | `n_reads` | Number of reads with this adapter |
 | `pct` | Percentage of the sample's reads with this adapter |
 
 !!! tip "Enable EDX concordance"
     EDX concordance output requires `edx.enabled: true` in the pipeline config. The rule runs automatically when enabled and at least one sample has an `edx` assignment.
+
+!!! tip "Debugging unmatched reads"
+    The full adapter detection TSV at `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` records every read's adapter assignment including `"none"`, useful for debugging.
 
 ## Pipeline Flow
 
@@ -268,13 +282,50 @@ Filters raw POD5 files by sample using read ID list.
 | Input | Raw POD5 files from run, read ID list |
 | Output | `demux/pod5/{sample}.pod5` |
 
-### edx_concordance
+### detect_edx_adapters
 
-Builds a concordance table of WDX sample assignment vs EDX (3' adapter) identity. Only runs when `edx.enabled: true` and samples have EDX assignments.
+Detects 3' adapter identity per read on the unaligned BAM (before alignment). Produces a gzipped TSV mapping each read_id to its best-matching 3' adapter name. Only runs for samples with an `edx` assignment.
 
 | Property | Value |
 |----------|-------|
-| Input | Final BAM files for all EDX-assigned samples |
+| Input | Rebasecalled uBAM |
+| Output | `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` |
+| Script | `workflow/scripts/detect_3p_adapters.py` |
+
+### extract_edx_read_ids
+
+Extracts read IDs matching the sample's expected EDX adapter from the detection TSV.
+
+| Property | Value |
+|----------|-------|
+| Input | Adapter detection TSV |
+| Output | `demux/edx/{sample}/{sample}.edx_read_ids.txt` |
+
+### filter_fastq_by_edx
+
+Extracts FASTQ for reads matching the sample's EDX adapter from the uBAM.
+
+| Property | Value |
+|----------|-------|
+| Input | Rebasecalled uBAM + read IDs |
+| Output | `demux/edx/fq/{sample}/{sample}.fq.gz` |
+
+### filter_pod5_by_edx
+
+Filters POD5 to keep only reads matching the sample's EDX adapter.
+
+| Property | Value |
+|----------|-------|
+| Input | WDX-split (or merged) POD5 + read IDs |
+| Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
+
+### edx_concordance
+
+Builds a concordance table of WDX sample assignment vs EDX (3' adapter) identity. Uses pre-alignment adapter detection TSVs (which contain ALL reads) rather than final BAMs. Only runs when `edx.enabled: true` and samples have EDX assignments.
+
+| Property | Value |
+|----------|-------|
+| Input | Adapter detection TSVs for all EDX-assigned samples |
 | Output | `summary/edx/edx_concordance.tsv.gz` |
 | Script | `workflow/scripts/edx_concordance.py` |
 
@@ -309,9 +360,17 @@ With demultiplexing, outputs include:
 │   │   ├── {run_id}/
 │   │   │   ├── barcode_mapping.tsv.gz
 │   │   │   └── demux_summary.tsv.gz
-│   │   └── {sample}.txt            # Per-sample read IDs
-│   └── pod5/
-│       └── {sample}.pod5           # Per-sample POD5
+│   │   └── {sample}.txt            # Per-sample WDX read IDs
+│   ├── pod5/
+│   │   └── {sample}.pod5           # Per-sample WDX POD5
+│   └── edx/                        # EDX early splitting (if edx assigned)
+│       ├── {sample}/
+│       │   ├── {sample}.edx_adapters.tsv.gz  # All reads → adapter mapping
+│       │   └── {sample}.edx_read_ids.txt     # Matching read IDs
+│       ├── fq/{sample}/
+│       │   └── {sample}.fq.gz      # EDX-filtered FASTQ
+│       └── pod5/{sample}/
+│           └── {sample}.pod5       # EDX-filtered POD5
 ├── bam/
 │   └── ...                         # Standard outputs
 └── summary/

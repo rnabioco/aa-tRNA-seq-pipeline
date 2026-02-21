@@ -61,12 +61,27 @@ if (!is.null(config$samples))
     samples_config <- read_yaml(samples_path)
     sample_metadata <- samples_config$runs |>
       purrr::map_dfr(function(run) {
-        tibble(
-          sample = names(run$samples),
-          barcode = unlist(run$samples),
-          run_path = run$path,
-          barcode_kit = run$barcode_kit %||% NA_character_
-        )
+        purrr::imap_dfr(run$samples, function(val, name) {
+          if (is.list(val)) {
+            # Dict format: wdx + edx
+            tibble(
+              sample = name,
+              barcode = val$wdx %||% NA_character_,
+              edx = val$edx %||% NA_character_,
+              run_path = run$path,
+              barcode_kit = run$barcode_kit %||% NA_character_
+            )
+          } else {
+            # Simple format: barcode string or null
+            tibble(
+              sample = name,
+              barcode = val %||% NA_character_,
+              edx = NA_character_,
+              run_path = run$path,
+              barcode_kit = run$barcode_kit %||% NA_character_
+            )
+          }
+        })
       })
     sample_list <- sample_metadata$sample
   } else {
@@ -672,6 +687,156 @@ for (s in sample_list) {
 
 :::
 
+## Demultiplexing {.unnumbered}
+
+```{r}
+#| label: demux-data-load
+#| include: false
+
+# Check for WDX demux summary files
+has_demux <- isTRUE(config$warpdemux$enabled)
+
+wdx_summary_all <- tibble()
+if (has_demux) {
+  # Find run IDs from sample metadata
+  run_ids <- unique(
+    sample_metadata |>
+      filter(!is.na(barcode_kit)) |>
+      pull(run_path) |>
+      basename()
+  )
+
+  wdx_summary_all <- map_dfr(run_ids, function(rid) {
+    summary_path <- fs::path(output_dir, "demux", "read_ids", rid, "demux_summary.tsv.gz")
+    if (fs::file_exists(summary_path)) {
+      read_tsv(summary_path, show_col_types = FALSE) |> mutate(run_id = rid)
+    } else {
+      tibble()
+    }
+  })
+}
+has_wdx_summary <- nrow(wdx_summary_all) > 0
+
+# Check for EDX concordance
+has_edx <- "edx" %in% colnames(sample_metadata) && any(!is.na(sample_metadata$edx))
+edx_concordance <- tibble()
+if (has_edx) {
+  edx_path <- fs::path(output_dir, "summary", "edx", "edx_concordance.tsv.gz")
+  if (fs::file_exists(edx_path)) {
+    edx_concordance <- read_tsv(edx_path, show_col_types = FALSE)
+  }
+}
+has_edx_concordance <- nrow(edx_concordance) > 0
+
+has_any_demux <- has_wdx_summary || has_edx_concordance
+```
+
+```{r}
+#| label: demux-not-available
+#| eval: !expr (!has_any_demux)
+#| results: asis
+
+cat("*Demultiplexing was not enabled for this run.*\n")
+```
+
+```{r}
+#| label: demux-wdx-summary
+#| eval: !expr has_wdx_summary
+#| results: asis
+
+cat("\n\n### WDX Barcode Distribution\n\n")
+cat("Read counts per predicted WDX barcode from WarpDemuX.\n\n")
+
+# Add sample name mapping
+barcode_to_sample <- sample_metadata |>
+  filter(!is.na(barcode)) |>
+  dplyr::select(sample, barcode) |>
+  deframe()
+
+wdx_display <- wdx_summary_all |>
+  mutate(
+    assigned_sample = barcode_to_sample[predicted_barcode] %||% NA_character_,
+    assigned_sample = if_else(is.na(assigned_sample), "—", assigned_sample)
+  ) |>
+  arrange(run_id, desc(n_reads)) |>
+  dplyr::select(
+    `Run` = run_id,
+    `Barcode` = predicted_barcode,
+    `Sample` = assigned_sample,
+    `Reads` = n_reads
+  )
+
+tbl <- gt(wdx_display) |>
+  fmt_number(columns = Reads, suffixing = TRUE, decimals = 1)
+cat(as_raw_html(tbl))
+```
+
+```{r}
+#| label: demux-edx-concordance
+#| eval: !expr has_edx_concordance
+#| results: asis
+
+cat("\n\n### EDX Adapter Concordance\n\n")
+cat("Distribution of detected 3' adapter identity per WDX-assigned sample. Each sample's expected EDX adapter is shown — high concordance indicates clean demultiplexing.\n\n")
+
+# Add expected EDX from metadata
+expected_edx <- sample_metadata |>
+  filter(!is.na(edx)) |>
+  dplyr::select(sample, edx) |>
+  deframe()
+
+edx_display <- edx_concordance |>
+  mutate(
+    expected = expected_edx[sample],
+    match = edx_adapter == expected
+  )
+
+tbl <- edx_display |>
+  dplyr::select(
+    Sample = sample,
+    `Detected Adapter` = edx_adapter,
+    `Expected` = expected,
+    Reads = n_reads,
+    `%` = pct
+  ) |>
+  gt() |>
+  fmt_number(columns = Reads, suffixing = TRUE, decimals = 1) |>
+  fmt_number(columns = `%`, decimals = 1)
+
+cat(as_raw_html(tbl))
+```
+
+```{r}
+#| label: fig-edx-concordance-bar
+#| eval: !expr has_edx_concordance
+#| fig-width: 10
+#| fig-height: 5
+#| fig-cap: "Stacked bar chart of detected 3' adapter identity per sample. Bars are colored by detected adapter; the expected adapter for each sample is marked."
+
+edx_plot_data <- edx_concordance |>
+  mutate(
+    expected = expected_edx[sample],
+    pct = as.numeric(pct),
+    is_expected = edx_adapter == expected
+  )
+
+ggplot(edx_plot_data, aes(x = sample, y = n_reads, fill = edx_adapter)) +
+  geom_col(position = "stack", width = 0.7) +
+  geom_text(
+    data = edx_plot_data |> filter(is_expected),
+    aes(label = paste0(round(pct, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3, color = "white", fontface = "bold"
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     expand = expansion(mult = c(0, 0.05))) +
+  labs(x = NULL, y = "Number of Reads", fill = "Detected 3' Adapter",
+       subtitle = "Percentages shown for expected adapter") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
 ## Summary
 
 ```{r}
@@ -892,9 +1057,13 @@ tibble(
 #| label: sample-details
 
 if ("barcode" %in% colnames(sample_metadata)) {
+  cols <- c(Sample = "sample", `Run Path` = "run_path",
+            Barcode = "barcode", `Barcode Kit` = "barcode_kit")
+  if ("edx" %in% colnames(sample_metadata) && any(!is.na(sample_metadata$edx))) {
+    cols <- c(cols, `EDX Adapter` = "edx")
+  }
   sample_metadata |>
-    dplyr::select(Sample = sample, `Run Path` = run_path,
-                  Barcode = barcode, `Barcode Kit` = barcode_kit) |>
+    dplyr::select(!!!cols) |>
     gt()
 } else {
   sample_metadata |>

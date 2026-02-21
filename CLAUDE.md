@@ -80,7 +80,7 @@ workflow/
 │   ├── aatrnaseq-modifications.smk    # Modification calling: coverage, modkit outputs (4 rules)
 │   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
-│   ├── filter_by_edx.py               # Filter BAM by EDX (3' adapter) identity
+│   ├── detect_3p_adapters.py           # Detect 3' adapter identity per read (for EDX splitting)
 │   └── generate_squiggy_session.py    # Generate Squiggy/Positron session JSON
 └── envs/
     └── aatrnaseqpipe-env.yml          # Conda environment (legacy)
@@ -99,6 +99,13 @@ POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_alig
 classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → finalize_bam → Summary tables
 ```
 
+For EDX samples (dual barcoding), 3' adapter detection and FASTQ/POD5 splitting happens before alignment:
+```
+rebasecall → detect_edx_adapters → extract_edx_read_ids
+                                     ├── filter_fastq_by_edx → bwa_align → ...
+                                     └── filter_pod5_by_edx → classify_charging
+```
+
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
 1. **merge_pods**: Merge all pod5 files per sample into single pod5
@@ -108,7 +115,7 @@ classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → finali
 5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
 6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→CL, MM→CM)
 7. **add_adapter_tags**: Detect adapter positions and add PT tags with 5'/3' boundaries
-8. **finalize_bam**: Filter by EDX (3' adapter barcode) if configured, otherwise symlink
+8. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
 
 ### Summary Generation
 
@@ -191,11 +198,13 @@ runs:
     samples:
       sample_bc03:
         wdx: "barcode03"
-        edx: "edx1"
+        edx: "edx01"       # must match adapter name from adapters.three_prime config
       sample_bc04:
         wdx: "barcode04"
-        edx: "edx2"
+        edx: "edx02"       # must match adapter name from adapters.three_prime config
 ```
+
+EDX values must directly match adapter names from `adapters.three_prime` in the config (e.g., `edx01`, `edx02`). EDX splitting happens before alignment — the pipeline detects 3' adapter identity on the uBAM, then filters FASTQ and POD5 so downstream rules only process matching reads.
 
 When `edx.enabled: true` in config, the `edx_concordance` rule produces `summary/edx/edx_concordance.tsv.gz` — a concordance table of WDX assignment vs EDX (3' adapter) identity per sample.
 

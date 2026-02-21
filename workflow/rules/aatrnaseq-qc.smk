@@ -90,7 +90,7 @@ rule remora_signal_stats:
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
-        pod5=get_sample_pod5,
+        pod5=get_classification_pod5,
     output:
         tsv=os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.remora.tsv.gz"

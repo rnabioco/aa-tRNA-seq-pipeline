@@ -47,6 +47,33 @@ rule render_combined_qc_report:
         #     ),
         #     sample=samples.keys(),
         # ),
+        edx_concordance=(
+            [os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz")]
+            if config.get("edx", {}).get("enabled", False)
+            else []
+        ),
+        wdx_summary=(
+            expand(
+                os.path.join(
+                    outdir,
+                    "demux",
+                    "read_ids",
+                    "{run_id}",
+                    "demux_summary.tsv.gz",
+                ),
+                run_id=(
+                    list(
+                        {
+                            info["run_id"]
+                            for info in samples.values()
+                            if info.get("barcode") and info.get("run_id")
+                        }
+                    )
+                    if is_demux_enabled()
+                    else []
+                ),
+            )
+        ),
     output:
         html=os.path.join(outdir, "reports", "qc_report.html"),
     log:

@@ -11,7 +11,7 @@ runs:
     samples:
       sample1_bc03:
         wdx: "barcode03"
-        edx: "edx1"
+        edx: "edx01"
       sample1_bc04:
         wdx: "barcode04"
-        edx: "edx2"
+        edx: "edx02"

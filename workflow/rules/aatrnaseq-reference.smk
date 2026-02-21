@@ -47,7 +47,7 @@ def get_adapter_3p_list():
     if isinstance(three_prime, str):
         return [("default", three_prime)]
 
-    # List format: [{name: "v2", seq: "..."}, ...]
+    # List format: [{name: "edx01", seq: "..."}, ...]
     return [(a["name"], a["seq"]) for a in three_prime]
 
 
