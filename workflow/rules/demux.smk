@@ -278,7 +278,11 @@ rule detect_edx_adapters:
     """
     input:
         bam=lambda wildcards: os.path.join(
-            outdir, "bam", "rebasecall", wildcards.sample, f"{wildcards.sample}.rbc.bam"
+            outdir,
+            "bam",
+            "rebasecall",
+            wildcards.sample,
+            f"{wildcards.sample}.rbc.bam",
         ),
     output:
         tsv=os.path.join(
@@ -332,13 +336,15 @@ rule filter_fastq_by_edx:
     """
     input:
         bam=lambda wildcards: os.path.join(
-            outdir, "bam", "rebasecall", wildcards.sample, f"{wildcards.sample}.rbc.bam"
+            outdir,
+            "bam",
+            "rebasecall",
+            wildcards.sample,
+            f"{wildcards.sample}.rbc.bam",
         ),
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        fq=os.path.join(
-            outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"
-        ),
+        fq=os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"),
     log:
         os.path.join(outdir, "logs", "filter_fastq_by_edx", "{sample}"),
     shell:
@@ -358,9 +364,7 @@ rule filter_pod5_by_edx:
         pod5=get_sample_pod5,
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        pod5=os.path.join(
-            outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"
-        ),
+        pod5=os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:
