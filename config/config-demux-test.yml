@@ -16,3 +16,7 @@ warpdemux:
     barcode_kit: "WDX4_tRNA_rna004_v1_0"
     save_boundaries: true
     threads: 8
+
+# Enable EDX concordance output
+edx:
+    enabled: true

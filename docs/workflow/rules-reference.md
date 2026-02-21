@@ -101,7 +101,7 @@ Align reads to tRNA reference with BWA MEM.
 
 | Property | Value |
 |----------|-------|
-| Input | FASTQ, BWA index |
+| Input | FASTQ (EDX-filtered for EDX samples), BWA index |
 | Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai` |
 | Threads | 12 |
 | Parameters | `fasta`, `opts.bwa` |
@@ -199,7 +199,7 @@ Detect adapter positions using parasail alignment and add PT tags to create fina
 | Property | Value |
 |----------|-------|
 | Input | Classified BAM |
-| Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
+| Output | `bam/adapter_tagged/{sample}/{sample}.bam`, `.bai` |
 | Parameters | `adapters.*` config options |
 
 **Command:**
@@ -224,6 +224,24 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 - Uses parasail Smith-Waterman alignment to find adapter positions
 - Can infer 5' adapter presence from alignment position when adapter is truncated
+- Output goes to `bam/adapter_tagged/`; the downstream `finalize_bam` rule produces the final BAM at `bam/final/`
+
+---
+
+### finalize_bam
+
+Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM as the final output. EDX filtering now happens early in the pipeline (before alignment) via the `detect_edx_adapters` / `filter_fastq_by_edx` / `filter_pod5_by_edx` rules.
+
+**File:** `workflow/rules/aatrnaseq-process.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | `bam/adapter_tagged/{sample}/{sample}.bam`, `.bai` |
+| Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
+
+**Notes:**
+
+- Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
 - This is the final BAM with all tags: CL/CM (charging) and PT (adapters)
 
 ---
@@ -650,6 +668,36 @@ Split merged POD5 by sample using read ID list.
 
 | Output | `demux/pod5/{sample}.pod5` |
 
+### detect_edx_adapters
+
+Detect 3' adapter identity per read on unaligned BAM (before alignment). Only runs for EDX samples.
+
+| Output | `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` |
+
+### extract_edx_read_ids
+
+Extract read IDs matching the sample's EDX adapter assignment.
+
+| Output | `demux/edx/{sample}/{sample}.edx_read_ids.txt` |
+
+### filter_fastq_by_edx
+
+Extract FASTQ for reads matching the sample's EDX adapter.
+
+| Output | `demux/edx/fq/{sample}/{sample}.fq.gz` |
+
+### filter_pod5_by_edx
+
+Filter POD5 to keep only reads matching the sample's EDX adapter.
+
+| Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
+
+### edx_concordance
+
+Build concordance table of WDX vs EDX adapter identity from adapter detection TSVs.
+
+| Output | `summary/edx/edx_concordance.tsv.gz` |
+
 ---
 
 ## Rule Dependencies
@@ -658,24 +706,34 @@ Split merged POD5 by sample using read ID list.
 flowchart LR
     merge_pods --> rebasecall
     rebasecall --> ubam_to_fastq
-    ubam_to_fastq --> bwa_align
-    bwa_align --> classify_charging
+    rebasecall --> detect_edx_adapters
+    detect_edx_adapters --> extract_edx_read_ids
+    extract_edx_read_ids --> filter_fastq_by_edx
+    extract_edx_read_ids --> filter_pod5_by_edx
+    ubam_to_fastq -.-> bwa_align
+    filter_fastq_by_edx -.-> bwa_align
+    bwa_align --> inject_ubam_tags
+    inject_ubam_tags --> classify_charging
+    filter_pod5_by_edx -.-> classify_charging
     classify_charging --> transfer_bam_tags
     transfer_bam_tags --> add_adapter_tags
-    add_adapter_tags --> get_cca_trna
-    add_adapter_tags --> base_calling_error
-    add_adapter_tags --> align_stats
-    add_adapter_tags --> bam_to_coverage
-    add_adapter_tags --> modkit_pileup
-    add_adapter_tags --> modkit_extract_calls
+    add_adapter_tags --> finalize_bam
+    finalize_bam --> get_cca_trna
+    finalize_bam --> base_calling_error
+    finalize_bam --> align_stats
+    finalize_bam --> bam_to_coverage
+    finalize_bam --> modkit_pileup
+    finalize_bam --> modkit_extract_calls
     get_cca_trna --> get_cca_trna_cpm
     get_cca_trna --> compute_odds_ratios
     modkit_extract_calls --> compute_odds_ratios
-    add_adapter_tags --> generate_squiggy_session
+    finalize_bam --> generate_squiggy_session
     merge_pods --> generate_squiggy_session
-    add_adapter_tags --> compute_reference_similarity
+    finalize_bam --> compute_reference_similarity
     align_stats --> render_combined_qc_report
     get_cca_trna --> render_combined_qc_report
     get_cca_trna_cpm --> render_combined_qc_report
     base_calling_error --> render_combined_qc_report
 ```
+
+**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `filter_fastq_by_edx` feeds `bwa_align` and `filter_pod5_by_edx` feeds `classify_charging`. For non-EDX samples, `ubam_to_fastq` feeds `bwa_align` directly.

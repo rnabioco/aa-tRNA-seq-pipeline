@@ -117,9 +117,11 @@ rule bwa_align:
     """
     Align reads to tRNA references with bwa mem.
     Uses the validated/built reference.
+
+    For EDX samples, input FASTQ is pre-filtered to matching reads only.
     """
     input:
-        reads=rules.ubam_to_fastq.output,
+        reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
     output:
         bam=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
@@ -169,9 +171,11 @@ rule classify_charging:
     """
   run remora trained model to classify charged and uncharged reads
   runs on CPU by default (no --device flag)
+
+  For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
   """
     input:
-        pod5=get_sample_pod5,
+        pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
     output:
         charging_bam=os.path.join(
@@ -258,8 +262,10 @@ rule add_adapter_tags:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
-        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
+        bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),
+        bai=os.path.join(
+            outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"
+        ),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
@@ -290,4 +296,28 @@ rule add_adapter_tags:
       2> {log}
 
     samtools index {output.bam}
+    """
+
+
+rule finalize_bam:
+    """
+    Produce the final BAM for downstream analysis.
+
+    EDX filtering now happens early in the pipeline (before alignment) via
+    the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
+    This rule simply symlinks the adapter-tagged BAM as the final output.
+    """
+    input:
+        bam=rules.add_adapter_tags.output.bam,
+        bai=rules.add_adapter_tags.output.bai,
+    output:
+        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
+    log:
+        os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
+    shell:
+        """
+    ln -sf $(realpath {input.bam}) {output.bam}
+    ln -sf $(realpath {input.bai}) {output.bai}
+    echo "Symlinked adapter-tagged BAM as final" > {log}
     """

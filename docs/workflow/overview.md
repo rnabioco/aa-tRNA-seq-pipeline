@@ -46,6 +46,7 @@ flowchart TB
         F[classify_charging<br/>Remora ML]
         G[transfer_bam_tags<br/>Rename tags]
         G2[add_adapter_tags<br/>PT tags]
+        G3[finalize_bam<br/>Symlink final BAM]
     end
 
     subgraph Charging[aatrnaseq-charging.smk]
@@ -74,16 +75,16 @@ flowchart TB
         R[render_combined_qc_report<br/>QC report]
     end
 
-    A --> B --> C --> D --> E --> F --> G --> G2
+    A --> B --> C --> D --> E --> F --> G --> G2 --> G3
 
-    G2 --> H --> I
-    G2 --> J
-    G2 --> K
-    G2 --> L
-    G2 --> M
-    G2 --> N
-    G2 --> O
-    G2 --> P
+    G3 --> H --> I
+    G3 --> J
+    G3 --> K
+    G3 --> L
+    G3 --> M
+    G3 --> N
+    G3 --> O
+    G3 --> P
     O --> Q
     H --> Q
     J --> R
@@ -92,7 +93,7 @@ flowchart TB
     K --> R
 ```
 
-### With Demultiplexing (WarpDemuX)
+### With Demultiplexing (WarpDemuX + EDX)
 
 ```mermaid
 flowchart TB
@@ -100,18 +101,31 @@ flowchart TB
         A[Pooled POD5 files<br/>per run]
     end
 
-    subgraph Demux[warpdemux.smk]
+    subgraph WDX[WDX Demultiplexing]
         B[warpdemux<br/>Barcode prediction]
         C[parse_warpdemux<br/>Create mapping]
         D[extract_sample_reads<br/>Per-sample IDs]
-        E[split_pod5<br/>Split by sample]
+        E[split_pod5<br/>Split by WDX barcode]
     end
 
     subgraph Standard[Standard Pipeline]
-        F[rebasecall → align → classify...]
+        F[rebasecall]
     end
 
-    A --> B --> C --> D --> E --> F
+    subgraph EDX[EDX Early Splitting]
+        G[detect_edx_adapters<br/>3' adapter ID per read]
+        H[extract_edx_read_ids]
+        I[filter_fastq_by_edx]
+        J[filter_pod5_by_edx]
+    end
+
+    subgraph Downstream[Downstream Processing]
+        K[bwa_align → classify_charging → ...]
+    end
+
+    A --> B --> C --> D --> E --> F --> G --> H
+    H --> I --> K
+    H --> J --> K
 ```
 
 ## Rule Categories
@@ -130,6 +144,7 @@ Core data processing from raw signal to classified reads:
 | `classify_charging` | ML charging classification | No |
 | `transfer_bam_tags` | Rename ML→CL tags | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
+| `finalize_bam` | Symlink final BAM | No |
 
 ### Charging Analysis Rules
 
@@ -184,10 +199,15 @@ Optional WarpDemuX barcode demultiplexing:
 
 | Rule | Purpose |
 |------|---------|
-| `warpdemux` | Run barcode prediction |
+| `warpdemux` | Run WDX barcode prediction |
 | `parse_warpdemux` | Parse predictions to mapping |
-| `extract_sample_reads` | Filter reads by barcode |
-| `split_pod5` | Create per-sample POD5s |
+| `extract_sample_reads` | Filter reads by WDX barcode |
+| `split_pod5` | Create per-sample WDX POD5s |
+| `detect_edx_adapters` | Detect 3' adapter identity per read |
+| `extract_edx_read_ids` | Extract matching read IDs for EDX |
+| `filter_fastq_by_edx` | Create EDX-filtered FASTQ |
+| `filter_pod5_by_edx` | Create EDX-filtered POD5 |
+| `edx_concordance` | WDX vs EDX concordance table |
 
 ## Key Processing Steps
 

@@ -2,60 +2,29 @@
 """
 Build concordance table of WDX sample assignment vs EDX (3' adapter barcode) identity.
 
-Reads PT tags from final BAMs to determine which 3' adapter each read matched,
-then tabulates counts per WDX sample.
+Reads adapter detection TSVs (from detect_3p_adapters.py) that contain all reads
+with their detected 3' adapter identity, then tabulates counts per WDX sample.
 """
 
 import argparse
 import gzip
-import re
 import sys
-
-import pysam
-
-
-def parse_3p_adapter_from_pt(pt_tag):
-    """
-    Extract 3' adapter name from a PT tag string.
-
-    PT tag format: "start;end;strand;type|start;end;strand;type"
-    3' adapter entries look like:
-      - "3p_adapter"       -> "default"
-      - "3p_adapter_edx1"  -> "edx1"
-      - "3p_adapter_v2"    -> "v2"
-
-    Returns the adapter name or None if no 3' adapter found.
-    """
-    if not pt_tag:
-        return None
-
-    for segment in pt_tag.split("|"):
-        fields = segment.split(";")
-        if len(fields) < 4:
-            continue
-        entry_type = fields[3]
-        if entry_type.startswith("3p_adapter"):
-            suffix = entry_type[len("3p_adapter"):]
-            if suffix.startswith("_"):
-                return suffix[1:]  # e.g., "edx1", "v2"
-            elif suffix == "":
-                return "default"
-    return None
+from collections import Counter
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--bams",
+        "--tsvs",
         nargs="+",
         required=True,
-        help="Final BAM files (one per WDX sample)",
+        help="Adapter detection TSV files (one per WDX sample, gzipped)",
     )
     parser.add_argument(
         "--samples",
         nargs="+",
         required=True,
-        help="Sample names corresponding to BAM files (same order)",
+        help="Sample names corresponding to TSV files (same order)",
     )
     parser.add_argument(
         "--output",
@@ -64,34 +33,30 @@ def main():
     )
     args = parser.parse_args()
 
-    if len(args.bams) != len(args.samples):
+    if len(args.tsvs) != len(args.samples):
         sys.exit(
-            f"Number of BAMs ({len(args.bams)}) must match "
+            f"Number of TSVs ({len(args.tsvs)}) must match "
             f"number of samples ({len(args.samples)})"
         )
 
     rows = []
 
-    for bam_path, sample_name in zip(args.bams, args.samples):
-        counts = {}
-        total = 0
+    for tsv_path, sample_name in zip(args.tsvs, args.samples):
+        counts = Counter()
 
-        print(f"Processing {sample_name}: {bam_path}", file=sys.stderr)
+        print(f"Processing {sample_name}: {tsv_path}", file=sys.stderr)
 
-        with pysam.AlignmentFile(bam_path, "rb") as bam:
-            for read in bam.fetch(until_eof=True):
-                total += 1
-                try:
-                    pt_tag = read.get_tag("PT")
-                except KeyError:
-                    pt_tag = None
+        with gzip.open(tsv_path, "rt") as f:
+            f.readline()  # skip header
+            for line in f:
+                parts = line.rstrip("\n").split("\t", 1)
+                if len(parts) == 2:
+                    adapter = parts[1]
+                else:
+                    adapter = "unknown"
+                counts[adapter] += 1
 
-                adapter = parse_3p_adapter_from_pt(pt_tag)
-                if adapter is None:
-                    adapter = "no_3p_adapter"
-
-                counts[adapter] = counts.get(adapter, 0) + 1
-
+        total = sum(counts.values())
         print(
             f"  {sample_name}: {total} reads, "
             f"{len(counts)} adapter categories",
