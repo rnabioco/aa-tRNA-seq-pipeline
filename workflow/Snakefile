@@ -15,10 +15,31 @@ DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
 
 onstart:
     import os
+    import subprocess
 
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
     os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
     shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
+
+    # Verify dorado version matches config
+    dorado_bin = os.path.join(dorado_bin_path, "dorado")
+    if os.path.isfile(dorado_bin):
+        try:
+            result = subprocess.run(
+                [dorado_bin, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            installed = result.stderr.strip()
+            if installed and installed != DORADO_VERSION:
+                logger.warning(
+                    f"Installed dorado ({installed}) does not match "
+                    f"config dorado_version ({DORADO_VERSION}). "
+                    f"Run 'pixi run setup' to install the correct version."
+                )
+        except Exception:
+            pass
 
 
 import datetime
