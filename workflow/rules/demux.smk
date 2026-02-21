@@ -263,7 +263,7 @@ rule split_pod5:
         """
 
 
-# --- EDX (3' adapter barcode) concordance analysis ---
+# --- EDX (3' adapter barcode) early demultiplexing ---
 
 
 def get_edx_samples():
@@ -271,14 +271,118 @@ def get_edx_samples():
     return [s for s, info in samples.items() if info.get("edx")]
 
 
+rule detect_edx_adapters:
+    """
+    Detect 3' adapter identity per read on the unaligned BAM (before alignment).
+    Produces a TSV mapping each read_id to its best-matching 3' adapter name.
+    """
+    input:
+        bam=lambda wildcards: os.path.join(
+            outdir, "bam", "rebasecall", wildcards.sample, f"{wildcards.sample}.rbc.bam"
+        ),
+    output:
+        tsv=os.path.join(
+            outdir, "demux", "edx", "{sample}", "{sample}.edx_adapters.tsv.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "detect_edx_adapters", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+        adapter_3p_args=lambda wc: " ".join(
+            f'--adapter-3p "{name}:{seq}"' for name, seq in get_adapter_3p_list()
+        ),
+        min_score_3p=config["adapters"]["min_score_3p"],
+    shell:
+        """
+        python {params.src}/detect_3p_adapters.py \
+            --bam {input.bam} \
+            {params.adapter_3p_args} \
+            --min-score-3p {params.min_score_3p} \
+            --output {output.tsv} \
+            2>&1 | tee {log}
+        """
+
+
+rule extract_edx_read_ids:
+    """
+    Extract read IDs matching this sample's EDX adapter assignment.
+    """
+    input:
+        tsv=rules.detect_edx_adapters.output.tsv,
+    output:
+        read_ids=os.path.join(
+            outdir, "demux", "edx", "{sample}", "{sample}.edx_read_ids.txt"
+        ),
+    params:
+        edx_adapter_name=get_sample_edx,
+    run:
+        import gzip
+
+        with gzip.open(input.tsv, "rt") as f_in, open(output.read_ids, "w") as f_out:
+            header = f_in.readline()  # skip header
+            for line in f_in:
+                read_id, adapter = line.rstrip("\n").split("\t", 1)
+                if adapter == params.edx_adapter_name:
+                    f_out.write(f"{read_id}\n")
+
+
+rule filter_fastq_by_edx:
+    """
+    Extract FASTQ for reads matching this sample's EDX adapter.
+    """
+    input:
+        bam=lambda wildcards: os.path.join(
+            outdir, "bam", "rebasecall", wildcards.sample, f"{wildcards.sample}.rbc.bam"
+        ),
+        read_ids=rules.extract_edx_read_ids.output.read_ids,
+    output:
+        fq=os.path.join(
+            outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "filter_fastq_by_edx", "{sample}"),
+    shell:
+        """
+        samtools view -N {input.read_ids} {input.bam} \
+            | samtools fastq - \
+            | gzip > {output.fq} \
+            2>&1 | tee {log}
+        """
+
+
+rule filter_pod5_by_edx:
+    """
+    Filter POD5 to keep only reads matching this sample's EDX adapter.
+    """
+    input:
+        pod5=get_sample_pod5,
+        read_ids=rules.extract_edx_read_ids.output.read_ids,
+    output:
+        pod5=os.path.join(
+            outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"
+        ),
+    log:
+        os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
+    shell:
+        """
+        pod5 filter {input.pod5} --ids {input.read_ids} --output {output.pod5} 2>&1 | tee {log}
+        """
+
+
+# --- EDX (3' adapter barcode) concordance analysis ---
+
+
 rule edx_concordance:
     """
     Build concordance table of WDX sample assignment vs EDX adapter identity.
-    Reads PT tags from final BAMs to determine which 3' adapter each read matched.
+    Uses pre-alignment adapter detection TSVs (which contain ALL reads with their
+    detected adapter) rather than final BAMs (which only contain matching reads).
     """
     input:
-        bams=lambda wildcards: expand(
-            rules.finalize_bam.output.bam,
+        tsvs=lambda wildcards: expand(
+            os.path.join(
+                outdir, "demux", "edx", "{sample}", "{sample}.edx_adapters.tsv.gz"
+            ),
             sample=get_edx_samples(),
         ),
     output:
@@ -291,7 +395,7 @@ rule edx_concordance:
     shell:
         """
         python {params.src}/edx_concordance.py \
-            --bams {input.bams} \
+            --tsvs {input.tsvs} \
             --samples {params.sample_names} \
             --output {output.concordance} \
             2>&1 | tee {log}

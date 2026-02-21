@@ -393,6 +393,35 @@ def get_sample_pod5(wildcards):
         )
 
 
+def get_alignment_fastq(wildcards):
+    """
+    Return the correct FASTQ path for alignment.
+    EDX samples use the EDX-filtered FASTQ; others use ubam_to_fastq output.
+    """
+    if sample_has_edx(wildcards.sample):
+        return os.path.join(
+            outdir, "demux", "edx", "fq", wildcards.sample,
+            f"{wildcards.sample}.fq.gz",
+        )
+    return os.path.join(outdir, "fq", wildcards.sample, f"{wildcards.sample}.fq.gz")
+
+
+def get_classification_pod5(wildcards):
+    """
+    Return the correct POD5 path for classification/signal analysis.
+    EDX samples use the EDX-filtered POD5; others use the WDX-split or merged POD5.
+
+    NOTE: Do NOT use this for rebasecall — rebasecall needs the pre-EDX POD5
+    (use get_sample_pod5 instead).
+    """
+    if sample_has_edx(wildcards.sample):
+        return os.path.join(
+            outdir, "demux", "edx", "pod5", wildcards.sample,
+            f"{wildcards.sample}.pod5",
+        )
+    return get_sample_pod5(wildcards)
+
+
 def get_all_final_bams():
     """Return list of all final BAM files for all samples."""
     return expand(
@@ -402,10 +431,21 @@ def get_all_final_bams():
 
 
 def get_all_merged_pod5s():
-    """Return list of all merged POD5 files for all samples."""
+    """Return list of all merged/filtered POD5 files for all samples.
+
+    For EDX samples, returns the EDX-filtered POD5 (subset matching the sample's adapter).
+    For WDX-only samples, returns the WDX-split POD5.
+    For non-demux samples, returns the merged POD5.
+    """
     pod5_paths = []
     for sample in samples.keys():
-        if sample_needs_demux(sample):
+        if sample_has_edx(sample):
+            pod5_paths.append(
+                os.path.join(
+                    outdir, "demux", "edx", "pod5", sample, f"{sample}.pod5"
+                )
+            )
+        elif sample_needs_demux(sample):
             pod5_paths.append(
                 os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")
             )

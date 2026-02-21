@@ -117,9 +117,11 @@ rule bwa_align:
     """
     Align reads to tRNA references with bwa mem.
     Uses the validated/built reference.
+
+    For EDX samples, input FASTQ is pre-filtered to matching reads only.
     """
     input:
-        reads=rules.ubam_to_fastq.output,
+        reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
     output:
         bam=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
@@ -169,9 +171,11 @@ rule classify_charging:
     """
   run remora trained model to classify charged and uncharged reads
   runs on CPU by default (no --device flag)
+
+  For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
   """
     input:
-        pod5=get_sample_pod5,
+        pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
     output:
         charging_bam=os.path.join(
@@ -297,9 +301,9 @@ rule finalize_bam:
     """
     Produce the final BAM for downstream analysis.
 
-    For samples with an EDX (3' adapter barcode) assignment, filter reads
-    to keep only those whose PT-tag 3' adapter matches the expected EDX value.
-    For samples without EDX, symlink the adapter-tagged BAM unchanged.
+    EDX filtering now happens early in the pipeline (before alignment) via
+    the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
+    This rule simply symlinks the adapter-tagged BAM as the final output.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,
@@ -309,21 +313,9 @@ rule finalize_bam:
         bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
-    params:
-        src=SCRIPT_DIR,
-        edx=get_sample_edx,
     shell:
         """
-    if [ "{params.edx}" != "None" ]; then
-        python {params.src}/filter_by_edx.py \
-            --bam {input.bam} \
-            --edx {params.edx} \
-            --output {output.bam} \
-            2>&1 | tee {log}
-        samtools index {output.bam}
-    else
-        ln -sf $(realpath {input.bam}) {output.bam}
-        ln -sf $(realpath {input.bai}) {output.bai}
-        echo "No EDX filter — symlinked adapter-tagged BAM" > {log}
-    fi
+    ln -sf $(realpath {input.bam}) {output.bam}
+    ln -sf $(realpath {input.bai}) {output.bai}
+    echo "Symlinked adapter-tagged BAM as final" > {log}
     """

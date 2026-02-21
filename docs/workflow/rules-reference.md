@@ -101,7 +101,7 @@ Align reads to tRNA reference with BWA MEM.
 
 | Property | Value |
 |----------|-------|
-| Input | FASTQ, BWA index |
+| Input | FASTQ (EDX-filtered for EDX samples), BWA index |
 | Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai` |
 | Threads | 12 |
 | Parameters | `fasta`, `opts.bwa` |
@@ -230,7 +230,7 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 ### finalize_bam
 
-Produce the final BAM for downstream analysis. For samples with an EDX (3' adapter barcode) assignment, filters reads to keep only those whose PT-tag 3' adapter matches the expected EDX value. For samples without EDX, symlinks the adapter-tagged BAM unchanged.
+Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM as the final output. EDX filtering now happens early in the pipeline (before alignment) via the `detect_edx_adapters` / `filter_fastq_by_edx` / `filter_pod5_by_edx` rules.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -238,16 +238,10 @@ Produce the final BAM for downstream analysis. For samples with an EDX (3' adapt
 |----------|-------|
 | Input | `bam/adapter_tagged/{sample}/{sample}.bam`, `.bai` |
 | Output | `bam/final/{sample}/{sample}.bam`, `.bai` |
-| Parameters | `edx` (from sample config, or None) |
-
-**Behavior:**
-
-- **EDX samples:** Runs `filter_by_edx.py` to keep only reads whose PT tag 3' adapter name matches the expected EDX value
-- **Non-EDX samples:** Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
 
 **Notes:**
 
-- EDX adapter identity is determined from the PT tag added by `add_adapter_tags`
+- Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
 - This is the final BAM with all tags: CL/CM (charging) and PT (adapters)
 
 ---
@@ -674,6 +668,36 @@ Split merged POD5 by sample using read ID list.
 
 | Output | `demux/pod5/{sample}.pod5` |
 
+### detect_edx_adapters
+
+Detect 3' adapter identity per read on unaligned BAM (before alignment). Only runs for EDX samples.
+
+| Output | `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` |
+
+### extract_edx_read_ids
+
+Extract read IDs matching the sample's EDX adapter assignment.
+
+| Output | `demux/edx/{sample}/{sample}.edx_read_ids.txt` |
+
+### filter_fastq_by_edx
+
+Extract FASTQ for reads matching the sample's EDX adapter.
+
+| Output | `demux/edx/fq/{sample}/{sample}.fq.gz` |
+
+### filter_pod5_by_edx
+
+Filter POD5 to keep only reads matching the sample's EDX adapter.
+
+| Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
+
+### edx_concordance
+
+Build concordance table of WDX vs EDX adapter identity from adapter detection TSVs.
+
+| Output | `summary/edx/edx_concordance.tsv.gz` |
+
 ---
 
 ## Rule Dependencies
@@ -682,8 +706,15 @@ Split merged POD5 by sample using read ID list.
 flowchart LR
     merge_pods --> rebasecall
     rebasecall --> ubam_to_fastq
-    ubam_to_fastq --> bwa_align
-    bwa_align --> classify_charging
+    rebasecall --> detect_edx_adapters
+    detect_edx_adapters --> extract_edx_read_ids
+    extract_edx_read_ids --> filter_fastq_by_edx
+    extract_edx_read_ids --> filter_pod5_by_edx
+    ubam_to_fastq -.-> bwa_align
+    filter_fastq_by_edx -.-> bwa_align
+    bwa_align --> inject_ubam_tags
+    inject_ubam_tags --> classify_charging
+    filter_pod5_by_edx -.-> classify_charging
     classify_charging --> transfer_bam_tags
     transfer_bam_tags --> add_adapter_tags
     add_adapter_tags --> finalize_bam
@@ -704,3 +735,5 @@ flowchart LR
     get_cca_trna_cpm --> render_combined_qc_report
     base_calling_error --> render_combined_qc_report
 ```
+
+**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `filter_fastq_by_edx` feeds `bwa_align` and `filter_pod5_by_edx` feeds `classify_charging`. For non-EDX samples, `ubam_to_fastq` feeds `bwa_align` directly.
