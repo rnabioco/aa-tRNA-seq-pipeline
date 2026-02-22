@@ -31,7 +31,7 @@ set-resources:
     slurm_partition: "gpu"     # GPU partition (customize for your cluster)
     gres: "gpu:1"              # Request 1 GPU
     runtime: 960               # 16 hours (basecalling can be slow)
-    mem_mb: 24000              # 24GB
+    mem_mb: 48000              # 48GB
     cpus_per_task: 4
 
   # Remora charging classification
