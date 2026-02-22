@@ -36,7 +36,7 @@ rule bam_to_coverage:
       --outFileFormat bedgraph \
       -bs 1 \
       -p {threads} \
-      {params.bg_opts}
+      {params.bg_opts} 2>> {log}
 
     bamCoverage \
       -b {input.bam} \
@@ -44,7 +44,7 @@ rule bam_to_coverage:
       --outFileFormat bedgraph \
       -bs 1 \
       -p {threads} \
-      {params.bg_opts}
+      {params.bg_opts} 2>> {log}
 
     python {params.convert_script} \
       --input {output.counts_tmp} \
@@ -52,7 +52,7 @@ rule bam_to_coverage:
       --format bedgraph \
       --reference {params.fa} \
       --offset-5p {params.offset_5p} \
-      --offset-3p {params.offset_3p}
+      --offset-3p {params.offset_3p} 2>> {log}
 
     python {params.convert_script} \
       --input {output.cpm_tmp} \
@@ -60,7 +60,7 @@ rule bam_to_coverage:
       --format bedgraph \
       --reference {params.fa} \
       --offset-5p {params.offset_5p} \
-      --offset-3p {params.offset_3p}
+      --offset-3p {params.offset_3p} 2>> {log}
     """
 
 
