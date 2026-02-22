@@ -287,13 +287,12 @@ def pipeline_outputs():
             sample=samples.keys(),
         )
 
-    # TODO: Pairwise modification odds ratios (temporarily disabled)
-    # outs += expand(
-    #     os.path.join(
-    #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
-    #     ),
-    #     sample=samples.keys(),
-    # )
+    outs += expand(
+        os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
+        ),
+        sample=samples.keys(),
+    )
 
     # tRNA-only reference FASTA (adapters stripped)
     outs.append(get_trna_fasta())
