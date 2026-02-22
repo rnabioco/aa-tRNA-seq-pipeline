@@ -369,7 +369,7 @@ rule filter_pod5_by_edx:
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:
         """
-        pod5 filter {input.pod5} --ids {input.read_ids} --output {output.pod5} 2>&1 | tee {log}
+        pod5 filter {input.pod5} --ids {input.read_ids} --missing-ok --output {output.pod5} 2>&1 | tee {log}
         """
 
 
