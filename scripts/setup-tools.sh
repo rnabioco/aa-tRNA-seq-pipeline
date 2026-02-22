@@ -143,6 +143,20 @@ else
 fi
 
 # ============================================================================
+# Pod5 Setup (via uv — bioconda version is outdated)
+# ============================================================================
+echo "=== Checking pod5 ==="
+POD5_MIN_VERSION="0.3.36"
+current_pod5=$(python -c "import pod5; print(pod5.__version__)" 2>/dev/null || echo "0.0.0")
+if python -c "from packaging.version import Version; exit(0 if Version('${current_pod5}') >= Version('${POD5_MIN_VERSION}') else 1)" 2>/dev/null; then
+    echo "Pod5 ${current_pod5} already installed (>= ${POD5_MIN_VERSION})"
+else
+    echo "Installing pod5 >= ${POD5_MIN_VERSION}..."
+    uv pip install "pod5>=${POD5_MIN_VERSION}"
+    echo "Pod5 installed successfully"
+fi
+
+# ============================================================================
 # WarpDemuX Setup (via uv)
 # ============================================================================
 echo "=== Checking WarpDemuX ==="
