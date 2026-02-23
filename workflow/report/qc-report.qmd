@@ -436,6 +436,43 @@ plot_odds_ratio_heatmap <- function(s) {
     )
 }
 
+plot_demux_funnel <- function(s, funnel_data) {
+  tbl <- funnel_data |> filter(sample == s)
+  if (nrow(tbl) == 0) {
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5, label = "No data") + theme_void())
+  }
+
+  # Compute % of previous stage
+  tbl <- tbl |>
+    arrange(stage_order) |>
+    mutate(
+      pct_of_prev = if_else(
+        row_number() == 1, NA_real_,
+        reads / lag(reads) * 100
+      ),
+      label = if_else(
+        is.na(pct_of_prev),
+        label_number(scale_cut = cut_short_scale(), accuracy = 0.1)(reads),
+        paste0(
+          label_number(scale_cut = cut_short_scale(), accuracy = 0.1)(reads),
+          "\n(", round(pct_of_prev, 1), "% of prev)"
+        )
+      )
+    )
+
+  ggplot(tbl, aes(x = stage, y = reads, fill = stage)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = label), vjust = -0.3, size = 3, lineheight = 0.85) +
+    scale_fill_brewer(palette = "Blues") +
+    scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                       expand = expansion(mult = c(0, 0.2))) +
+    labs(x = NULL, y = "Number of Reads") +
+    ggtitle(paste("Demux Yield Funnel —", s)) +
+    theme_minimal_hgrid() +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
 make_sample_qc_panel <- function(s) {
   p_a <- plot_alignment_funnel(s)
   p_b <- plot_charging_density(s)
@@ -729,6 +766,142 @@ if (has_edx) {
 has_edx_concordance <- nrow(edx_concordance) > 0
 
 has_any_demux <- has_wdx_summary || has_edx_concordance
+
+# --- Derived demux analysis tibbles ---
+
+# WDX on/off-target analysis
+wdx_on_off <- tibble()
+if (has_wdx_summary && "barcode" %in% colnames(sample_metadata)) {
+  expected_barcodes <- sample_metadata |>
+    filter(!is.na(barcode)) |>
+    distinct(run_path, barcode) |>
+    mutate(run_id = basename(run_path))
+
+  wdx_on_off <- wdx_summary_all |>
+    left_join(
+      expected_barcodes |> dplyr::select(run_id, barcode),
+      by = c("run_id", "predicted_barcode" = "barcode")
+    ) |>
+    mutate(
+      category = case_when(
+        predicted_barcode == "unclassified" ~ "Unclassified",
+        !is.na(run_id) & predicted_barcode %in% expected_barcodes$barcode ~ "On-target",
+        TRUE ~ "Off-target"
+      )
+    ) |>
+    group_by(run_id, category) |>
+    summarise(reads = sum(n_reads), .groups = "drop") |>
+    group_by(run_id) |>
+    mutate(
+      total = sum(reads),
+      pct = reads / total * 100
+    ) |>
+    ungroup() |>
+    mutate(category = factor(category, levels = c("On-target", "Off-target", "Unclassified")))
+}
+
+# EDX on/off-target analysis
+edx_on_off <- tibble()
+if (has_edx_concordance && "edx" %in% colnames(sample_metadata)) {
+  expected_edx_map <- sample_metadata |>
+    filter(!is.na(edx)) |>
+    dplyr::select(sample, expected_edx = edx)
+
+  edx_on_off <- edx_concordance |>
+    left_join(expected_edx_map, by = "sample") |>
+    mutate(
+      category = case_when(
+        edx_adapter == "none" ~ "Undetected",
+        edx_adapter == expected_edx ~ "On-target",
+        TRUE ~ "Cross-talk"
+      )
+    ) |>
+    group_by(sample, category) |>
+    summarise(reads = sum(n_reads), .groups = "drop") |>
+    group_by(sample) |>
+    mutate(
+      total = sum(reads),
+      pct = reads / total * 100
+    ) |>
+    ungroup() |>
+    mutate(
+      sample = factor(sample, levels = sample_list),
+      category = factor(category, levels = c("On-target", "Cross-talk", "Undetected"))
+    )
+}
+
+# Demux funnel data: per-sample stage-by-stage read counts
+demux_funnel <- tibble()
+if (has_any_demux) {
+  # Barcode-to-sample mapping and run mapping
+  barcode_to_sample_map <- sample_metadata |>
+    filter(!is.na(barcode)) |>
+    mutate(run_id = basename(run_path)) |>
+    dplyr::select(sample, barcode, run_id)
+
+  funnel_rows <- list()
+  for (s in sample_list) {
+    stage_order <- 1
+    sample_meta <- barcode_to_sample_map |> filter(sample == s)
+
+    # Stage 1: Run Total (total reads in the run this sample came from)
+    if (nrow(sample_meta) > 0 && has_wdx_summary) {
+      rid <- sample_meta$run_id[1]
+      run_total <- wdx_summary_all |> filter(run_id == rid) |> pull(n_reads) |> sum()
+      funnel_rows <- c(funnel_rows, list(tibble(
+        sample = s, stage = "Run Total", stage_order = stage_order, reads = run_total
+      )))
+      stage_order <- stage_order + 1
+
+      # Stage 2: WDX On-target
+      bc <- sample_meta$barcode[1]
+      wdx_reads <- wdx_summary_all |>
+        filter(run_id == rid, predicted_barcode == bc) |>
+        pull(n_reads) |>
+        sum()
+      funnel_rows <- c(funnel_rows, list(tibble(
+        sample = s, stage = "WDX On-target", stage_order = stage_order, reads = wdx_reads
+      )))
+      stage_order <- stage_order + 1
+    }
+
+    # Stage 3: EDX On-target (if applicable)
+    if (has_edx_concordance) {
+      edx_on <- edx_on_off |> filter(sample == s, category == "On-target")
+      if (nrow(edx_on) > 0) {
+        funnel_rows <- c(funnel_rows, list(tibble(
+          sample = s, stage = "EDX On-target", stage_order = stage_order, reads = edx_on$reads[1]
+        )))
+        stage_order <- stage_order + 1
+      }
+    }
+
+    # Stage 4: Aligned
+    aligned <- align_stats_all |> filter(sample == s, info == "aligned")
+    if (nrow(aligned) > 0) {
+      funnel_rows <- c(funnel_rows, list(tibble(
+        sample = s, stage = "Aligned", stage_order = stage_order, reads = aligned$n_reads[1]
+      )))
+      stage_order <- stage_order + 1
+    }
+
+    # Stage 5: Classified
+    classified <- align_stats_all |> filter(sample == s, info == "classified")
+    if (nrow(classified) > 0) {
+      funnel_rows <- c(funnel_rows, list(tibble(
+        sample = s, stage = "Classified", stage_order = stage_order, reads = classified$n_reads[1]
+      )))
+    }
+  }
+
+  if (length(funnel_rows) > 0) {
+    demux_funnel <- bind_rows(funnel_rows) |>
+      mutate(
+        sample = factor(sample, levels = sample_list),
+        stage = fct_reorder(stage, stage_order)
+      )
+  }
+}
 ```
 
 ```{r}
@@ -740,14 +913,80 @@ cat("*Demultiplexing was not enabled for this run.*\n")
 ```
 
 ```{r}
-#| label: demux-wdx-summary
+#| label: demux-wdx-on-off
 #| eval: !expr has_wdx_summary
 #| results: asis
 
-cat("\n\n### WDX Barcode Distribution\n\n")
-cat("Read counts per predicted WDX barcode from WarpDemuX.\n\n")
+cat("\n\n### WDX On/Off-Target Analysis\n\n")
+cat("Breakdown of WarpDemuX barcode assignments into on-target (expected barcodes), off-target (unexpected barcodes), and unclassified reads per run.\n\n")
 
-# Add sample name mapping
+# WDX on/off-target summary table
+wdx_on_off_wide <- wdx_on_off |>
+  dplyr::select(run_id, category, reads, pct) |>
+  pivot_wider(
+    id_cols = run_id,
+    names_from = category,
+    values_from = c(reads, pct),
+    values_fill = list(reads = 0, pct = 0)
+  )
+
+# Ensure all expected columns exist
+for (col in c("reads_On-target", "reads_Off-target", "reads_Unclassified",
+              "pct_On-target", "pct_Off-target", "pct_Unclassified")) {
+  if (!col %in% colnames(wdx_on_off_wide)) {
+    wdx_on_off_wide[[col]] <- 0
+  }
+}
+
+wdx_on_off_display <- wdx_on_off_wide |>
+  mutate(Total = `reads_On-target` + `reads_Off-target` + `reads_Unclassified`) |>
+  dplyr::select(
+    Run = run_id,
+    Total,
+    `On-target` = `reads_On-target`,
+    `On-target %` = `pct_On-target`,
+    `Off-target` = `reads_Off-target`,
+    `Off-target %` = `pct_Off-target`,
+    Unclassified = `reads_Unclassified`,
+    `Unclassified %` = `pct_Unclassified`
+  )
+
+tbl <- gt(wdx_on_off_display) |>
+  fmt_number(columns = c(Total, `On-target`, `Off-target`, Unclassified), suffixing = TRUE, decimals = 1) |>
+  fmt_number(columns = c(`On-target %`, `Off-target %`, `Unclassified %`), decimals = 1, pattern = "{x}%")
+cat(as_raw_html(tbl))
+```
+
+```{r}
+#| label: fig-wdx-on-off-bar
+#| eval: !expr has_wdx_summary
+#| fig-width: 10
+#| fig-height: 5
+#| fig-cap: "Stacked bar chart of WDX barcode classification per run. Green = on-target, orange = off-target, grey = unclassified."
+
+ggplot(wdx_on_off, aes(x = run_id, y = reads, fill = category)) +
+  geom_col(position = "stack", width = 0.7) +
+  geom_text(
+    aes(label = paste0(round(pct, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3, color = "white", fontface = "bold"
+  ) +
+  scale_fill_manual(values = c("On-target" = "#2d8a4e", "Off-target" = "#E69F00", "Unclassified" = "grey60")) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     expand = expansion(mult = c(0, 0.05))) +
+  labs(x = NULL, y = "Number of Reads", fill = "Category") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#| label: demux-wdx-detail
+#| eval: !expr has_wdx_summary
+#| results: asis
+
+cat("\n\n::: {.callout-note collapse=\"true\"}\n")
+cat("#### Detailed WDX Barcode Table\n\n")
+
 barcode_to_sample <- sample_metadata |>
   filter(!is.na(barcode)) |>
   dplyr::select(sample, barcode) |>
@@ -756,7 +995,7 @@ barcode_to_sample <- sample_metadata |>
 wdx_display <- wdx_summary_all |>
   mutate(
     assigned_sample = barcode_to_sample[predicted_barcode] %||% NA_character_,
-    assigned_sample = if_else(is.na(assigned_sample), "—", assigned_sample)
+    assigned_sample = if_else(is.na(assigned_sample), "\u2014", assigned_sample)
   ) |>
   arrange(run_id, desc(n_reads)) |>
   dplyr::select(
@@ -769,17 +1008,83 @@ wdx_display <- wdx_summary_all |>
 tbl <- gt(wdx_display) |>
   fmt_number(columns = Reads, suffixing = TRUE, decimals = 1)
 cat(as_raw_html(tbl))
+cat("\n\n:::\n")
 ```
 
 ```{r}
-#| label: demux-edx-concordance
+#| label: demux-edx-on-off
 #| eval: !expr has_edx_concordance
 #| results: asis
 
-cat("\n\n### EDX Adapter Concordance\n\n")
-cat("Distribution of detected 3' adapter identity per WDX-assigned sample. Each sample's expected EDX adapter is shown — high concordance indicates clean demultiplexing.\n\n")
+cat("\n\n### EDX Adapter On/Off-Target Analysis\n\n")
+cat("Breakdown of detected 3' adapter identity into on-target (matches expected EDX adapter), cross-talk (wrong adapter), and undetected reads per sample.\n\n")
 
-# Add expected EDX from metadata
+# EDX on/off-target summary table
+edx_on_off_wide <- edx_on_off |>
+  dplyr::select(sample, category, reads, pct) |>
+  pivot_wider(
+    id_cols = sample,
+    names_from = category,
+    values_from = c(reads, pct),
+    values_fill = list(reads = 0, pct = 0)
+  )
+
+for (col in c("reads_On-target", "reads_Cross-talk", "reads_Undetected",
+              "pct_On-target", "pct_Cross-talk", "pct_Undetected")) {
+  if (!col %in% colnames(edx_on_off_wide)) {
+    edx_on_off_wide[[col]] <- 0
+  }
+}
+
+edx_on_off_display <- edx_on_off_wide |>
+  mutate(Total = `reads_On-target` + `reads_Cross-talk` + `reads_Undetected`) |>
+  dplyr::select(
+    Sample = sample,
+    Total,
+    `On-target` = `reads_On-target`,
+    `On-target %` = `pct_On-target`,
+    `Cross-talk` = `reads_Cross-talk`,
+    `Cross-talk %` = `pct_Cross-talk`,
+    Undetected = `reads_Undetected`,
+    `Undetected %` = `pct_Undetected`
+  )
+
+tbl <- gt(edx_on_off_display) |>
+  fmt_number(columns = c(Total, `On-target`, `Cross-talk`, Undetected), suffixing = TRUE, decimals = 1) |>
+  fmt_number(columns = c(`On-target %`, `Cross-talk %`, `Undetected %`), decimals = 1, pattern = "{x}%")
+cat(as_raw_html(tbl))
+```
+
+```{r}
+#| label: fig-edx-on-off-bar
+#| eval: !expr has_edx_concordance
+#| fig-width: 10
+#| fig-height: 5
+#| fig-cap: "Stacked bar chart of EDX adapter classification per sample. Green = on-target, red = cross-talk, grey = undetected."
+
+ggplot(edx_on_off, aes(x = sample, y = reads, fill = category)) +
+  geom_col(position = "stack", width = 0.7) +
+  geom_text(
+    aes(label = paste0(round(pct, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    size = 3, color = "white", fontface = "bold"
+  ) +
+  scale_fill_manual(values = c("On-target" = "#2d8a4e", "Cross-talk" = "#c9372c", "Undetected" = "grey60")) +
+  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
+                     expand = expansion(mult = c(0, 0.05))) +
+  labs(x = NULL, y = "Number of Reads", fill = "Category") +
+  theme_minimal_hgrid() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#| label: demux-edx-detail
+#| eval: !expr has_edx_concordance
+#| results: asis
+
+cat("\n\n::: {.callout-note collapse=\"true\"}\n")
+cat("#### Detailed EDX Concordance Table\n\n")
+
 expected_edx <- sample_metadata |>
   filter(!is.na(edx)) |>
   dplyr::select(sample, edx) |>
@@ -804,37 +1109,131 @@ tbl <- edx_display |>
   fmt_number(columns = `%`, decimals = 1)
 
 cat(as_raw_html(tbl))
+cat("\n\n:::\n")
 ```
 
 ```{r}
-#| label: fig-edx-concordance-bar
-#| eval: !expr has_edx_concordance
-#| fig-width: 10
-#| fig-height: 5
-#| fig-cap: "Stacked bar chart of detected 3' adapter identity per sample. Bars are colored by detected adapter; the expected adapter for each sample is marked."
+#| label: demux-yield-funnel
+#| eval: !expr has_any_demux
+#| results: asis
 
-edx_plot_data <- edx_concordance |>
-  mutate(
-    expected = expected_edx[sample],
-    pct = as.numeric(pct),
-    is_expected = edx_adapter == expected
-  )
+cat("\n\n### Demux Yield Summary\n\n")
+cat("Read attrition through each stage of the demultiplexing and processing pipeline.\n\n")
+cat("\n\n::: {.panel-tabset}\n\n")
 
-ggplot(edx_plot_data, aes(x = sample, y = n_reads, fill = edx_adapter)) +
-  geom_col(position = "stack", width = 0.7) +
-  geom_text(
-    data = edx_plot_data |> filter(is_expected),
-    aes(label = paste0(round(pct, 1), "%")),
-    position = position_stack(vjust = 0.5),
-    size = 3, color = "white", fontface = "bold"
-  ) +
-  scale_fill_brewer(palette = "Set2") +
-  scale_y_continuous(labels = label_number(scale_cut = cut_short_scale()),
-                     expand = expansion(mult = c(0, 0.05))) +
-  labs(x = NULL, y = "Number of Reads", fill = "Detected 3' Adapter",
-       subtitle = "Percentages shown for expected adapter") +
-  theme_minimal_hgrid() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+for (s in sample_list) {
+  cat("\n\n####", s, "\n\n")
+
+  res <- knitr::knit_child(text = c(
+    "```{r}",
+    "#| echo: false",
+    "#| fig-width: 10",
+    "#| fig-height: 6",
+    sprintf("plot_demux_funnel('%s', demux_funnel)", s),
+    "```",
+    ""
+  ), envir = environment(), quiet = TRUE)
+  cat(res, sep = "\n")
+  cat("\n\n")
+}
+
+cat("\n\n:::\n\n")
+```
+
+```{r}
+#| label: demux-efficiency-overview
+#| eval: !expr has_any_demux
+#| results: asis
+
+cat("\n\n### Demux Efficiency Overview\n\n")
+cat("Combined demultiplexing efficiency across all samples.\n\n")
+
+# Build efficiency table from funnel data
+efficiency_tbl <- demux_funnel |>
+  dplyr::select(sample, stage, reads) |>
+  pivot_wider(names_from = stage, values_from = reads)
+
+# Determine which columns exist
+has_run_total <- "Run Total" %in% colnames(efficiency_tbl)
+has_wdx_col <- "WDX On-target" %in% colnames(efficiency_tbl)
+has_edx_col <- "EDX On-target" %in% colnames(efficiency_tbl)
+has_aligned_col <- "Aligned" %in% colnames(efficiency_tbl)
+has_classified_col <- "Classified" %in% colnames(efficiency_tbl)
+
+# Add run info
+if ("barcode" %in% colnames(sample_metadata)) {
+  run_map <- sample_metadata |>
+    filter(!is.na(barcode)) |>
+    mutate(run_id = basename(run_path)) |>
+    dplyr::select(sample, run_id)
+  efficiency_tbl <- efficiency_tbl |>
+    left_join(run_map, by = "sample")
+}
+
+# Compute percentage columns
+if (has_wdx_col && has_run_total) {
+  efficiency_tbl <- efficiency_tbl |> mutate(`WDX %` = `WDX On-target` / `Run Total` * 100)
+}
+if (has_edx_col && has_wdx_col) {
+  efficiency_tbl <- efficiency_tbl |> mutate(`EDX %` = `EDX On-target` / `WDX On-target` * 100)
+}
+if (has_aligned_col) {
+  prev_col <- if (has_edx_col) "EDX On-target" else if (has_wdx_col) "WDX On-target" else "Run Total"
+  if (prev_col %in% colnames(efficiency_tbl)) {
+    efficiency_tbl <- efficiency_tbl |> mutate(`Align %` = Aligned / .data[[prev_col]] * 100)
+  }
+}
+if (has_classified_col && has_aligned_col) {
+  efficiency_tbl <- efficiency_tbl |> mutate(`Classify %` = Classified / Aligned * 100)
+}
+if (has_classified_col && has_run_total) {
+  efficiency_tbl <- efficiency_tbl |> mutate(`Overall Yield %` = Classified / `Run Total` * 100)
+}
+
+# Select display columns in order
+display_cols <- c("sample")
+if ("run_id" %in% colnames(efficiency_tbl)) display_cols <- c(display_cols, "run_id")
+if (has_run_total) display_cols <- c(display_cols, "Run Total")
+if (has_wdx_col) display_cols <- c(display_cols, "WDX On-target", "WDX %")
+if (has_edx_col) display_cols <- c(display_cols, "EDX On-target", "EDX %")
+if (has_aligned_col) display_cols <- c(display_cols, "Aligned", "Align %")
+if (has_classified_col) display_cols <- c(display_cols, "Classified", "Classify %")
+if ("Overall Yield %" %in% colnames(efficiency_tbl)) display_cols <- c(display_cols, "Overall Yield %")
+
+efficiency_display <- efficiency_tbl |>
+  dplyr::select(any_of(display_cols))
+
+# Rename for display
+col_renames <- c(sample = "Sample")
+if ("run_id" %in% colnames(efficiency_display)) col_renames <- c(col_renames, run_id = "Run")
+
+# Build gt table
+tbl <- gt(efficiency_display) |>
+  cols_label(!!!col_renames)
+
+# Format count columns
+count_cols <- intersect(c("Run Total", "WDX On-target", "EDX On-target", "Aligned", "Classified"),
+                        colnames(efficiency_display))
+if (length(count_cols) > 0) {
+  tbl <- tbl |> fmt_number(columns = all_of(count_cols), suffixing = TRUE, decimals = 1)
+}
+
+# Format percentage columns
+pct_cols <- intersect(c("WDX %", "EDX %", "Align %", "Classify %", "Overall Yield %"),
+                      colnames(efficiency_display))
+if (length(pct_cols) > 0) {
+  tbl <- tbl |> fmt_number(columns = all_of(pct_cols), decimals = 1, pattern = "{x}%")
+}
+
+# Hide EDX columns if no EDX
+if (!has_edx_concordance) {
+  edx_hide <- intersect(c("EDX On-target", "EDX %"), colnames(efficiency_display))
+  if (length(edx_hide) > 0) {
+    tbl <- tbl |> cols_hide(columns = all_of(edx_hide))
+  }
+}
+
+cat(as_raw_html(tbl))
 ```
 
 ## Summary
