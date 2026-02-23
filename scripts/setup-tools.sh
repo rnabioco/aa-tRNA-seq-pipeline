@@ -136,8 +136,11 @@ else
     echo "Installing PyTorch with CUDA support (${CUDA_VERSION})..."
     uv pip install torch --index-url "https://download.pytorch.org/whl/${CUDA_VERSION}"
 
+    echo "Installing remora dependencies (excluding pyarrow/numpy to preserve conda versions)..."
+    uv pip install plotnine statsmodels thop
+
     echo "Installing ont-remora from GitHub..."
-    uv pip install "git+https://github.com/nanoporetech/remora.git"
+    uv pip install --no-deps "git+https://github.com/nanoporetech/remora.git"
 
     echo "Remora installed successfully"
 fi
@@ -152,7 +155,7 @@ if python -c "from packaging.version import Version; exit(0 if Version('${curren
     echo "Pod5 ${current_pod5} already installed (>= ${POD5_MIN_VERSION})"
 else
     echo "Installing pod5 >= ${POD5_MIN_VERSION}..."
-    uv pip install "pod5>=${POD5_MIN_VERSION}"
+    uv pip install --no-deps "pod5>=${POD5_MIN_VERSION}"
     echo "Pod5 installed successfully"
 fi
 
@@ -168,6 +171,23 @@ else
     echo "Installing WarpDemuX..."
     uv pip install -e resources/tools/WarpDemuX
     echo "WarpDemuX installed successfully"
+fi
+
+# ============================================================================
+# Reconcile pyarrow: ensure pip hasn't overridden conda's version
+# ============================================================================
+echo "=== Reconciling pyarrow with conda ==="
+CONDA_PYARROW_VERSION=$(pixi list pyarrow 2>/dev/null \
+    | awk '/^pyarrow[[:space:]]/ {print $2}')
+if [ -n "${CONDA_PYARROW_VERSION}" ]; then
+    PIP_PYARROW_VERSION=$(python -c "import pyarrow; print(pyarrow.__version__)" 2>/dev/null || echo "")
+    if [ "${PIP_PYARROW_VERSION}" != "${CONDA_PYARROW_VERSION}" ]; then
+        echo "pyarrow mismatch: pip has ${PIP_PYARROW_VERSION}, conda expects ${CONDA_PYARROW_VERSION}"
+        echo "Force-reinstalling pyarrow==${CONDA_PYARROW_VERSION}..."
+        uv pip install --force-reinstall "pyarrow==${CONDA_PYARROW_VERSION}"
+    else
+        echo "pyarrow ${PIP_PYARROW_VERSION} matches conda — OK"
+    fi
 fi
 
 echo "=== Setup complete ==="
