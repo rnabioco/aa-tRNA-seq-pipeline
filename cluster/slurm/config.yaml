@@ -82,6 +82,11 @@ set-resources:
     mem_mb: 8000               # 8GB
     cpus_per_task: 1
 
+  # Odds ratio computation - chunked reading keeps peak memory low,
+  # but 16GB provides headroom for large samples
+  compute_odds_ratios:
+    mem_mb: 16000              # 16GB
+
 # Rerun incomplete jobs
 rerun-incomplete: true
 keep-going: true
