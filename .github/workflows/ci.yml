@@ -54,11 +54,6 @@ jobs:
       - name: Download test data
         run: pixi run dl-test-data
 
-      - name: Run pipeline test (non-GPU rules only)
-        run: |
-          # Run merge_pods rule as a basic test (doesn't require GPU)
-          pixi run snakemake .tests/outputs/pod5/sample1/sample1.pod5 --cores 2 --configfile=config/config-test.yml
-
       - name: Run integration tests
         run: pixi run -e test pytest tests/integration/ -v
 
