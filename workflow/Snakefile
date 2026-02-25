@@ -15,6 +15,7 @@ DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
 
 onstart:
     import os
+    import shutil
     import subprocess
 
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
@@ -40,6 +41,45 @@ onstart:
                 )
         except Exception:
             pass
+
+    # Validate that key tools resolve to the pixi/conda environment
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    repo_root = os.path.dirname(os.path.dirname(workflow.snakefile))
+
+    tools_to_check = [
+        ("dorado", [os.path.join(repo_root, "resources")]),
+        ("samtools", [conda_prefix]),
+        ("bwa", [conda_prefix]),
+        ("modkit", [conda_prefix]),
+        ("remora", [conda_prefix]),
+        ("pod5", [conda_prefix]),
+    ]
+
+    if config.get("warpdemux", {}).get("enabled", False):
+        tools_to_check.append(("warpdemux", [conda_prefix]))
+
+    for tool_name, allowed_prefixes in tools_to_check:
+        tool_path = shutil.which(tool_name)
+        if tool_path is None:
+            logger.warning(
+                f"Tool '{tool_name}' not found in PATH. "
+                f"Run 'pixi run setup' to install."
+            )
+            continue
+        tool_path = os.path.realpath(tool_path)
+        if not any(
+            tool_path.startswith(os.path.realpath(p))
+            for p in allowed_prefixes
+            if p
+        ):
+            logger.warning(
+                f"Tool '{tool_name}' resolves to {tool_path}, which is outside "
+                f"the expected environment ({', '.join(allowed_prefixes)}). "
+                f"This may cause version mismatches. "
+                f"Ensure you are running within 'pixi shell'."
+            )
+        else:
+            logger.info(f"Tool '{tool_name}' OK: {tool_path}")
 
 
 import datetime
