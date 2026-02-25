@@ -11,9 +11,10 @@ from pathlib import Path
 import pysam
 import pytest
 
-# Add workflow/scripts to path for imports
+# Add workflow/scripts and tests/ to path for imports
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "workflow" / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 # Test data paths
 TEST_DATA_DIR = REPO_ROOT / ".tests"
@@ -194,7 +195,7 @@ def test_outputs_available():
 @pytest.fixture
 def test_final_bam():
     """Path to pre-computed final BAM with all tags."""
-    bam_path = TEST_OUTPUTS_DIR / "bam" / "final" / "sample1.bam"
+    bam_path = TEST_OUTPUTS_DIR / "bam" / "final" / "sample1" / "sample1.bam"
     if bam_path.exists():
         return bam_path
     pytest.skip("Pre-computed test outputs not available. Run 'pixi run dl-test-data'")
