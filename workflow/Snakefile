@@ -42,8 +42,7 @@ onstart:
         except Exception:
             pass
 
-    # Validate that key tools resolve to the pixi/conda environment
-    conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    conda_prefix = os.environ.get("CONDA_PREFIX", "")  # tool path validation
     repo_root = os.path.dirname(os.path.dirname(workflow.snakefile))
 
     tools_to_check = [
@@ -68,9 +67,7 @@ onstart:
             continue
         tool_path = os.path.realpath(tool_path)
         if not any(
-            tool_path.startswith(os.path.realpath(p))
-            for p in allowed_prefixes
-            if p
+            tool_path.startswith(os.path.realpath(p)) for p in allowed_prefixes if p
         ):
             logger.warning(
                 f"Tool '{tool_name}' resolves to {tool_path}, which is outside "
