@@ -59,14 +59,8 @@ jobs:
           # Run merge_pods rule as a basic test (doesn't require GPU)
           pixi run snakemake .tests/outputs/pod5/sample1/sample1.pod5 --cores 2 --configfile=config/config-test.yml
 
-      - name: Validate outputs
-        run: |
-          # Check that expected output files were created
-          if [ ! -d ".tests/outputs" ]; then
-            echo "Error: Output directory not created"
-            exit 1
-          fi
-          echo "Pipeline test completed successfully"
+      - name: Run integration tests
+        run: pixi run -e test pytest tests/integration/ -v
 
   config-validation:
     name: Configuration Validation
