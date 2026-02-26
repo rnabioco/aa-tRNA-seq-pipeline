@@ -34,3 +34,38 @@ rule compute_odds_ratios:
             --min-coverage {params.min_cov} \
             2>&1 | tee {log}
         """
+
+
+rule filter_odds_ratios:
+    """
+    Pre-filter odds ratios to keep only well-observed position pairs.
+
+    Keeps rows where total_obs >= min_obs (default 100), matching the
+    downstream clover::filter_linkages() threshold. This reduces file
+    sizes ~10x and speeds up R data loading.
+    """
+    input:
+        tsv=rules.compute_odds_ratios.output.tsv,
+    output:
+        tsv=os.path.join(
+            outdir,
+            "summary",
+            "tables",
+            "{sample}",
+            "{sample}.odds_ratios_filtered.tsv.gz",
+        ),
+    log:
+        os.path.join(outdir, "logs", "odds_ratios", "{sample}.filter"),
+    params:
+        src=SCRIPT_DIR,
+        min_obs=config.get("odds_ratios", {}).get("min_obs_filter", 100),
+        max_p=config.get("odds_ratios", {}).get("max_p_filter", 0.01),
+    shell:
+        """
+        python {params.src}/filter_odds_ratios.py \
+            --input {input.tsv} \
+            --output {output.tsv} \
+            --min-obs {params.min_obs} \
+            --max-p {params.max_p} \
+            2>&1 | tee {log}
+        """

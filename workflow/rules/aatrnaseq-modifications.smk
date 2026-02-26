@@ -150,7 +150,7 @@ rule modkit_extract_full:
         tsv=os.path.join(
             outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
         ),
-    threads: 12
+    threads: 4
     log:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     params:
