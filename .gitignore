@@ -9,6 +9,7 @@ results/
 resources/tools/*
 *.bam
 *.pod5
+.tmp_pod5_v3_v4_migration_*/
 
 # python testing
 __pycache__/
