@@ -9,45 +9,50 @@ Use `--rename` to rename tags during transfer.
 Use `--all-tags` to transfer every tag from source reads.
 """
 
-from pysam import AlignmentFile, IndexedReads
+from pysam import AlignmentFile
 
 
-def transfer_tags(tags, rename, source_bam, target_bam, output_bam, all_tags=False):
+def transfer_tags(
+    tags, rename, source_bam, target_bam, output_bam, all_tags=False, threads=1
+):
     renamed_tags = parse_tag_items(rename)
 
-    with (
-        AlignmentFile(source_bam, "rb", check_sq=False) as source,
-        AlignmentFile(target_bam, "rb") as target,
-        AlignmentFile(output_bam, "wb", template=target) as output,
-    ):
-        # Build read-name index for random access into source BAM
-        source_idx = IndexedReads(source)
-        source_idx.build()
+    # Single sequential pass through source BAM to cache tags in memory
+    source_tags = {}
+    source_unmapped = set()
+    with AlignmentFile(source_bam, "rb", check_sq=False, threads=threads) as source:
+        for source_read in source:
+            name = source_read.query_name
+            if name in source_tags:
+                continue  # first match wins, matching original next() behavior
+            if all_tags:
+                source_tags[name] = dict(source_read.get_tags())
+            else:
+                if source_read.is_unmapped:
+                    source_unmapped.add(name)
+                tag_dict = {}
+                for tag in tags:
+                    if source_read.has_tag(tag):
+                        tag_dict[tag] = source_read.get_tag(tag)
+                source_tags[name] = tag_dict
 
+    with (
+        AlignmentFile(target_bam, "rb", threads=threads) as target,
+        AlignmentFile(output_bam, "wb", template=target, threads=threads) as output,
+    ):
         for read in target:
             if read.is_secondary or read.is_supplementary:
                 continue
 
-            # Look up source read by name
-            try:
-                source_reads = source_idx.find(read.query_name)
-            except KeyError:
+            read_tags = source_tags.get(read.query_name)
+
+            if read_tags is None:
                 if all_tags:
                     output.write(read)
                 continue
 
-            # Get tags from the first matching source read
-            source_read = next(source_reads)
-            if not all_tags and source_read.is_unmapped:
+            if not all_tags and read.query_name in source_unmapped:
                 continue
-
-            if all_tags:
-                read_tags = dict(source_read.get_tags())
-            else:
-                read_tags = {}
-                for tag in tags:
-                    if source_read.has_tag(tag):
-                        read_tags[tag] = source_read.get_tag(tag)
 
             if read_tags:
                 for tag, tag_val in read_tags.items():
@@ -99,6 +104,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", required=True, help="Output BAM file with transferred tags"
     )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="Number of threads for BAM compression/decompression (default: 1)",
+    )
 
     args = parser.parse_args()
 
@@ -112,4 +123,5 @@ if __name__ == "__main__":
         args.target,
         args.output,
         all_tags=args.all_tags,
+        threads=args.threads,
     )
