@@ -42,9 +42,13 @@ set-resources:
 
   # Tag injection from unaligned BAM
   inject_ubam_tags:
-    runtime: 120               # 2 hours
-    mem_mb: 16000              # 16GB
-    cpus_per_task: 1
+    runtime: 360               # 6 hours
+    mem_mb: 48000              # 48GB (dict cache of dorado tags needs ~3-5KB/read)
+    cpus_per_task: 4
+
+  # Tag transfer from charging BAM
+  transfer_bam_tags:
+    cpus_per_task: 4
 
   # CPU-intensive rules
   # BWA alignment (OOM at 64GB for larger samples)
