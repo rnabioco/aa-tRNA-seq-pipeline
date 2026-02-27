@@ -17,14 +17,21 @@ def transfer_tags(
 ):
     renamed_tags = parse_tag_items(rename)
 
-    # Single sequential pass through source BAM to cache tags in memory
+    # Collect target read names (primary only) so we only cache matching source reads
+    target_names = set()
+    with AlignmentFile(target_bam, "rb", threads=threads) as target:
+        for read in target:
+            if not read.is_secondary and not read.is_supplementary:
+                target_names.add(read.query_name)
+
+    # Single sequential pass through source BAM to cache tags for target reads only
     source_tags = {}
     source_unmapped = set()
     with AlignmentFile(source_bam, "rb", check_sq=False, threads=threads) as source:
         for source_read in source:
             name = source_read.query_name
-            if name in source_tags:
-                continue  # first match wins, matching original next() behavior
+            if name not in target_names or name in source_tags:
+                continue  # skip non-target reads; first match wins
             if all_tags:
                 source_tags[name] = dict(source_read.get_tags())
             else:
