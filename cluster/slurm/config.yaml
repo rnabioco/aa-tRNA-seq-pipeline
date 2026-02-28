@@ -79,7 +79,7 @@ set-resources:
   warpdemux:
     runtime: 360               # 6 hours
     mem_mb: 32000              # 32GB
-    cpus_per_task: 4
+    cpus_per_task: 16
 
   parse_warpdemux:
     runtime: 60                # 1 hour
