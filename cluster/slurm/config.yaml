@@ -42,9 +42,13 @@ set-resources:
 
   # Tag injection from unaligned BAM
   inject_ubam_tags:
-    runtime: 120               # 2 hours
-    mem_mb: 16000              # 16GB
-    cpus_per_task: 1
+    runtime: 360               # 6 hours
+    mem_mb: 48000              # 48GB (dict cache of dorado tags needs ~3-5KB/read)
+    cpus_per_task: 4
+
+  # Tag transfer from charging BAM
+  transfer_bam_tags:
+    cpus_per_task: 4
 
   # CPU-intensive rules
   # BWA alignment (OOM at 64GB for larger samples)
@@ -62,20 +66,20 @@ set-resources:
   # Modkit modification extraction - high memory
   modkit_extract_calls:
     runtime: 360               # 6 hours
-    mem_mb: 96000              # 96GB
+    mem_mb: 192000             # 192GB
     cpus_per_task: 4
 
   # Modkit full modification extraction
   modkit_extract_full:
     runtime: 360               # 6 hours
-    mem_mb: 96000              # 96GB
-    cpus_per_task: 12
+    mem_mb: 192000             # 192GB
+    cpus_per_task: 4
 
   # WarpDemuX demultiplexing rules
   warpdemux:
     runtime: 360               # 6 hours
     mem_mb: 32000              # 32GB
-    cpus_per_task: 4
+    cpus_per_task: 16
 
   parse_warpdemux:
     runtime: 60                # 1 hour

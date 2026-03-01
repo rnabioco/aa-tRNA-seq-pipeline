@@ -126,7 +126,7 @@ rule warpdemux:
             else "false"
         ),
         pod5_dirs=lambda wildcards: " ".join(get_run_pod5_dirs(wildcards.run_id)),
-    threads: config.get("warpdemux", {}).get("threads", 8)
+    threads: config.get("warpdemux", {}).get("threads", 16)
     shell:
         """
         warpdemux demux \

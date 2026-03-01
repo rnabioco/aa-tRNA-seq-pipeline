@@ -268,12 +268,12 @@ def pipeline_outputs():
         sample=samples.keys(),
     )
 
-    outs += expand(
-        os.path.join(
-            outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
-        ),
-        sample=samples.keys(),
-    )
+    # outs += expand(
+    #     os.path.join(
+    #         outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
+    #     ),
+    #     sample=samples.keys(),
+    # )
 
     if (
         "remora_kmer_table" in config
@@ -290,6 +290,17 @@ def pipeline_outputs():
     outs += expand(
         os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
+        ),
+        sample=samples.keys(),
+    )
+
+    outs += expand(
+        os.path.join(
+            outdir,
+            "summary",
+            "tables",
+            "{sample}",
+            "{sample}.odds_ratios_filtered.tsv.gz",
         ),
         sample=samples.keys(),
     )
