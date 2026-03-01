@@ -50,6 +50,38 @@ class TestExtractTag:
         assert "read_id\ttRNA\tcharging_likelihood\n" == lines[0]
         assert "read1\ttRNA-Ala-AGC-1-1\t220\n" == lines[1]
 
+    def test_extracts_scalar_int_tag(self, temp_dir):
+        """Should handle CL tag stored as a scalar integer (not array)."""
+        input_bam = temp_dir / "input.bam"
+        output_tsv = temp_dir / "output.tsv"
+
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "tRNA-Ala-AGC-1-1", "LN": 100}],
+        }
+
+        with pysam.AlignmentFile(str(input_bam), "wb", header=header) as outf:
+            read = pysam.AlignedSegment()
+            read.query_name = "read1"
+            read.query_sequence = "A" * 100
+            read.flag = 0
+            read.reference_id = 0
+            read.reference_start = 0
+            read.cigartuples = [(0, 100)]
+            read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            read.set_tag("CL", 220)  # Scalar int, not array
+            outf.write(read)
+
+        pysam.index(str(input_bam))
+
+        extract_tag(str(input_bam), str(output_tsv), "CL")
+
+        with open(output_tsv) as f:
+            lines = f.readlines()
+
+        assert len(lines) == 2
+        assert "read1\ttRNA-Ala-AGC-1-1\t220\n" == lines[1]
+
     def test_handles_gzip_output(self, temp_dir):
         """Should write gzipped output when filename ends in .gz."""
         input_bam = temp_dir / "input.bam"

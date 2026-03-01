@@ -12,8 +12,11 @@ Use `--all-tags` to transfer every tag from source reads.
 from pysam import AlignmentFile, IndexedReads
 
 
-def transfer_tags(tags, rename, source_bam, target_bam, output_bam, all_tags=False):
+def transfer_tags(
+    tags, rename, source_bam, target_bam, output_bam, all_tags=False, to_scalar=None
+):
     renamed_tags = parse_tag_items(rename)
+    scalar_tags = set(to_scalar) if to_scalar else set()
 
     with (
         AlignmentFile(source_bam, "rb", check_sq=False) as source,
@@ -51,10 +54,10 @@ def transfer_tags(tags, rename, source_bam, target_bam, output_bam, all_tags=Fal
 
             if read_tags:
                 for tag, tag_val in read_tags.items():
-                    if tag in renamed_tags:
-                        read.set_tag(renamed_tags[tag], tag_val)
-                    else:
-                        read.set_tag(tag, tag_val)
+                    out_tag = renamed_tags.get(tag, tag)
+                    if out_tag in scalar_tags and hasattr(tag_val, "__len__") and len(tag_val) == 1:
+                        tag_val = int(tag_val[0])
+                    read.set_tag(out_tag, tag_val)
 
             if all_tags or read_tags:
                 output.write(read)
@@ -91,6 +94,13 @@ if __name__ == "__main__":
         help="tags to rename during transfer",
     )
 
+    parser.add_argument(
+        "--to-scalar",
+        nargs="+",
+        metavar="TAG",
+        help="convert single-element array tags to scalar integers",
+    )
+
     parser.add_argument("--source", required=True, help="Source BAM file (with tags)")
 
     parser.add_argument(
@@ -112,4 +122,5 @@ if __name__ == "__main__":
         args.target,
         args.output,
         all_tags=args.all_tags,
+        to_scalar=args.to_scalar,
     )

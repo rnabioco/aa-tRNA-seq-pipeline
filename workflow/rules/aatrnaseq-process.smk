@@ -240,6 +240,7 @@ rule transfer_bam_tags:
     python {params.src}/transfer_tags.py \
       --tags ML MM \
       --rename ML=CL MM=CM \
+      --to-scalar CL \
       --source {input.source_bam} \
       --target {input.target_bam} \
       --output {output.classified_bam}

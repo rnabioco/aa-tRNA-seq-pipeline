@@ -260,6 +260,60 @@ class TestTransferTags:
         assert len(reads) == 1
         assert reads[0].query_name == "read1"
 
+    def test_to_scalar_converts_single_element_array(self, temp_dir):
+        """Single-element array tags listed in to_scalar should become scalar ints."""
+        source_bam = temp_dir / "source.bam"
+        target_bam = temp_dir / "target.bam"
+        output_bam = temp_dir / "output.bam"
+
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "ref", "LN": 100}],
+        }
+
+        # Create source with ML as byte array
+        with pysam.AlignmentFile(str(source_bam), "wb", header=header) as outf:
+            read = pysam.AlignedSegment()
+            read.query_name = "read1"
+            read.query_sequence = "A" * 100
+            read.flag = 0
+            read.reference_id = 0
+            read.reference_start = 0
+            read.cigartuples = [(0, 100)]
+            read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            read.set_tag("ML", array("B", [220]))
+            outf.write(read)
+
+        # Create target
+        with pysam.AlignmentFile(str(target_bam), "wb", header=header) as outf:
+            read = pysam.AlignedSegment()
+            read.query_name = "read1"
+            read.query_sequence = "A" * 100
+            read.flag = 0
+            read.reference_id = 0
+            read.reference_start = 0
+            read.cigartuples = [(0, 100)]
+            read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            outf.write(read)
+
+        # Transfer ML -> CL with to_scalar=["CL"]
+        transfer_tags(
+            tags=["ML"],
+            rename=["ML=CL"],
+            source_bam=str(source_bam),
+            target_bam=str(target_bam),
+            output_bam=str(output_bam),
+            to_scalar=["CL"],
+        )
+
+        with pysam.AlignmentFile(str(output_bam), "rb") as bam:
+            read = next(bam)
+            assert read.has_tag("CL")
+            cl_val = read.get_tag("CL")
+            # Should be a scalar int, not an array
+            assert isinstance(cl_val, int)
+            assert cl_val == 220
+
     def test_multiple_tags(self, temp_dir):
         """Multiple tags should all be transferred."""
         source_bam = temp_dir / "source.bam"

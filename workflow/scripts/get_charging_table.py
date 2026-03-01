@@ -24,15 +24,17 @@ def extract_tag(bam_file, output_tsv, tag):
         for read in bam.fetch():
             read_id = read.query_name
             reference = read.reference_name if read.reference_name else "*"
-            tag_array = dict(read.tags).get(tag, None)
-
-            # XXX: handle case where there are more than 1 tag value
-            # not clear why this is, but we skip for now as it's a small
-            # number of reads affected
-            if len(tag_array) > 1:
+            tag_raw = dict(read.tags).get(tag, None)
+            if tag_raw is None:
                 continue
 
-            tag_value = tag_array[0]
+            # Handle both scalar int (new CL) and array (legacy ML/CL)
+            if isinstance(tag_raw, int):
+                tag_value = tag_raw
+            elif hasattr(tag_raw, "__len__") and len(tag_raw) == 1:
+                tag_value = tag_raw[0]
+            else:
+                continue
 
             if tag_value and reference != "*":
                 writer.writerow([read_id, reference, tag_value])
