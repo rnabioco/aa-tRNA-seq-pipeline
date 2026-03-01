@@ -10,6 +10,7 @@ import pytest
 from collapse_gtrndb_fasta import (
     parse_trna_name,
     strip_trailing_cca,
+    hamming_distance,
     collapse_sequences,
     read_fasta,
     write_fasta,
@@ -290,6 +291,108 @@ class TestCollapseSequences:
         assert row["copy_num"] == "1"
         assert row["is_representative"] is True
         assert row["sequence_length"] == 24
+
+
+class TestHammingDistance:
+    """Tests for hamming_distance function."""
+
+    def test_identical(self):
+        assert hamming_distance("ACGT", "ACGT") == 0
+
+    def test_one_mismatch(self):
+        assert hamming_distance("ACGT", "ACGA") == 1
+
+    def test_all_different(self):
+        assert hamming_distance("AAAA", "TTTT") == 4
+
+    def test_different_lengths(self):
+        assert hamming_distance("ACGT", "ACG") is None
+
+    def test_empty(self):
+        assert hamming_distance("", "") == 0
+
+
+class TestHammingCollapse:
+    """Tests for Hamming-based collapsing of same-anticodon families."""
+
+    def test_hamming_1_collapses_at_threshold_1(self):
+        """Two families with Hamming 1 collapse when max_hamming=1."""
+        records = [
+            ("Ecoli_tRNA-Leu-CAG-1-1", "AAAAACCA"),
+            ("Ecoli_tRNA-Leu-CAG-2-1", "AAAAICCA"),  # 1 diff in CCA-stripped
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=1)
+
+        assert len(output_seqs) == 1
+        assert output_seqs[0][0] == "tRNA-Leu-CAG-1-1"
+        for row in mapping:
+            assert row["collapsed_name"] == "tRNA-Leu-CAG-1-1"
+
+    def test_hamming_2_not_collapsed_at_threshold_1(self):
+        """Two families with Hamming 2 do NOT collapse when max_hamming=1."""
+        records = [
+            ("Ecoli_tRNA-Tyr-GTA-1-1", "AAAAACCA"),
+            ("Ecoli_tRNA-Tyr-GTA-2-1", "AAIIACCA"),  # 2 diffs
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=1)
+
+        assert len(output_seqs) == 2
+
+    def test_hamming_2_collapses_at_threshold_2(self):
+        """Two families with Hamming 2 collapse when max_hamming=2."""
+        records = [
+            ("Ecoli_tRNA-Tyr-GTA-1-1", "AAAAACCA"),
+            ("Ecoli_tRNA-Tyr-GTA-2-1", "AAIIACCA"),  # 2 diffs
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=2)
+
+        assert len(output_seqs) == 1
+        assert output_seqs[0][0] == "tRNA-Tyr-GTA-1-1"
+
+    def test_different_lengths_never_collapsed(self):
+        """Different-length sequences are never collapsed by Hamming."""
+        records = [
+            ("Ecoli_tRNA-Thr-CGT-1-1", "AAAAAAAACCA"),  # 8 body bases
+            ("Ecoli_tRNA-Thr-CGT-2-1", "AAAAACCA"),  # 5 body bases
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=10)
+
+        assert len(output_seqs) == 2
+
+    def test_transitive_merge(self):
+        """Three families: A-B within threshold, B-C within threshold => all merge."""
+        records = [
+            ("Ecoli_tRNA-Xxx-GTA-1-1", "AAAAACCA"),  # A
+            ("Ecoli_tRNA-Xxx-GTA-2-1", "AAGAACCA"),  # B: 1 diff from A
+            ("Ecoli_tRNA-Xxx-GTA-3-1", "AAGIACCA"),  # C: 1 diff from B, 2 from A
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=1)
+
+        assert len(output_seqs) == 1
+        assert output_seqs[0][0] == "tRNA-Xxx-GTA-1-1"
+        for row in mapping:
+            assert row["collapsed_name"] == "tRNA-Xxx-GTA-1-1"
+
+    def test_max_hamming_0_preserves_current_behavior(self):
+        """max_hamming=0 should keep different families separate (like default)."""
+        records = [
+            ("Ecoli_tRNA-Ala-GGC-1-1", "AAAAACCA"),
+            ("Ecoli_tRNA-Ala-GGC-2-1", "AAGAACCA"),
+        ]
+        output_seqs_default, _ = collapse_sequences(records)
+        output_seqs_zero, _ = collapse_sequences(records, max_hamming=0)
+
+        assert len(output_seqs_default) == len(output_seqs_zero) == 2
+
+    def test_different_anticodons_not_collapsed(self):
+        """Different anticodons for same amino acid are never collapsed."""
+        records = [
+            ("Ecoli_tRNA-Ala-GGC-1-1", "AAAAACCA"),
+            ("Ecoli_tRNA-Ala-TGC-1-1", "AAAAACCA"),  # Same seq, different anticodon
+        ]
+        output_seqs, mapping = collapse_sequences(records, max_hamming=5)
+
+        assert len(output_seqs) == 2
 
 
 class TestEndToEnd:

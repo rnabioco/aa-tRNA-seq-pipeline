@@ -101,7 +101,17 @@ def strip_trailing_cca(seq):
     return seq
 
 
-def collapse_sequences(records, keep_unparsed=False):
+def hamming_distance(s1, s2):
+    """Hamming distance between two equal-length strings.
+
+    Returns None if strings have different lengths.
+    """
+    if len(s1) != len(s2):
+        return None
+    return sum(a != b for a, b in zip(s1, s2))
+
+
+def collapse_sequences(records, keep_unparsed=False, max_hamming=0):
     """
     Collapse redundant tRNA sequences.
 
@@ -109,6 +119,8 @@ def collapse_sequences(records, keep_unparsed=False):
         records: list of (header, sequence) tuples from FASTA
         keep_unparsed: if True, pass through sequences with non-GtRNAdb headers;
                        if False, raise ValueError on unparseable headers
+        max_hamming: maximum Hamming distance for merging different families
+                     within the same isodecoder. 0 means exact match only.
 
     Returns:
         (output_sequences, mapping_rows) where:
@@ -158,6 +170,36 @@ def collapse_sequences(records, keep_unparsed=False):
             if norm_seq not in seq_groups:
                 seq_groups[norm_seq] = []
             seq_groups[norm_seq].append((header, seq, parsed))
+
+        # Hamming-based merging of different sequence groups
+        if max_hamming > 0 and len(seq_groups) > 1:
+            seqs = list(seq_groups.keys())
+            # Union-find for transitive merges
+            parent = {s: s for s in seqs}
+
+            def find(x):
+                while parent[x] != x:
+                    parent[x] = parent[parent[x]]
+                    x = parent[x]
+                return x
+
+            for i in range(len(seqs)):
+                for j in range(i + 1, len(seqs)):
+                    dist = hamming_distance(seqs[i], seqs[j])
+                    if dist is not None and dist <= max_hamming:
+                        ri, rj = find(seqs[i]), find(seqs[j])
+                        if ri != rj:
+                            # Merge later into earlier (by first appearance)
+                            parent[rj] = ri
+
+            # Rebuild seq_groups by merging
+            merged = {}
+            for s in seqs:
+                root = find(s)
+                if root not in merged:
+                    merged[root] = []
+                merged[root].extend(seq_groups[s])
+            seq_groups = merged
 
         for norm_seq, group in seq_groups.items():
             # First encountered is the representative
@@ -250,6 +292,13 @@ Examples:
         default=False,
         help="Pass through sequences with non-GtRNAdb headers (default: error)",
     )
+    parser.add_argument(
+        "--max-hamming",
+        type=int,
+        default=0,
+        help="Max Hamming distance for merging same-anticodon families "
+        "(0 = exact match only, default: 0)",
+    )
 
     args = parser.parse_args()
 
@@ -262,7 +311,9 @@ Examples:
     # Collapse
     try:
         output_sequences, mapping_rows = collapse_sequences(
-            records, keep_unparsed=args.keep_unparsed
+            records,
+            keep_unparsed=args.keep_unparsed,
+            max_hamming=args.max_hamming,
         )
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
