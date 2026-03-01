@@ -15,6 +15,10 @@ flowchart TD
         POD5[POD5 files]
     end
 
+    subgraph Demux [Optional Demultiplexing]
+        W[warpdemux<br/>barcode classification]
+    end
+
     subgraph Processing
         A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
         B --> C[ubam_to_fastq]
@@ -34,8 +38,14 @@ flowchart TD
         G --> J[bcerror<br/>basecalling errors]
         G --> K[align_stats]
         G --> L[modkit pileups]
+        L -.-> M[odds_ratios<br/>pairwise mod ORs]
+        H -.-> M
+        K -.-> N[qc_report<br/>Quarto HTML]
+        H -.-> N
     end
 
+    POD5 -.-> W
+    W -.-> A
     POD5 --> A
 ```
 

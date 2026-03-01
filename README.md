@@ -107,11 +107,10 @@ flowchart TD
         A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
         B --> C[ubam_to_fastq]
         C --> D[bwa_align<br/>tRNA + adapter reference]
-        D --> E[filter_reads<br/>full-length tRNAs only]
     end
 
     subgraph Classification
-        E --> F[classify_charging<br/>Remora ML model]
+        D --> F[classify_charging<br/>Remora ML model]
         B -.-> F
         A -.-> F
         F --> G[transfer_bam_tags]
