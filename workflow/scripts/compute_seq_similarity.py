@@ -32,6 +32,9 @@ def compute_similarity_matrix(fasta_path):
         - similarity_matrix: numpy array of percent identity values
         - sequence_names: list of sequence IDs
     """
+    # Regenerate .fai index to ensure it matches the current FASTA content
+    pysam.faidx(fasta_path)
+
     # Read all sequences from FASTA using pysam
     faidx = pysam.FastaFile(fasta_path)
     names = list(faidx.references)

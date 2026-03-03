@@ -315,7 +315,7 @@ def pipeline_outputs():
     outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
 
     # EDX (3' adapter barcode) concordance table
-    if config.get("edx", {}).get("enabled", False):
+    if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
 
     return outs
