@@ -46,6 +46,11 @@ reference:
   mode: "validate"
   # For build mode only: path to raw tRNA FASTA (without adapters, must end in CCA)
   raw_fasta: null
+  # Optional spacer inserted between CCA and 3' adapter in the reference.
+  # Reads will align with a deletion at this position, absorbing signal
+  # perturbation from the aminoacyl group on charged tRNAs.
+  # Default "" = no spacer (backward compatible). Set to e.g. "T" to enable.
+  cca_spacer: ""
 
 # Optional: provide a kmer table to extract signal metrics using remora
 # Set to a path (e.g. "resources/kmers/9mer_levels_v1.txt") to enable
@@ -122,6 +127,12 @@ opts:
 report:
   # path to a .qmd file to include at the end of the QC report (optional)
   custom_include: ""
+
+# Reuse reference-independent outputs from a previous pipeline run.
+# Set to the output_directory of a completed run to skip POD5 merging,
+# basecalling, FASTQ extraction, and demultiplexing.
+# Both runs must use the same samples/raw data — only reference can differ.
+reuse_outputs_from: null
 
 warpdemux:
   enabled: false

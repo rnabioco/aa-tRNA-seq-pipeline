@@ -207,6 +207,32 @@ def find_raw_inputs(sample_dict):
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
 
+_reuse_from = config.get("reuse_outputs_from")
+if _reuse_from:
+    _reuse_from = os.path.realpath(_reuse_from)
+    # Guard: source must exist
+    if not os.path.isdir(_reuse_from):
+        sys.exit(f"reuse_outputs_from: directory not found: {_reuse_from}")
+    # Guard: must not be same as outdir
+    os.makedirs(outdir, exist_ok=True)
+    if os.path.realpath(_reuse_from) == os.path.realpath(outdir):
+        sys.exit("reuse_outputs_from cannot be the same as output_directory")
+
+    _REUSE_DIRS = ["pod5", "demux", "bam/rebasecall", "fq"]
+    for _subdir in _REUSE_DIRS:
+        _src = os.path.join(_reuse_from, _subdir)
+        _dst = os.path.join(os.path.realpath(outdir), _subdir)
+        if not os.path.isdir(_src):
+            continue  # skip missing (e.g., demux/ when demux disabled)
+        os.makedirs(os.path.dirname(_dst), exist_ok=True)
+        if os.path.exists(_dst):
+            if os.path.islink(_dst) and os.path.realpath(_dst) == os.path.realpath(_src):
+                continue  # already linked correctly
+            sys.exit(f"reuse_outputs_from: {_dst} already exists. Remove it first.")
+        os.symlink(os.path.realpath(_src), _dst)
+        print(f"reuse_outputs_from: {_subdir}/ -> {os.path.realpath(_src)}")
+    del _reuse_from, _REUSE_DIRS
+
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
 
