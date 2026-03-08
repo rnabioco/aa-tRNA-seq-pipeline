@@ -214,6 +214,61 @@ rule classify_charging:
     """
 
 
+rule classify_charging_leech:
+    """
+  run leech trained model to classify charged and uncharged reads
+  GPU-accelerated alternative to remora (requires leech installed from resources/leech)
+
+  For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+  """
+    input:
+        pod5=get_classification_pod5,
+        bam=rules.inject_ubam_tags.output.bam,
+    output:
+        charging_bam=os.path.join(
+            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
+        ),
+        charging_bam_bai=os.path.join(
+            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
+        ),
+        temp_sorted_bam=temp(
+            os.path.join(
+                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.tmp"
+            )
+        ),
+    log:
+        os.path.join(outdir, "logs", "classify_charging_leech", "{sample}"),
+    threads: 4
+    params:
+        model=config["remora_cca_classifier"],
+    shell:
+        """
+    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+      export CUDA_VISIBLE_DEVICES
+    fi
+
+    leech predict \
+      --model {params.model} \
+      --pod5 {input.pod5} \
+      --bam {input.bam} \
+      --output {output.charging_bam} \
+      --device cuda \
+      --motif CCAGGC \
+      --motif-offset 3 \
+      --reference-anchored \
+      --workers 4 \
+      --batch-size 512 \
+      2>&1 | tee {log}
+
+    # sort the result
+    samtools sort -@ {threads} {output.charging_bam} > {output.temp_sorted_bam}
+    cp {output.temp_sorted_bam} {output.charging_bam}
+
+    samtools index {output.charging_bam}
+    """
+
+
 rule transfer_bam_tags:
     """
   creates classified bam with MM and ML tags transferred to CM/CL

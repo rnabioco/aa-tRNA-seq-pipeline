@@ -57,6 +57,9 @@ onstart:
     if config.get("warpdemux", {}).get("enabled", False):
         tools_to_check.append(("warpdemux", [conda_prefix]))
 
+    if config.get("classifier", "remora") == "leech":
+        tools_to_check.append(("leech", [conda_prefix, os.path.join(repo_root, "resources")]))
+
     for tool_name, allowed_prefixes in tools_to_check:
         tool_path = shutil.which(tool_name)
         if tool_path is None:
@@ -101,6 +104,16 @@ include: "rules/aatrnaseq-report.smk"
 localrules:
     download_mod_models,
     generate_squiggy_session,
+
+
+# Route charging classifier: prefer leech or remora based on config
+if config.get("classifier", "remora") == "leech":
+
+    ruleorder: classify_charging_leech > classify_charging
+
+else:
+
+    ruleorder: classify_charging > classify_charging_leech
 
 
 # Conditionally include WarpDemuX demultiplexing rules

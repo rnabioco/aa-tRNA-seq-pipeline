@@ -60,6 +60,10 @@ remora_kmer_table: null
 # read classification model - remora trained model to classify charged vs uncharged reads
 remora_cca_classifier: "resources/models/cca_classifier.pt"
 
+# CCA charging classifier to use: "remora" (default) or "leech"
+# Leech is a GPU-accelerated alternative (requires resources/leech submodule)
+classifier: "remora"
+
 # software tools (modkit and remora managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:

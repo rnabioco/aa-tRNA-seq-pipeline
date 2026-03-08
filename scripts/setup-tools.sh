@@ -156,6 +156,8 @@ if python -c "from packaging.version import Version; exit(0 if Version('${curren
 else
     echo "Installing pod5 >= ${POD5_MIN_VERSION}..."
     uv pip install --no-deps "pod5>=${POD5_MIN_VERSION}"
+    # pod5 needs 'deprecated' but --no-deps skips it
+    uv pip install deprecated
     echo "Pod5 installed successfully"
 fi
 
@@ -171,6 +173,24 @@ else
     echo "Installing WarpDemuX..."
     uv pip install -e resources/tools/WarpDemuX
     echo "WarpDemuX installed successfully"
+fi
+
+# ============================================================================
+# Leech Setup (via uv, from submodule)
+# ============================================================================
+echo "=== Checking leech ==="
+if python -c "import leech" 2>/dev/null; then
+    echo "Leech already installed"
+else
+    if [ -d "${REPO_ROOT}/resources/leech" ]; then
+        echo "Installing leech from submodule (with dependencies)..."
+        uv pip install -e "${REPO_ROOT}/resources/leech"
+        echo "Leech installed successfully"
+        echo "NOTE: pyarrow will be reconciled with conda in the next step"
+    else
+        echo "Leech submodule not found at resources/leech"
+        echo "Run 'git submodule update --init resources/leech' to clone it"
+    fi
 fi
 
 # ============================================================================

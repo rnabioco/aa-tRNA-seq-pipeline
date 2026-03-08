@@ -18,6 +18,10 @@ set-resources:
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
   - classify_charging:mem_mb=24
+  - classify_charging_leech:lsf_queue="gpu"
+  - classify_charging_leech:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+  - classify_charging_leech:ngpu=1
+  - classify_charging_leech:mem_mb=24
   - remora_signal_stats:mem_mb=24
   - inject_ubam_tags:mem_mb=16
   - bwa_align:mem_mb=24

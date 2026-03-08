@@ -40,6 +40,14 @@ set-resources:
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
 
+  # Leech charging classification (GPU-accelerated)
+  classify_charging_leech:
+    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
+    gres: "gpu:1"              # Request 1 GPU
+    runtime: 120               # 2 hours (faster than remora with GPU)
+    mem_mb: 24000              # 24GB
+    cpus_per_task: 4
+
   # Tag injection from unaligned BAM
   inject_ubam_tags:
     runtime: 360               # 6 hours
