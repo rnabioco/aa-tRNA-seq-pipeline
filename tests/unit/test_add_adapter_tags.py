@@ -409,8 +409,8 @@ class TestProcessBam:
 
         # First read has adapters - should have PT tag
         read1 = [r for r in reads if r.query_name == "read1"][0]
-        assert read1.has_tag("PT")
-        pt_tag = read1.get_tag("PT")
+        assert read1.has_tag("pt")
+        pt_tag = read1.get_tag("pt")
         # At least one adapter should be found
         assert "adapter" in pt_tag
 
@@ -493,7 +493,7 @@ class TestProcessBam:
             assert read.has_tag("XY")
             assert read.get_tag("XY") == "existing"
             assert read.has_tag("ML")
-            assert read.has_tag("PT")
+            assert read.has_tag("pt")
 
     def test_alignment_based_5p_detection(self, temp_dir):
         """Alignment-based detection should infer 5' adapter from ref position."""
@@ -559,6 +559,6 @@ class TestProcessBam:
         # Check the PT tag
         with pysam.AlignmentFile(str(output_bam), "rb") as bam:
             read = next(bam)
-            assert read.has_tag("PT")
-            pt_tag = read.get_tag("PT")
+            assert read.has_tag("pt")
+            pt_tag = read.get_tag("pt")
             assert "5p_adapter" in pt_tag

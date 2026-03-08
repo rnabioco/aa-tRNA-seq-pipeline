@@ -233,7 +233,9 @@ if _reuse_from:
             continue  # skip missing (e.g., demux/ when demux disabled)
         os.makedirs(os.path.dirname(_dst), exist_ok=True)
         if os.path.exists(_dst):
-            if os.path.islink(_dst) and os.path.realpath(_dst) == os.path.realpath(_src):
+            if os.path.islink(_dst) and os.path.realpath(_dst) == os.path.realpath(
+                _src
+            ):
                 continue  # already linked correctly
             sys.exit(f"reuse_outputs_from: {_dst} already exists. Remove it first.")
         os.symlink(os.path.realpath(_src), _dst)

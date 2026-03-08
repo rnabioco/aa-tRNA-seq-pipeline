@@ -89,8 +89,8 @@ class TestTransferTags:
             read = next(bam)
             assert read.has_tag("ML")
             ml_val = read.get_tag("ML")
-            # ML tag may be array or tuple depending on pysam version
-            assert list(ml_val) == [220]
+            # Single-element arrays are unwrapped to scalar by transfer_tags
+            assert ml_val == 220
             # Original target tag should also be present
             assert read.has_tag("XY")
 

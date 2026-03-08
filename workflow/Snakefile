@@ -58,7 +58,9 @@ onstart:
         tools_to_check.append(("warpdemux", [conda_prefix]))
 
     if config.get("classifier", "remora") == "leech":
-        tools_to_check.append(("leech", [conda_prefix, os.path.join(repo_root, "resources")]))
+        tools_to_check.append(
+            ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
+        )
 
     for tool_name, allowed_prefixes in tools_to_check:
         tool_path = shutil.which(tool_name)
