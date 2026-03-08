@@ -259,7 +259,7 @@ rule split_pod5:
         pod5_dirs=get_sample_pod5_dirs,
     shell:
         """
-        pod5 filter {params.pod5_dirs} --ids {input.read_ids} --output {output} 2>&1 | tee {log}
+        pod5 filter {params.pod5_dirs} --ids {input.read_ids} --missing-ok --output {output} 2>&1 | tee {log}
         """
 
 
