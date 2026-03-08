@@ -113,8 +113,8 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
 5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
-6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→CL, MM→CM)
-7. **add_adapter_tags**: Detect adapter positions and add PT tags with 5'/3' boundaries
+6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→cl, MM→cm)
+7. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
 8. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
 
 ### Summary Generation
@@ -295,7 +295,7 @@ Outputs go to directory specified by `output_dir` in config. Test outputs: `.tes
 Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
-- `bam/final/{sample}/{sample}.bam` - Final BAM with CL/CM (charging) and PT (adapter positions) tags
+- `bam/final/{sample}/{sample}.bam` - Final BAM with cl/cm (charging) and pt (adapter positions) tags
 
 Pipeline-level outputs:
 - `squiggy-session.json` - Squiggy session file for loading samples in Positron

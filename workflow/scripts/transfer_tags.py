@@ -63,6 +63,10 @@ def transfer_tags(
 
             if read_tags:
                 for tag, tag_val in read_tags.items():
+                    # Unwrap single-element arrays to scalar values
+                    # (e.g., ML:B:C:200 → cl:i:200)
+                    if hasattr(tag_val, "__len__") and not isinstance(tag_val, str) and len(tag_val) == 1:
+                        tag_val = tag_val[0]
                     if tag in renamed_tags:
                         read.set_tag(renamed_tags[tag], tag_val)
                     else:

@@ -2,11 +2,11 @@
 """
 Add adapter position tags to BAM file using parasail semi-global alignment.
 
-Uses SAM-spec PT:Z: tag format for read annotations:
-    PT:Z:start;end;strand;type|start;end;strand;type
+Uses SAM-spec pt:Z: tag format for read annotations:
+    pt:Z:start;end;strand;type|start;end;strand;type
 
 Example:
-    PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+    pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 Positions are 0-based, relative to the read sequence.
 If an adapter is not found, that annotation is omitted.
@@ -204,9 +204,9 @@ def find_best_3p_adapter(read_seq, adapters, matrix, gap_open, gap_extend, min_s
 
 def format_pt_tag(adapter_5p_result, adapter_3p_result):
     """
-    Format adapter positions as SAM-spec PT tag.
+    Format adapter positions as SAM-spec pt tag.
 
-    Format: PT:Z:start;end;strand;type|start;end;strand;type
+    Format: pt:Z:start;end;strand;type|start;end;strand;type
 
     For 3' adapters with names, the type will be "3p_adapter_<name>"
     (e.g., "3p_adapter_v1" or "3p_adapter_v2").
@@ -333,7 +333,7 @@ def process_bam(
                 # Add PT tag if any adapter found
                 pt_value = format_pt_tag(result_5p, result_3p)
                 if pt_value:
-                    read.set_tag("PT", pt_value, "Z")
+                    read.set_tag("pt", pt_value, "Z")
 
                 outbam.write(read)
 

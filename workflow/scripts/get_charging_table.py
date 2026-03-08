@@ -24,15 +24,24 @@ def extract_tag(bam_file, output_tsv, tag):
         for read in bam.fetch():
             read_id = read.query_name
             reference = read.reference_name if read.reference_name else "*"
-            tag_array = dict(read.tags).get(tag, None)
+            tags_dict = dict(read.tags)
+            tag_raw = tags_dict.get(tag, None)
 
-            # XXX: handle case where there are more than 1 tag value
-            # not clear why this is, but we skip for now as it's a small
-            # number of reads affected
-            if len(tag_array) > 1:
+            # Fallback to uppercase tag for backward compat with older BAMs
+            # TODO: remove fallback once all BAMs have been reprocessed
+            if tag_raw is None and tag.islower():
+                tag_raw = tags_dict.get(tag.upper(), None)
+
+            if tag_raw is None:
                 continue
 
-            tag_value = tag_array[0]
+            # Handle both scalar (cl:i:200) and array (CL:B:C:200) tag values
+            if hasattr(tag_raw, "__len__") and not isinstance(tag_raw, str):
+                if len(tag_raw) > 1:
+                    continue
+                tag_value = tag_raw[0]
+            else:
+                tag_value = tag_raw
 
             if tag_value and reference != "*":
                 writer.writerow([read_id, reference, tag_value])

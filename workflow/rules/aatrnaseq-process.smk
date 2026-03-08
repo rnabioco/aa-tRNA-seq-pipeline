@@ -271,9 +271,9 @@ rule classify_charging_leech:
 
 rule transfer_bam_tags:
     """
-  creates classified bam with MM and ML tags transferred to CM/CL
+  creates classified bam with MM and ML tags transferred to cm/cl
 
-  MM/ML tags from the charging classification are transferred to CM/CL so as not to interfere with
+  MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
   base modifications.
   """
     input:
@@ -294,7 +294,7 @@ rule transfer_bam_tags:
         """
     python {params.src}/transfer_tags.py \
       --tags ML MM \
-      --rename ML=CL MM=CM \
+      --rename ML=cl MM=cm \
       --source {input.source_bam} \
       --target {input.target_bam} \
       --output {output.classified_bam}
@@ -306,12 +306,12 @@ rule transfer_bam_tags:
 rule add_adapter_tags:
     """
     Detect adapter positions in reads using parasail alignment
-    and add PT tags (SAM-spec read annotation format) to BAM file.
+    and add pt tags (SAM-spec read annotation format) to BAM file.
 
-    PT tag format: start;end;strand;type|start;end;strand;type
-    Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+    pt tag format: start;end;strand;type|start;end;strand;type
+    Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
-    This produces the final BAM with all tags: CM/CL (charging) and PT (adapters).
+    This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
     """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,

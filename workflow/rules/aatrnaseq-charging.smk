@@ -19,7 +19,7 @@ rule get_cca_trna:
     shell:
         """
     python {params.src}/get_charging_table.py \
-      --tag CL \
+      --tag cl \
       {input.bam} \
       {output.charging_tab}
     """
