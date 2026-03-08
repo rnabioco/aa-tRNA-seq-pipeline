@@ -149,12 +149,12 @@ rule parse_warpdemux:
         ),
         demux_dir=os.path.join(outdir, "demux", "warpdemux_output", "{run_id}"),
     output:
-        mapping=os.path.join(
+        mapping=maybe_temp(os.path.join(
             outdir, "demux", "read_ids", "{run_id}", "barcode_mapping.tsv.gz"
-        ),
-        summary=os.path.join(
+        )),
+        summary=maybe_temp(os.path.join(
             outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
-        ),
+        )),
     log:
         os.path.join(outdir, "logs", "parse_warpdemux", "{run_id}"),
     run:
@@ -214,7 +214,7 @@ rule extract_sample_reads:
     input:
         mapping=get_sample_barcode_mapping,
     output:
-        read_ids=os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt"),
+        read_ids=maybe_temp(os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt")),
     log:
         os.path.join(outdir, "logs", "extract_sample_reads", "{sample}"),
     params:
@@ -252,7 +252,7 @@ rule split_pod5:
         pod5=get_sample_run_raw_inputs,
         read_ids=get_sample_read_ids,
     output:
-        os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
+        maybe_temp(os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5")),
     log:
         os.path.join(outdir, "logs", "split_pod5", "{sample}"),
     params:
@@ -314,9 +314,9 @@ rule extract_edx_read_ids:
     input:
         tsv=rules.detect_edx_adapters.output.tsv,
     output:
-        read_ids=os.path.join(
+        read_ids=maybe_temp(os.path.join(
             outdir, "demux", "edx", "{sample}", "{sample}.edx_read_ids.txt"
-        ),
+        )),
     params:
         edx_adapter_name=get_sample_edx,
     run:
@@ -344,7 +344,7 @@ rule filter_fastq_by_edx:
         ),
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        fq=os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"),
+        fq=maybe_temp(os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz")),
     log:
         os.path.join(outdir, "logs", "filter_fastq_by_edx", "{sample}"),
     shell:
@@ -364,7 +364,7 @@ rule filter_pod5_by_edx:
         pod5=get_sample_pod5,
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        pod5=os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"),
+        pod5=maybe_temp(os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5")),
     log:
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:

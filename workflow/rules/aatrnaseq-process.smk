@@ -10,7 +10,7 @@ rule merge_pods:
     input:
         get_raw_inputs,
     output:
-        os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
+        maybe_temp(os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5")),
     log:
         os.path.join(outdir, "logs", "merge_pods", "{sample}"),
     threads: 12
@@ -60,7 +60,7 @@ rule rebasecall:
         pod5=get_sample_pod5,
         mod_models=rules.download_mod_models.output.sentinel,
     output:
-        os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
+        maybe_temp(os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
@@ -87,7 +87,7 @@ rule ubam_to_fastq:
     input:
         rules.rebasecall.output,
     output:
-        os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz"),
+        maybe_temp(os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz")),
     log:
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
@@ -124,8 +124,8 @@ rule bwa_align:
         reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
     output:
-        bam=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
-        bai=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
+        bam=maybe_temp(os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam")),
+        bai=maybe_temp(os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai")),
     params:
         index=get_validated_reference(),
         bwa_opts=config["opts"]["bwa"],
@@ -149,8 +149,8 @@ rule inject_ubam_tags:
         target_bam=rules.bwa_align.output.bam,
         target_bai=rules.bwa_align.output.bai,
     output:
-        bam=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
-        bai=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"),
+        bam=maybe_temp(os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam")),
+        bai=maybe_temp(os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai")),
     params:
         src=SCRIPT_DIR,
     log:
@@ -178,12 +178,12 @@ rule classify_charging:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
     output:
-        charging_bam=os.path.join(
+        charging_bam=maybe_temp(os.path.join(
             outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
-        ),
-        charging_bam_bai=os.path.join(
+        )),
+        charging_bam_bai=maybe_temp(os.path.join(
             outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
-        ),
+        )),
         temp_sorted_bam=temp(
             os.path.join(
                 outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.tmp"
@@ -280,12 +280,12 @@ rule transfer_bam_tags:
         source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.inject_ubam_tags.output.bam,
     output:
-        classified_bam=os.path.join(
+        classified_bam=maybe_temp(os.path.join(
             outdir, "bam", "classified", "{sample}", "{sample}.bam"
-        ),
-        classified_bam_bai=os.path.join(
+        )),
+        classified_bam_bai=maybe_temp(os.path.join(
             outdir, "bam", "classified", "{sample}", "{sample}.bam.bai"
-        ),
+        )),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
     params:
@@ -317,10 +317,10 @@ rule add_adapter_tags:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
-        bam=os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),
-        bai=os.path.join(
+        bam=maybe_temp(os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam")),
+        bai=maybe_temp(os.path.join(
             outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"
-        ),
+        )),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
     params:
@@ -360,19 +360,20 @@ rule finalize_bam:
 
     EDX filtering now happens early in the pipeline (before alignment) via
     the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
-    This rule simply symlinks the adapter-tagged BAM as the final output.
+    This rule hardlinks the adapter-tagged BAM as the final output so that
+    temp() cleanup of upstream BAMs doesn't break downstream consumers.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,
         bai=rules.add_adapter_tags.output.bai,
     output:
-        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
+        bam=maybe_temp(os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam")),
+        bai=maybe_temp(os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai")),
     log:
         os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
     shell:
         """
-    ln -sf $(realpath {input.bam}) {output.bam}
-    ln -sf $(realpath {input.bai}) {output.bai}
-    echo "Symlinked adapter-tagged BAM as final" > {log}
+    ln -f $(realpath {input.bam}) {output.bam}
+    ln -f $(realpath {input.bai}) {output.bai}
+    echo "Hardlinked adapter-tagged BAM as final" > {log}
     """

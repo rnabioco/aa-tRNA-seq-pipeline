@@ -8,6 +8,13 @@ from git import Repo
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
 
+def maybe_temp(path):
+    """Mark path as temp() when cleanup_intermediates is enabled."""
+    if config.get("cleanup_intermediates", True):
+        return temp(path)
+    return path
+
+
 def is_demux_enabled():
     """Check if WarpDemuX demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)
