@@ -271,7 +271,7 @@ rule classify_charging_leech:
       --output {output.charging_bam} \
       --device cuda \
       --motif CCAGGC \
-      --motif-offset 3 \
+      --motif-offset 2 \
       --reference-anchored \
       --workers 4 \
       --batch-size 512 \
