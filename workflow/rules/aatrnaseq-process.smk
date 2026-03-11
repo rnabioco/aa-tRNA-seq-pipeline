@@ -125,6 +125,7 @@ rule bwa_align:
     input:
         reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
+        ref_dict=rules.ref_dict.output,
     output:
         bam=maybe_temp(
             os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam")
@@ -143,6 +144,16 @@ rule bwa_align:
     bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
         | samtools view -F 20 -Sb - \
         | samtools sort -m 2G -@ 4 -o {output.bam}
+
+    # Embed reference M5 checksums into BAM header
+    {{
+        samtools view -H {output.bam} | head -1
+        grep '^@SQ' {input.ref_dict}
+        samtools view -H {output.bam} | grep -v -e '^@SQ' -e '^@HD' || true
+    }} > {output.bam}.header.sam
+    samtools reheader --no-PG {output.bam}.header.sam {output.bam} > {output.bam}.reheader
+    mv {output.bam}.reheader {output.bam}
+    rm {output.bam}.header.sam
 
     samtools index {output.bam}
     """

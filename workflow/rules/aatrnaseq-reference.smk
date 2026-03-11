@@ -236,3 +236,19 @@ rule trim_reference:
             --adapter-3p "{params.adapter_3p}" \
             2>&1 | tee {log}
         """
+
+
+rule ref_dict:
+    """
+    Generate sequence dictionary with MD5 checksums for embedding in BAM headers.
+    """
+    input:
+        get_validated_reference(),
+    output:
+        os.path.join(outdir, "reference", "reference.dict"),
+    log:
+        os.path.join(outdir, "logs", "reference", "dict.log"),
+    shell:
+        """
+        samtools dict {input} -o {output} 2> {log}
+        """
