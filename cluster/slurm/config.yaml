@@ -17,8 +17,8 @@ slurm-delete-logfiles-older-than: 10  # Days
 
 # Default resources for all rules
 default-resources:
-  slurm_partition: "normal"       # Default CPU partition (customize for your cluster)
-  slurm_account: "gpu_rbi"       # SLURM account/allocation (customize for your cluster)
+  slurm_partition: "rna"          # Default CPU partition (customize for your cluster)
+  slurm_account: "rbi"            # SLURM account/allocation (customize for your cluster)
   runtime: 120                 # Default walltime in minutes (2 hours)
   mem_mb: 8000                 # Default memory in MB (8GB)
   cpus_per_task: 1             # Default CPUs per task
@@ -29,6 +29,7 @@ set-resources:
   # Dorado basecalling - requires GPU
   rebasecall:
     slurm_partition: "gpu"     # GPU partition (customize for your cluster)
+    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
     gres: "gpu:1"              # Request 1 GPU
     runtime: 960               # 16 hours (basecalling can be slow)
     mem_mb: 48000              # 48GB
@@ -43,9 +44,19 @@ set-resources:
   # Leech charging classification (GPU-accelerated)
   classify_charging_leech:
     slurm_partition: "gpu"     # GPU partition (customize for your cluster)
+    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
     gres: "gpu:1"              # Request 1 GPU
     runtime: 120               # 2 hours (faster than remora with GPU)
     mem_mb: 24000              # 24GB
+    cpus_per_task: 4
+
+  # Leech AA identity classification (one-vs-all bundle, GPU-accelerated)
+  classify_aa_identity:
+    slurm_partition: "gpu"
+    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
+    gres: "gpu:1"
+    runtime: 360               # 6 hours (20 models, ~3x single-model time)
+    mem_mb: 32000              # 32GB
     cpus_per_task: 4
 
   # Tag injection from unaligned BAM

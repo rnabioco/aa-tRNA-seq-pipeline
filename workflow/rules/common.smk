@@ -353,6 +353,13 @@ def pipeline_outputs():
     if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
 
+    # AA identity classification (one-vs-all bundle)
+    if config.get("aa_identity_bundle"):
+        outs += expand(
+            os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam"),
+            sample=samples.keys(),
+        )
+
     return outs
 
 
