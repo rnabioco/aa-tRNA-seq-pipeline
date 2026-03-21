@@ -35,6 +35,14 @@ set-resources:
     mem_mb: 48000              # 48GB
     cpus_per_task: 4
 
+  # Leech amino acid classification (GPU-accelerated)
+  classify_aa:
+    slurm_partition: "gpu"
+    gres: "gpu:1"
+    runtime: 480               # 8 hours
+    mem_mb: 48000              # 48GB
+    cpus_per_task: 4
+
   # Remora charging classification
   classify_charging:
     runtime: 240               # 4 hours

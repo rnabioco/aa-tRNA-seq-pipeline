@@ -17,6 +17,10 @@ set-resources:
   - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
+  - classify_aa:lsf_queue="gpu"
+  - classify_aa:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+  - classify_aa:ngpu=1
+  - classify_aa:mem_mb=48
   - classify_charging:mem_mb=24
   - classify_charging_leech:lsf_queue="gpu"
   - classify_charging_leech:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"

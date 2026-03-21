@@ -33,6 +33,7 @@ ont-modkit = ">=0.6.1"
 ruff = "*"
 yamllint = "*"
 nvitop = ">=1.6.2,<2"
+rich-click = ">=1.7.0"
 # WarpDemuX dependencies (compiled packages best from conda)
 dtaidistance = "*"
 scikit-learn = "*"
@@ -66,6 +67,7 @@ lint-yaml = { cmd = "yamllint -d \"{extends: default, rules: {line-length: {max:
 install-leech = { cmd = "git submodule update --init resources/leech && uv pip install -e resources/leech && CONDA_PYARROW=$(pixi list pyarrow 2>/dev/null | awk '/^pyarrow[[:space:]]/ {print $2}') && [ -n \"$CONDA_PYARROW\" ] && uv pip install --force-reinstall pyarrow==$CONDA_PYARROW || true", description = "Install leech CCA classifier from submodule" }
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
+install-leech = { cmd = "bash -c '[ -d resources/tools/leech ] || git clone --recurse-submodules https://github.com/rnabioco/leech.git resources/tools/leech' && uv pip install --no-deps -e resources/tools/leech && uv pip install --no-deps -e resources/tools/leech/rust", description = "Clone and install leech with Rust acceleration (amino acid classifier)" }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
 
 # Testing feature

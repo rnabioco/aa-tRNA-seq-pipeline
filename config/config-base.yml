@@ -143,3 +143,18 @@ warpdemux:
   barcode_kit: "WDX4_tRNA_rna004_v1_0"
   save_boundaries: true
   threads: 8
+
+# Amino acid identity classification (optional, disabled by default)
+# Uses leech multiclass models to predict which amino acid was charged
+# on each tRNA read. Requires a trained multiclass bundle (.pt file).
+# The bundle encodes the motif and model architecture; anchor/base_justify
+# must match training settings.
+classify_aa:
+  enabled: false
+  bundle: null            # path to multiclass_bundle.pt (required when enabled)
+  anchor: "reference"     # must match training: "reference" or "basecall"
+  base_justify: "end"     # must match training: "start", "center", or "end"
+  device: "cuda"          # "cuda" for GPU, "cpu" for CPU-only
+  batch_size: 1024        # chunks per forward pass
+  read_batch_size: 10000  # reads per mega-batch (controls peak memory)
+  copy_tags: "CL"         # BAM tags to include in TSV output

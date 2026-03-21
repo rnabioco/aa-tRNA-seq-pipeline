@@ -349,6 +349,19 @@ def pipeline_outputs():
     # Reference sequence similarity QC (runs once per pipeline execution)
     outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
 
+    # Amino acid classification outputs (leech multiclass)
+    if config.get("classify_aa", {}).get("enabled", False):
+        outs += expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.aa_classify.tsv.gz",
+            ),
+            sample=samples.keys(),
+        )
+
     # EDX (3' adapter barcode) concordance table
     if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
