@@ -309,3 +309,73 @@ class TestTransferTags:
             read = next(bam)
             assert read.has_tag("ML")
             assert read.has_tag("MM")
+
+    def test_multithreaded_output_matches(self, temp_dir):
+        """Using threads > 1 should produce identical results."""
+        source_bam = temp_dir / "source.bam"
+        target_bam = temp_dir / "target.bam"
+        output_st = temp_dir / "output_st.bam"
+        output_mt = temp_dir / "output_mt.bam"
+
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "ref", "LN": 100}],
+        }
+
+        # Create source BAM with tags
+        with pysam.AlignmentFile(str(source_bam), "wb", header=header) as outf:
+            for i in range(10):
+                read = pysam.AlignedSegment()
+                read.query_name = f"read{i}"
+                read.query_sequence = "A" * 100
+                read.flag = 0
+                read.reference_id = 0
+                read.reference_start = i * 10
+                read.cigartuples = [(0, 100)]
+                read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+                read.set_tag("ML", array("B", [200 + i]))
+                outf.write(read)
+
+        # Create target BAM
+        with pysam.AlignmentFile(str(target_bam), "wb", header=header) as outf:
+            for i in range(10):
+                read = pysam.AlignedSegment()
+                read.query_name = f"read{i}"
+                read.query_sequence = "A" * 100
+                read.flag = 0
+                read.reference_id = 0
+                read.reference_start = i * 10
+                read.cigartuples = [(0, 100)]
+                read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+                outf.write(read)
+
+        # Single-threaded
+        transfer_tags(
+            tags=["ML"],
+            rename=[],
+            source_bam=str(source_bam),
+            target_bam=str(target_bam),
+            output_bam=str(output_st),
+            threads=1,
+        )
+
+        # Multi-threaded
+        transfer_tags(
+            tags=["ML"],
+            rename=[],
+            source_bam=str(source_bam),
+            target_bam=str(target_bam),
+            output_bam=str(output_mt),
+            threads=4,
+        )
+
+        # Compare outputs
+        with pysam.AlignmentFile(str(output_st), "rb") as st_bam:
+            st_reads = list(st_bam)
+        with pysam.AlignmentFile(str(output_mt), "rb") as mt_bam:
+            mt_reads = list(mt_bam)
+
+        assert len(st_reads) == len(mt_reads) == 10
+        for st_read, mt_read in zip(st_reads, mt_reads):
+            assert st_read.query_name == mt_read.query_name
+            assert list(st_read.get_tag("ML")) == list(mt_read.get_tag("ML"))

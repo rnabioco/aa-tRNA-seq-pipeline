@@ -163,6 +163,7 @@ rule inject_ubam_tags:
                 outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
             )
         ),
+    threads: 4
     params:
         src=SCRIPT_DIR,
     log:
@@ -171,11 +172,12 @@ rule inject_ubam_tags:
         """
     python {params.src}/transfer_tags.py \
       --all-tags \
+      --threads {threads} \
       --source {input.source_bam} \
       --target {input.target_bam} \
       --output {output.bam}
 
-    samtools index {output.bam}
+    samtools index -@ {threads} {output.bam}
     """
 
 
@@ -352,6 +354,7 @@ rule transfer_bam_tags:
         ),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
+    threads: 4
     params:
         src=SCRIPT_DIR,
     shell:
@@ -359,11 +362,12 @@ rule transfer_bam_tags:
     python {params.src}/transfer_tags.py \
       --tags ML MM \
       --rename ML=cl MM=cm \
+      --threads {threads} \
       --source {input.source_bam} \
       --target {input.target_bam} \
       --output {output.classified_bam}
 
-    samtools index {output.classified_bam}
+    samtools index -@ {threads} {output.classified_bam}
     """
 
 
