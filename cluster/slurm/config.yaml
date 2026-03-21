@@ -4,6 +4,15 @@
 # Usage: snakemake --profile cluster/slurm
 #
 # Customize slurm_partition, slurm_account, and slurm-logdir for your cluster
+#
+# NOTE: The default CPU partition and account come from SBATCH_PARTITION and
+# SBATCH_ACCOUNT environment variables (set in ~/.bashrc). Snakemake's
+# default-resources cannot reliably propagate string values to the SLURM
+# executor plugin, so we rely on the env vars as the fallback.
+#
+# NOTE: All string resource values need inner Python quotes (e.g., "'gpu'",
+# "'2h'") because Snakemake evaluates resource values as Python expressions.
+# Without inner quotes, bare strings are treated as undefined identifiers.
 
 # Executor settings
 executor: slurm
@@ -16,10 +25,10 @@ slurm-keep-successful-logs: false
 slurm-delete-logfiles-older-than: 10  # Days
 
 # Default resources for all rules
+# String resources (partition, account, runtime) are set via SBATCH_PARTITION /
+# SBATCH_ACCOUNT env vars or fall back to cluster defaults.
 default-resources:
-  slurm_partition: "rna"          # Default CPU partition (customize for your cluster)
-  slurm_account: "rbi"            # SLURM account/allocation (customize for your cluster)
-  runtime: 120                 # Default walltime in minutes (2 hours)
+  runtime: "'2h'"              # Default walltime
   mem_mb: 8000                 # Default memory in MB (8GB)
   cpus_per_task: 1             # Default CPUs per task
 
@@ -28,48 +37,49 @@ set-resources:
   # GPU-accelerated rules
   # Dorado basecalling - requires GPU
   rebasecall:
-    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
-    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
-    gres: "gpu:1"              # Request 1 GPU
-    runtime: 960               # 16 hours (basecalling can be slow)
+    slurm_partition: "'gpu'"
+    slurm_account: "'gpu_rbi'"
+    gres: "'gpu:1'"
+    runtime: "'16h'"
     mem_mb: 48000              # 48GB
     cpus_per_task: 4
 
   # Leech amino acid classification (GPU-accelerated)
   classify_aa:
-    slurm_partition: "gpu"
-    gres: "gpu:1"
-    runtime: 480               # 8 hours
+    slurm_partition: "'gpu'"
+    slurm_account: "'gpu_rbi'"
+    gres: "'gpu:1'"
+    runtime: "'8h'"
     mem_mb: 48000              # 48GB
     cpus_per_task: 4
 
   # Remora charging classification
   classify_charging:
-    runtime: 240               # 4 hours
+    runtime: "'4h'"
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
 
   # Leech charging classification (GPU-accelerated)
   classify_charging_leech:
-    slurm_partition: "gpu"     # GPU partition (customize for your cluster)
-    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
-    gres: "gpu:1"              # Request 1 GPU
-    runtime: 120               # 2 hours (faster than remora with GPU)
+    slurm_partition: "'gpu'"
+    slurm_account: "'gpu_rbi'"
+    gres: "'gpu:1'"
+    runtime: "'2h'"
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
 
   # Leech AA identity classification (one-vs-all bundle, GPU-accelerated)
   classify_aa_identity:
-    slurm_partition: "gpu"
-    slurm_account: "gpu_rbi"   # GPU account (must pair with gpu partition)
-    gres: "gpu:1"
-    runtime: 360               # 6 hours (20 models, ~3x single-model time)
+    slurm_partition: "'gpu'"
+    slurm_account: "'gpu_rbi'"
+    gres: "'gpu:1'"
+    runtime: "'6h'"
     mem_mb: 32000              # 32GB
     cpus_per_task: 4
 
   # Tag injection from unaligned BAM
   inject_ubam_tags:
-    runtime: 360               # 6 hours
+    runtime: "'6h'"
     mem_mb: 48000              # 48GB (dict cache of dorado tags needs ~3-5KB/read)
     cpus_per_task: 4
 
@@ -80,36 +90,36 @@ set-resources:
   # CPU-intensive rules
   # BWA alignment (OOM at 64GB for larger samples)
   bwa_align:
-    runtime: 720               # 12 hours (large samples with -k 6 are slow)
+    runtime: "'12h'"
     mem_mb: 96000              # 96GB
     cpus_per_task: 16          # Match rule's thread count
 
   # Remora signal statistics
   remora_signal_stats:
-    runtime: 180               # 3 hours
+    runtime: "'3h'"
     mem_mb: 24000              # 24GB
     cpus_per_task: 4
 
   # Modkit modification extraction - high memory
   modkit_extract_calls:
-    runtime: 360               # 6 hours
+    runtime: "'6h'"
     mem_mb: 48000              # 48GB (peak ~27GB observed)
     cpus_per_task: 4
 
   # Modkit full modification extraction
   modkit_extract_full:
-    runtime: 360               # 6 hours
+    runtime: "'6h'"
     mem_mb: 48000              # 48GB (peak ~27GB observed)
     cpus_per_task: 4
 
   # WarpDemuX demultiplexing rules
   warpdemux:
-    runtime: 360               # 6 hours
+    runtime: "'6h'"
     mem_mb: 32000              # 32GB
     cpus_per_task: 16
 
   parse_warpdemux:
-    runtime: 60                # 1 hour
+    runtime: "'1h'"
     mem_mb: 8000               # 8GB
     cpus_per_task: 1
 
