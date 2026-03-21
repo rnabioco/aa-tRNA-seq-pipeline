@@ -21,10 +21,10 @@ gitpython = "*"
 uv = "*"
 parasail-python = "*"
 # Snakemake and workflow
-snakemake = ">=8.0"
+snakemake = ">=9.17"
 snakefmt = "*"
 snakemake-executor-plugin-lsf = "*"
-snakemake-executor-plugin-slurm = "*"
+snakemake-executor-plugin-slurm = ">=2.5"
 snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
 libstdcxx-ng = ">=12"

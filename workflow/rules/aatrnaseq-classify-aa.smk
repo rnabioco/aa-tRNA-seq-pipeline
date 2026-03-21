@@ -34,19 +34,25 @@ rule classify_aa:
         bundle=config["classify_aa"]["bundle"],
         device=config.get("classify_aa", {}).get("device", "cuda"),
         batch_size=config.get("classify_aa", {}).get("batch_size", 1024),
+        read_batch_size=config.get("classify_aa", {}).get("read_batch_size", 10000),
+        anchor=config.get("classify_aa", {}).get("anchor", "reference"),
         base_justify=config.get("classify_aa", {}).get("base_justify", "end"),
+        copy_tags=config.get("classify_aa", {}).get("copy_tags", "CL"),
     shell:
         """
         leech predict \
             --bundle {params.bundle} \
             --all \
-            --reference-anchored \
+            --anchor {params.anchor} \
+            --reference-fasta {input.ref} \
             --base-justify {params.base_justify} \
             --pod5 {input.pod5} \
             --bam {input.bam} \
             --output {output.predictions} \
             --device {params.device} \
             --batch-size {params.batch_size} \
+            --read-batch-size {params.read_batch_size} \
+            --copy-tags {params.copy_tags} \
             --workers 0 \
             2>&1 | stdbuf -oL -eL tee {log}
         """
