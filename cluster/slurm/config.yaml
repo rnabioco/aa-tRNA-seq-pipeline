@@ -1,137 +1,112 @@
 # Snakemake Slurm Executor Profile Configuration
 # ================================================
-# This profile configures Snakemake to submit jobs to a SLURM cluster
 # Usage: snakemake --profile cluster/slurm
 #
 # Customize slurm_partition, slurm_account, and slurm-logdir for your cluster
-#
-# NOTE: The default CPU partition and account come from SBATCH_PARTITION and
-# SBATCH_ACCOUNT environment variables (set in ~/.bashrc). Snakemake's
-# default-resources cannot reliably propagate string values to the SLURM
-# executor plugin, so we rely on the env vars as the fallback.
-#
-# NOTE: All string resource values need inner Python quotes (e.g., "'gpu'",
-# "'2h'") because Snakemake evaluates resource values as Python expressions.
-# Without inner quotes, bare strings are treated as undefined identifiers.
 
-# Executor settings
 executor: slurm
-jobs: 100                      # Maximum concurrent jobs
-latency-wait: 60               # Wait time for output files (seconds)
+jobs: 100
+latency-wait: 60
 
-# Slurm-specific settings (customize paths for your cluster)
-slurm-logdir: "logs/slurm"     # Directory for Slurm job logs
+rerun-incomplete: true
+keep-going: true
+printshellcmds: true
+show-failed-logs: true
+
+# Slurm-specific settings
+slurm-logdir: "logs/slurm"
 slurm-keep-successful-logs: false
-slurm-delete-logfiles-older-than: 10  # Days
+slurm-delete-logfiles-older-than: 10
+slurm-qos: normal
 
-# Default resources for all rules
-# String resources (partition, account, runtime) are set via SBATCH_PARTITION /
-# SBATCH_ACCOUNT env vars or fall back to cluster defaults.
+# Default resources (CPU)
 default-resources:
-  runtime: "'2h'"              # Default walltime
-  mem_mb: 8000                 # Default memory in MB (8GB)
-  cpus_per_task: 1             # Default CPUs per task
+  slurm_partition: rna
+  slurm_account: rbi
+  runtime: "2h"
+  mem_mb: 8000
+  cpus_per_task: 1
 
 # Rule-specific resource overrides
 set-resources:
   # GPU-accelerated rules
-  # Dorado basecalling - requires GPU
   rebasecall:
-    slurm_partition: "'gpu'"
-    slurm_account: "'gpu_rbi'"
-    gres: "'gpu:1'"
-    runtime: "'16h'"
-    mem_mb: 48000              # 48GB
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "16h"
+    mem_mb: 48000
     cpus_per_task: 4
 
-  # Leech amino acid classification (GPU-accelerated)
   classify_aa:
-    slurm_partition: "'gpu'"
-    slurm_account: "'gpu_rbi'"
-    gres: "'gpu:1'"
-    runtime: "'8h'"
-    mem_mb: 48000              # 48GB
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "8h"
+    mem_mb: 48000
     cpus_per_task: 4
 
-  # Remora charging classification
   classify_charging:
-    runtime: "'4h'"
-    mem_mb: 24000              # 24GB
+    runtime: "4h"
+    mem_mb: 24000
     cpus_per_task: 4
 
-  # Leech charging classification (GPU-accelerated)
   classify_charging_leech:
-    slurm_partition: "'gpu'"
-    slurm_account: "'gpu_rbi'"
-    gres: "'gpu:1'"
-    runtime: "'2h'"
-    mem_mb: 24000              # 24GB
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "2h"
+    mem_mb: 24000
     cpus_per_task: 4
 
-  # Leech AA identity classification (one-vs-all bundle, GPU-accelerated)
   classify_aa_identity:
-    slurm_partition: "'gpu'"
-    slurm_account: "'gpu_rbi'"
-    gres: "'gpu:1'"
-    runtime: "'6h'"
-    mem_mb: 32000              # 32GB
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "6h"
+    mem_mb: 32000
     cpus_per_task: 4
 
-  # Tag injection from unaligned BAM
+  # Tag transfer rules
   inject_ubam_tags:
-    runtime: "'6h'"
-    mem_mb: 48000              # 48GB (dict cache of dorado tags needs ~3-5KB/read)
+    runtime: "6h"
+    mem_mb: 48000
     cpus_per_task: 4
 
-  # Tag transfer from charging BAM
   transfer_bam_tags:
     cpus_per_task: 4
 
   # CPU-intensive rules
-  # BWA alignment (OOM at 64GB for larger samples)
   bwa_align:
-    runtime: "'12h'"
-    mem_mb: 96000              # 96GB
-    cpus_per_task: 16          # Match rule's thread count
+    runtime: "12h"
+    mem_mb: 96000
+    cpus_per_task: 16
 
-  # Remora signal statistics
   remora_signal_stats:
-    runtime: "'3h'"
-    mem_mb: 24000              # 24GB
+    runtime: "3h"
+    mem_mb: 24000
     cpus_per_task: 4
 
-  # Modkit modification extraction - high memory
   modkit_extract_calls:
-    runtime: "'6h'"
-    mem_mb: 48000              # 48GB (peak ~27GB observed)
+    runtime: "6h"
+    mem_mb: 48000
     cpus_per_task: 4
 
-  # Modkit full modification extraction
   modkit_extract_full:
-    runtime: "'6h'"
-    mem_mb: 48000              # 48GB (peak ~27GB observed)
+    runtime: "6h"
+    mem_mb: 48000
     cpus_per_task: 4
 
-  # WarpDemuX demultiplexing rules
+  # WarpDemuX rules
   warpdemux:
-    runtime: "'6h'"
-    mem_mb: 32000              # 32GB
+    runtime: "6h"
+    mem_mb: 32000
     cpus_per_task: 16
 
   parse_warpdemux:
-    runtime: "'1h'"
-    mem_mb: 8000               # 8GB
+    runtime: "1h"
+    mem_mb: 8000
     cpus_per_task: 1
 
-  # Odds ratio computation - chunked reading keeps peak memory low,
-  # but 16GB provides headroom for large samples
   compute_odds_ratios:
-    mem_mb: 16000              # 16GB
-
-# Rerun incomplete jobs
-rerun-incomplete: true
-keep-going: true
-
-# Printout settings
-printshellcmds: true
-show-failed-logs: true
+    mem_mb: 16000

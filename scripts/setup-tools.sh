@@ -183,8 +183,10 @@ if python -c "import leech" 2>/dev/null; then
     echo "Leech already installed"
 else
     if [ -d "${REPO_ROOT}/resources/leech" ]; then
-        echo "Installing leech from submodule (with dependencies)..."
-        uv pip install -e "${REPO_ROOT}/resources/leech"
+        echo "Installing leech-core (Rust, release build)..."
+        uv pip install "${REPO_ROOT}/resources/leech/rust"
+        echo "Installing leech (Python, editable)..."
+        uv pip install --no-deps -e "${REPO_ROOT}/resources/leech"
         echo "Leech installed successfully"
         echo "NOTE: pyarrow will be reconciled with conda in the next step"
     else
