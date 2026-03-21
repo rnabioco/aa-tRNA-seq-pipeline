@@ -40,6 +40,7 @@ rule classify_aa:
         copy_tags=config.get("classify_aa", {}).get("copy_tags", "CL"),
     shell:
         """
+        vmtouch -t {input.pod5} 2>/dev/null || true
         leech predict \
             --bundle {params.bundle} \
             --all \

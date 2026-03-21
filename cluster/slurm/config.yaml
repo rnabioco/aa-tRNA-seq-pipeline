@@ -44,7 +44,7 @@ set-resources:
     gres: "gpu:1"
     runtime: "8h"
     mem_mb: 48000
-    cpus_per_task: 4
+    cpus_per_task: 16
 
   classify_charging:
     runtime: "4h"
