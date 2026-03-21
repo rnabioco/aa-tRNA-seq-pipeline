@@ -16,6 +16,9 @@ Modes:
   validate: Check existing adapted reference has correct structure
   build: Create adapted reference from raw tRNA sequences (adds CCA if missing)
 
+Both modes deduplicate sequences with identical content, keeping the first
+occurrence and reporting collapsed duplicates in the validation/build report.
+
 Requirements:
   - 3' adapter must start with GGC (for CCAGGC junction)
   - No duplicate sequence names
@@ -73,6 +76,37 @@ def adapter_matches(expected, actual):
         if e != "N" and e != a:
             return False
     return True
+
+
+def deduplicate_sequences(sequences):
+    """
+    Remove sequences with identical content, keeping the first occurrence.
+
+    Groups sequences by their actual nucleotide content and retains one
+    representative per group. Returns the deduplicated list plus a mapping
+    of kept name -> list of duplicate names that were collapsed into it.
+
+    Args:
+        sequences: List of (name, sequence) tuples.
+
+    Returns:
+        Tuple of (deduped_sequences, collapsed_map) where:
+          - deduped_sequences: List of (name, seq) with duplicates removed
+          - collapsed_map: Dict mapping kept_name -> [dropped_name, ...]
+    """
+    seen = {}  # seq -> name (first occurrence)
+    collapsed = {}  # kept_name -> [dropped_names]
+    deduped = []
+
+    for name, seq in sequences:
+        if seq in seen:
+            kept_name = seen[seq]
+            collapsed.setdefault(kept_name, []).append(name)
+        else:
+            seen[seq] = name
+            deduped.append((name, seq))
+
+    return deduped, collapsed
 
 
 def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapters_3p):
@@ -188,6 +222,12 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
 
         validated_sequences.append((name, seq))
 
+    # Deduplicate sequences with identical content
+    deduped_sequences, collapsed_map = deduplicate_sequences(validated_sequences)
+    n_collapsed = len(validated_sequences) - len(deduped_sequences)
+    stats["duplicate_sequences"] = n_collapsed
+    stats["unique_sequences"] = len(deduped_sequences)
+
     # Write validation report
     with open(report_path, "w") as f:
         f.write("=" * 70 + "\n")
@@ -206,7 +246,15 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
         f.write(f"  Valid 5' adapters: {stats['valid_5p_adapter']}\n")
         f.write(f"  Valid 3' adapters: {stats['valid_3p_adapter']}\n")
         f.write(f"  Valid CCA endings: {stats['valid_cca']}\n")
-        f.write(f"  Duplicate names: {stats['duplicate_names']}\n\n")
+        f.write(f"  Duplicate names: {stats['duplicate_names']}\n")
+        f.write(f"  Unique sequences: {stats['unique_sequences']}\n")
+        f.write(f"  Duplicate sequences collapsed: {stats['duplicate_sequences']}\n\n")
+
+        if collapsed_map:
+            f.write(f"Collapsed duplicates ({n_collapsed} sequences removed):\n")
+            for kept, dropped in sorted(collapsed_map.items()):
+                f.write(f"  {kept} <- {', '.join(dropped)}\n")
+            f.write("\n")
 
         if warnings:
             f.write(f"WARNINGS ({len(warnings)}):\n")
@@ -235,10 +283,12 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
             print(f"  ... and {len(errors) - 5} more errors", file=sys.stderr)
         sys.exit(1)
 
-    # Write validated FASTA (copy of input, confirming validation)
-    write_fasta(validated_sequences, output_fasta)
+    # Write deduplicated validated FASTA
+    write_fasta(deduped_sequences, output_fasta)
 
     print(f"Validation PASSED: {stats['total_sequences']} sequences validated")
+    if n_collapsed > 0:
+        print(f"  Deduplicated: {stats['total_sequences']} -> {stats['unique_sequences']} unique sequences")
     print(f"Report written to: {report_path}")
     print(f"Validated reference written to: {output_fasta}")
 
@@ -313,6 +363,12 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
         adapted_sequences.append((name, adapted_seq))
         stats["sequences_built"] += 1
 
+    # Deduplicate adapted sequences with identical content
+    deduped_sequences, collapsed_map = deduplicate_sequences(adapted_sequences)
+    n_collapsed = len(adapted_sequences) - len(deduped_sequences)
+    stats["duplicate_sequences"] = n_collapsed
+    stats["unique_sequences"] = len(deduped_sequences)
+
     # Write build report
     with open(report_path, "w") as f:
         f.write("=" * 70 + "\n")
@@ -331,7 +387,15 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
         f.write(f"  Duplicate names: {stats['duplicate_names']}\n\n")
 
         f.write("Output Statistics:\n")
-        f.write(f"  Sequences built: {stats['sequences_built']}\n\n")
+        f.write(f"  Sequences built: {stats['sequences_built']}\n")
+        f.write(f"  Unique sequences: {stats['unique_sequences']}\n")
+        f.write(f"  Duplicate sequences collapsed: {stats['duplicate_sequences']}\n\n")
+
+        if collapsed_map:
+            f.write(f"Collapsed duplicates ({n_collapsed} sequences removed):\n")
+            for kept, dropped in sorted(collapsed_map.items()):
+                f.write(f"  {kept} <- {', '.join(dropped)}\n")
+            f.write("\n")
 
         if warnings:
             f.write(f"WARNINGS ({len(warnings)}):\n")
@@ -360,10 +424,12 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
             print(f"  ... and {len(errors) - 5} more errors", file=sys.stderr)
         sys.exit(1)
 
-    # Write adapted FASTA
-    write_fasta(adapted_sequences, output_fasta)
+    # Write deduplicated adapted FASTA
+    write_fasta(deduped_sequences, output_fasta)
 
     print(f"Build SUCCESSFUL: {stats['sequences_built']} sequences created")
+    if n_collapsed > 0:
+        print(f"  Deduplicated: {stats['sequences_built']} -> {stats['unique_sequences']} unique sequences")
     if stats["cca_added"] > 0:
         print(f"  Note: CCA was added to {stats['cca_added']} sequences")
     print(f"Output written to: {output_fasta}")
