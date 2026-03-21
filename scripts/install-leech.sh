@@ -2,7 +2,7 @@
 # Install leech from submodule with release-optimized Rust build
 set -euo pipefail
 
-git submodule update --init resources/leech
+git submodule update --init --recursive resources/leech
 
 echo "Installing leech-core (Rust, release build)..."
 uv pip install resources/leech/rust
