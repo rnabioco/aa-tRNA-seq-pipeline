@@ -28,13 +28,6 @@ def get_file_info(filepath):
     }
 
 
-def make_relative_path(filepath, base_dir):
-    """Convert absolute path to relative path from base directory."""
-    abs_path = os.path.abspath(filepath)
-    abs_base = os.path.abspath(base_dir)
-    return os.path.relpath(abs_path, abs_base)
-
-
 def generate_squiggy_session(
     sample_names,
     output_dir,
@@ -47,7 +40,7 @@ def generate_squiggy_session(
 
     Args:
         sample_names: List of sample names
-        output_dir: Pipeline output directory (paths will be relative to this)
+        output_dir: Pipeline output directory
         fasta_path: Path to reference FASTA file
         session_name: Optional session name (defaults to directory name)
         compute_checksums: Whether to compute MD5 checksums for files
@@ -63,34 +56,33 @@ def generate_squiggy_session(
     samples = {}
     file_checksums = {}
 
-    # Make fasta path relative to output directory
-    fasta_rel = make_relative_path(fasta_path, output_dir)
+    fasta_abs = os.path.abspath(fasta_path)
 
     # Compute fasta checksum once (shared across samples)
     if compute_checksums and os.path.exists(fasta_path):
-        file_checksums[fasta_rel] = get_file_info(fasta_path)
+        file_checksums[fasta_abs] = get_file_info(fasta_path)
 
     for sample in sample_names:
-        # Build paths to pipeline outputs
-        pod5_path = os.path.join(output_dir, "pod5", sample, f"{sample}.pod5")
-        bam_path = os.path.join(output_dir, "bam", "final", sample, f"{sample}.bam")
-
-        # Convert to relative paths
-        pod5_rel = make_relative_path(pod5_path, output_dir)
-        bam_rel = make_relative_path(bam_path, output_dir)
+        # Build absolute paths to pipeline outputs
+        pod5_path = os.path.abspath(
+            os.path.join(output_dir, "pod5", sample, f"{sample}.pod5")
+        )
+        bam_path = os.path.abspath(
+            os.path.join(output_dir, "bam", "final", sample, f"{sample}.bam")
+        )
 
         samples[sample] = {
-            "pod5Paths": [pod5_rel],
-            "bamPath": bam_rel,
-            "fastaPath": fasta_rel,
+            "pod5Paths": [pod5_path],
+            "bamPath": bam_path,
+            "fastaPath": fasta_abs,
         }
 
         # Compute checksums
         if compute_checksums:
             if os.path.exists(pod5_path):
-                file_checksums[pod5_rel] = get_file_info(pod5_path)
+                file_checksums[pod5_path] = get_file_info(pod5_path)
             if os.path.exists(bam_path):
-                file_checksums[bam_rel] = get_file_info(bam_path)
+                file_checksums[bam_path] = get_file_info(bam_path)
 
     session = {
         "version": "1.0.0",
@@ -131,7 +123,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         required=True,
-        help="Pipeline output directory (paths will be relative to this)",
+        help="Pipeline output directory",
     )
     parser.add_argument(
         "--fasta",

@@ -554,7 +554,7 @@ python generate_squiggy_session.py \
 
 **Notes:**
 
-- Generates relative paths to POD5, BAM, and FASTA files for each sample
+- Generates absolute paths to POD5, BAM, and FASTA files for each sample
 - Computes MD5 checksums for file integrity verification
 - Includes default plot options for the Squiggy viewer (eventalign mode, z-normalization)
 

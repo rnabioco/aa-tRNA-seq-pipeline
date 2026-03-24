@@ -534,7 +534,7 @@ rule generate_squiggy_session:
     """
     Generate squiggy session JSON file for loading samples in Positron.
 
-    Creates a session file with relative paths to POD5, BAM, and FASTA files
+    Creates a session file with absolute paths to POD5, BAM, and FASTA files
     along with MD5 checksums for integrity verification.
     """
     input:

@@ -422,7 +422,7 @@ JSON with the following structure:
 | `version` | Schema version (`1.0.0`) |
 | `timestamp` | ISO 8601 generation time |
 | `sessionName` | Display name for the session |
-| `samples` | Per-sample `pod5Paths`, `bamPath`, `fastaPath` (relative paths) |
+| `samples` | Per-sample `pod5Paths`, `bamPath`, `fastaPath` (absolute paths) |
 | `plotOptions` | Default plot settings (eventalign mode, z-normalization) |
 | `fileChecksums` | MD5, size, and last-modified per file (unless `--no-checksums`) |
 
