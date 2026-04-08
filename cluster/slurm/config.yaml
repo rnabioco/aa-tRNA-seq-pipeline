@@ -12,12 +12,14 @@ rerun-incomplete: true
 keep-going: true
 printshellcmds: true
 show-failed-logs: true
+verbose: true
 
 # Slurm-specific settings
 slurm-logdir: "logs/slurm"
-slurm-keep-successful-logs: false
+slurm-keep-successful-logs: true
 slurm-delete-logfiles-older-than: 10
 slurm-qos: normal
+slurm-status-command: "squeue"  # sacct unavailable on this cluster (DB connection refused)
 
 # Default resources (CPU)
 default-resources:
