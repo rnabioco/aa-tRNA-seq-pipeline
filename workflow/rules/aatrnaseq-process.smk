@@ -309,7 +309,7 @@ rule classify_aa_identity:
         os.path.join(outdir, "logs", "classify_aa_identity", "{sample}"),
     threads: 4
     params:
-        bundle=config.get("aa_identity_bundle", ""),
+        bundle=config.get("aa_identity", {}).get("bundle", ""),
     shell:
         """
     if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then

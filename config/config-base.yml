@@ -64,6 +64,11 @@ remora_cca_classifier: "resources/models/cca_classifier.pt"
 # Leech is a GPU-accelerated alternative (requires resources/leech submodule)
 classifier: "remora"
 
+# AA identity classification using leech one-vs-all bundle (optional)
+aa_identity:
+  enabled: false
+  bundle: ""
+
 # software tools (modkit and remora managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:

@@ -296,12 +296,12 @@ def pipeline_outputs():
         sample=samples.keys(),
     )
 
-    outs += expand(
-        os.path.join(
-            outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
-        ),
-        sample=samples.keys(),
-    )
+    # outs += expand(
+    #     os.path.join(
+    #         outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
+    #     ),
+    #     sample=samples.keys(),
+    # )
 
     # outs += expand(
     #     os.path.join(
@@ -322,23 +322,23 @@ def pipeline_outputs():
             sample=samples.keys(),
         )
 
-    outs += expand(
-        os.path.join(
-            outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
-        ),
-        sample=samples.keys(),
-    )
+    # outs += expand(
+    #     os.path.join(
+    #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
+    #     ),
+    #     sample=samples.keys(),
+    # )
 
-    outs += expand(
-        os.path.join(
-            outdir,
-            "summary",
-            "tables",
-            "{sample}",
-            "{sample}.odds_ratios_filtered.tsv.gz",
-        ),
-        sample=samples.keys(),
-    )
+    # outs += expand(
+    #     os.path.join(
+    #         outdir,
+    #         "summary",
+    #         "tables",
+    #         "{sample}",
+    #         "{sample}.odds_ratios_filtered.tsv.gz",
+    #     ),
+    #     sample=samples.keys(),
+    # )
 
     # tRNA-only reference FASTA (adapters stripped)
     outs.append(get_trna_fasta())
@@ -367,7 +367,7 @@ def pipeline_outputs():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
 
     # AA identity classification (one-vs-all bundle)
-    if config.get("aa_identity_bundle"):
+    if config.get("aa_identity", {}).get("enabled", False):
         outs += expand(
             os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam"),
             sample=samples.keys(),
