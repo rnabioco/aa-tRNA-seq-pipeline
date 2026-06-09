@@ -182,7 +182,14 @@ echo "=== Checking leech ==="
 if python -c "import leech" 2>/dev/null; then
     echo "Leech already installed"
 else
-    if [ -d "${REPO_ROOT}/resources/leech" ]; then
+    # Ensure the submodule is checked out. The directory exists as a mount
+    # point even when uninitialized, so test for actual contents and init if
+    # needed (requires access to the private rnabioco/leech repo).
+    if [ ! -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
+        echo "Initializing leech submodule..."
+        git -C "${REPO_ROOT}" submodule update --init --recursive resources/leech
+    fi
+    if [ -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
         echo "Installing leech-core (Rust, release build)..."
         uv pip install "${REPO_ROOT}/resources/leech/rust"
         echo "Installing leech (Python, editable)..."
@@ -191,7 +198,8 @@ else
         echo "NOTE: pyarrow will be reconciled with conda in the next step"
     else
         echo "Leech submodule not found at resources/leech"
-        echo "Run 'git submodule update --init resources/leech' to clone it"
+        echo "Run 'git submodule update --init --recursive resources/leech' to clone it"
+        echo "(requires access to the private rnabioco/leech repository)"
     fi
 fi
 
