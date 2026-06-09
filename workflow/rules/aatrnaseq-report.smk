@@ -4,9 +4,10 @@
 
 rule render_combined_qc_report:
     """
-    Render combined Quarto QC report with faceted plots for all samples.
-    Run with: pixi run -e report snakemake render_combined_qc_report --configfile=config/config-test.yml
-    """
+Render combined Quarto QC report with faceted plots for all samples.
+Run with: pixi run -e report snakemake render_combined_qc_report --configfile=config/config-test.yml
+
+"""
     input:
         align_stats=expand(
             os.path.join(
@@ -96,13 +97,13 @@ rule render_combined_qc_report:
         CONFIG_ABS=$(realpath {params.config_file})
         OUTPUT_DIR_ABS=$(realpath $(dirname {output.html}))
         LOG_ABS=$(realpath {log})
-        cd $(dirname {params.template}) && \
-        quarto render $(basename {params.template}) \
-            -P config_file:$CONFIG_ABS \
-            -P ml_threshold:{params.ml_threshold} \
-            --output-dir $OUTPUT_DIR_ABS \
-            --output $(basename {output.html}) \
-            2>&1 | tee $LOG_ABS
+        cd $(dirname {params.template}) \
+            && quarto render $(basename {params.template}) \
+                -P config_file:$CONFIG_ABS \
+                -P ml_threshold:{params.ml_threshold} \
+                --output-dir $OUTPUT_DIR_ABS \
+                --output $(basename {output.html}) \
+                2>&1 | tee $LOG_ABS
 
         rm -f "$custom_target"
         """

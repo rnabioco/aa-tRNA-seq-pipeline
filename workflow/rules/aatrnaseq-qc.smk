@@ -4,11 +4,11 @@
 
 rule compute_reference_similarity:
     """
-    Compute pairwise sequence similarity matrix for reference FASTA.
+Compute pairwise sequence similarity matrix for reference FASTA.
 
-    This QC step identifies potential cross-mapping issues by calculating
-    all-vs-all sequence similarities using global alignment.
-    """
+This QC step identifies potential cross-mapping issues by calculating
+all-vs-all sequence similarities using global alignment.
+"""
     input:
         fasta=get_raw_reference(),
     output:
@@ -28,8 +28,8 @@ rule compute_reference_similarity:
 
 rule base_calling_error:
     """
-  extract base calling error metrics to tsv file
-  """
+extract base calling error metrics to tsv file
+"""
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
@@ -46,19 +46,19 @@ rule base_calling_error:
         offset_3p=get_3p_offset(),
     shell:
         """
-    python {params.src}/get_bcerror_freqs.py \
-      {input.bam} \
-      {params.fa} \
-      {output.tsv} \
-      --offset-5p {params.offset_5p} \
-      --offset-3p {params.offset_3p}
-    """
+        python {params.src}/get_bcerror_freqs.py \
+            {input.bam} \
+            {params.fa} \
+            {output.tsv} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p}
+        """
 
 
 rule align_stats:
     """
-  extract alignment stats
-  """
+extract alignment stats
+"""
     input:
         unmapped=rules.rebasecall.output,
         aligned=rules.bwa_align.output.bam,
@@ -73,20 +73,20 @@ rule align_stats:
         src=SCRIPT_DIR,
     shell:
         """
-    python {params.src}/get_align_stats.py \
-      -o {output.tsv} \
-      -a unmapped aligned classified \
-      -i {wildcards.sample} \
-      -b {input.unmapped} \
-         {input.aligned} \
-         {input.classified}
-    """
+        python {params.src}/get_align_stats.py \
+            -o {output.tsv} \
+            -a unmapped aligned classified \
+            -i {wildcards.sample} \
+            -b {input.unmapped} \
+            {input.aligned} \
+            {input.classified}
+        """
 
 
 rule remora_signal_stats:
     """
-  run remora to get signal stats
-  """
+run remora to get signal stats
+"""
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
@@ -103,12 +103,12 @@ rule remora_signal_stats:
         opts=config["opts"]["remora"],
     shell:
         """
-    python {params.src}/extract_signal_metrics.py \
-      --pod5_dir {input.pod5} \
-      --bam {input.bam} \
-      --kmer {params.kmer} \
-      --sample_name {wildcards.sample} \
-      {params.opts} \
-      | gzip -c \
-      > {output.tsv}
-    """
+        python {params.src}/extract_signal_metrics.py \
+            --pod5_dir {input.pod5} \
+            --bam {input.bam} \
+            --kmer {params.kmer} \
+            --sample_name {wildcards.sample} \
+            {params.opts} \
+            | gzip -c \
+                >{output.tsv}
+        """

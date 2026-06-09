@@ -7,7 +7,6 @@ import pandas as pd
 from pathlib import Path
 import gzip
 
-
 # WarpDemuX helper functions
 
 
@@ -109,8 +108,8 @@ def get_sample_run_raw_inputs(wildcards):
 
 rule warpdemux:
     """
-    Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
-    """
+Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
+"""
     input:
         get_run_raw_inputs,
     output:
@@ -118,6 +117,7 @@ rule warpdemux:
         done=os.path.join(outdir, "demux", "warpdemux_output", "{run_id}", ".done"),
     log:
         os.path.join(outdir, "logs", "warpdemux", "{run_id}"),
+    threads: config.get("warpdemux", {}).get("threads", 16)
     params:
         model=lambda wildcards: get_barcode_kit_for_run(wildcards.run_id),
         save_boundaries=lambda wildcards: (
@@ -126,7 +126,6 @@ rule warpdemux:
             else "false"
         ),
         pod5_dirs=lambda wildcards: " ".join(get_run_pod5_dirs(wildcards.run_id)),
-    threads: config.get("warpdemux", {}).get("threads", 16)
     shell:
         """
         warpdemux demux \
@@ -141,8 +140,8 @@ rule warpdemux:
 
 rule parse_warpdemux:
     """
-    Parse WarpDemuX predictions and create a barcode mapping file per run.
-    """
+Parse WarpDemuX predictions and create a barcode mapping file per run.
+"""
     input:
         demux_done=os.path.join(
             outdir, "demux", "warpdemux_output", "{run_id}", ".done"
@@ -173,7 +172,6 @@ rule parse_warpdemux:
             pred_dir = subdirs[0] / "predictions"
         else:
             pred_dir = demux_base / "predictions"
-
         all_predictions = []
         for pred_file in pred_dir.glob("*.csv.gz"):
             with gzip.open(pred_file, "rt") as f:
@@ -181,28 +179,28 @@ rule parse_warpdemux:
                 # Handle #read_id column name
                 df.columns = [c.lstrip("#") for c in df.columns]
                 all_predictions.append(df)
-
         predictions = (
             pd.concat(all_predictions, ignore_index=True)
             if all_predictions
             else pd.DataFrame(columns=["read_id", "predicted_barcode"])
         )
-
         # Convert numeric barcode (e.g., 7) to barcode format (e.g., "barcode07")
         predictions["predicted_barcode"] = predictions["predicted_barcode"].apply(
             lambda x: f"barcode{int(x):02d}" if x != -1 else "unclassified"
         )
-
         # Write the full mapping file
         predictions[["read_id", "predicted_barcode"]].to_csv(
             output.mapping, sep="\t", index=False, compression="gzip"
         )
-
         # Write summary statistics
         summary_data = (
-            predictions.groupby("predicted_barcode").size().reset_index(name="n_reads")
+            predictions.groupby("predicted_barcode")
+            .size()
+            .reset_index(name="n_reads")
         )
-        summary_data.to_csv(output.summary, sep="\t", index=False, compression="gzip")
+        summary_data.to_csv(
+            output.summary, sep="\t", index=False, compression="gzip"
+        )
 
 
 def get_sample_barcode_mapping(wildcards):
@@ -213,8 +211,8 @@ def get_sample_barcode_mapping(wildcards):
 
 rule extract_sample_reads:
     """
-    Extract read IDs for a specific sample based on its barcode assignment.
-    """
+Extract read IDs for a specific sample based on its barcode assignment.
+"""
     input:
         mapping=get_sample_barcode_mapping,
     output:
@@ -231,7 +229,6 @@ rule extract_sample_reads:
         sample_reads = mapping[mapping["predicted_barcode"] == params.barcode][
             "read_id"
         ]
-
         with open(output.read_ids, "w") as f:
             for read_id in sample_reads:
                 f.write(f"{read_id}\n")
@@ -252,8 +249,8 @@ def get_sample_pod5_dirs(wildcards):
 
 rule split_pod5:
     """
-    Filter raw POD5 files by sample using read IDs from demultiplexing.
-    """
+Filter raw POD5 files by sample using read IDs from demultiplexing.
+"""
     input:
         pod5=get_sample_run_raw_inputs,
         read_ids=get_sample_read_ids,
@@ -279,9 +276,9 @@ def get_edx_samples():
 
 rule detect_edx_adapters:
     """
-    Detect 3' adapter identity per read on the unaligned BAM (before alignment).
-    Produces a TSV mapping each read_id to its best-matching 3' adapter name.
-    """
+Detect 3' adapter identity per read on the unaligned BAM (before alignment).
+Produces a TSV mapping each read_id to its best-matching 3' adapter name.
+"""
     input:
         bam=lambda wildcards: os.path.join(
             outdir,
@@ -315,8 +312,8 @@ rule detect_edx_adapters:
 
 rule extract_edx_read_ids:
     """
-    Extract read IDs matching this sample's EDX adapter assignment.
-    """
+Extract read IDs matching this sample's EDX adapter assignment.
+"""
     input:
         tsv=rules.detect_edx_adapters.output.tsv,
     output:
@@ -330,7 +327,10 @@ rule extract_edx_read_ids:
     run:
         import gzip
 
-        with gzip.open(input.tsv, "rt") as f_in, open(output.read_ids, "w") as f_out:
+        with (
+            gzip.open(input.tsv, "rt") as f_in,
+            open(output.read_ids, "w") as f_out,
+        ):
             header = f_in.readline()  # skip header
             for line in f_in:
                 read_id, adapter = line.rstrip("\n").split("\t", 1)
@@ -340,8 +340,8 @@ rule extract_edx_read_ids:
 
 rule filter_fastq_by_edx:
     """
-    Extract FASTQ for reads matching this sample's EDX adapter.
-    """
+Extract FASTQ for reads matching this sample's EDX adapter.
+"""
     input:
         bam=lambda wildcards: os.path.join(
             outdir,
@@ -361,15 +361,15 @@ rule filter_fastq_by_edx:
         """
         samtools view -N {input.read_ids} {input.bam} \
             | samtools fastq - \
-            | gzip > {output.fq} \
-            2>&1 | tee {log}
+            | gzip >{output.fq} \
+                2>&1 | tee {log}
         """
 
 
 rule filter_pod5_by_edx:
     """
-    Filter POD5 to keep only reads matching this sample's EDX adapter.
-    """
+Filter POD5 to keep only reads matching this sample's EDX adapter.
+"""
     input:
         pod5=get_sample_pod5,
         read_ids=rules.extract_edx_read_ids.output.read_ids,
@@ -390,10 +390,10 @@ rule filter_pod5_by_edx:
 
 rule edx_concordance:
     """
-    Build concordance table of WDX sample assignment vs EDX adapter identity.
-    Uses pre-alignment adapter detection TSVs (which contain ALL reads with their
-    detected adapter) rather than final BAMs (which only contain matching reads).
-    """
+Build concordance table of WDX sample assignment vs EDX adapter identity.
+Uses pre-alignment adapter detection TSVs (which contain ALL reads with their
+detected adapter) rather than final BAMs (which only contain matching reads).
+"""
     input:
         tsvs=lambda wildcards: expand(
             os.path.join(

@@ -21,7 +21,6 @@ onstart:
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
     os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
     shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
-
     # Verify dorado version matches config
     dorado_bin = os.path.join(dorado_bin_path, "dorado")
     if os.path.isfile(dorado_bin):
@@ -41,10 +40,8 @@ onstart:
                 )
         except Exception:
             pass
-
     conda_prefix = os.environ.get("CONDA_PREFIX", "")  # tool path validation
     repo_root = os.path.dirname(os.path.dirname(workflow.snakefile))
-
     tools_to_check = [
         ("dorado", [os.path.join(repo_root, "resources")]),
         ("samtools", [conda_prefix]),
@@ -53,20 +50,16 @@ onstart:
         ("remora", [conda_prefix]),
         ("pod5", [conda_prefix]),
     ]
-
     if config.get("warpdemux", {}).get("enabled", False):
         tools_to_check.append(("warpdemux", [conda_prefix]))
-
     if config.get("classifier", "remora") == "leech":
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
         )
-
     if config.get("classify_aa", {}).get("enabled", False):
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
         )
-
     for tool_name, allowed_prefixes in tools_to_check:
         tool_path = shutil.which(tool_name)
         if tool_path is None:

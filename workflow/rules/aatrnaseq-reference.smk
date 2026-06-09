@@ -98,17 +98,17 @@ def get_trna_fasta():
 
 rule validate_reference:
     """
-    Validate that an existing reference FASTA has correct adapter structure.
+Validate that an existing reference FASTA has correct adapter structure.
 
-    Checks:
-    - All sequences have correct 5' adapter prefix
-    - All tRNA portions end with CCA
-    - All sequences have correct 3' adapter suffix (starting with GGC)
-    - CCAGGC junction exists for charging classification
-    - No duplicate sequence names
+Checks:
+- All sequences have correct 5' adapter prefix
+- All tRNA portions end with CCA
+- All sequences have correct 3' adapter suffix (starting with GGC)
+- CCAGGC junction exists for charging classification
+- No duplicate sequence names
 
-    Pipeline fails if validation fails.
-    """
+Pipeline fails if validation fails.
+"""
     input:
         fasta=config["fasta"],
     output:
@@ -137,18 +137,18 @@ rule validate_reference:
 
 rule build_reference:
     """
-    Build an adapted tRNA reference from raw tRNA sequences.
+Build an adapted tRNA reference from raw tRNA sequences.
 
-    Input: Raw tRNA FASTA (sequences without adapters)
-    Output: Adapted reference FASTA with 5' and 3' adapters
+Input: Raw tRNA FASTA (sequences without adapters)
+Output: Adapted reference FASTA with 5' and 3' adapters
 
-    Steps:
-    1. Check for CCA endings - add CCA if missing (with warning)
-    2. Prepend 5' adapter to each tRNA
-    3. Append 3' adapter after CCA
-    4. Verify CCAGGC junction is created
-    5. Write adapted FASTA
-    """
+Steps:
+1. Check for CCA endings - add CCA if missing (with warning)
+2. Prepend 5' adapter to each tRNA
+3. Append 3' adapter after CCA
+4. Verify CCAGGC junction is created
+5. Write adapted FASTA
+"""
     input:
         raw_fasta=lambda wildcards: config["reference"]["raw_fasta"],
     output:
@@ -175,15 +175,15 @@ rule build_reference:
 
 rule skip_reference_validation:
     """
-    Skip validation and copy reference as-is.
+Skip validation and copy reference as-is.
 
-    Use this mode when the reference has non-standard adapters but you want
-    to proceed without validation. The reference is copied to the output
-    directory without any checks.
+Use this mode when the reference has non-standard adapters but you want
+to proceed without validation. The reference is copied to the output
+directory without any checks.
 
-    WARNING: Charging classification may not work correctly if the reference
-    does not have the expected CCAGGC junction structure.
-    """
+WARNING: Charging classification may not work correctly if the reference
+does not have the expected CCAGGC junction structure.
+"""
     input:
         fasta=config["fasta"],
     output:
@@ -194,28 +194,28 @@ rule skip_reference_validation:
     shell:
         """
         cp {input.fasta} {output.reference}
-        echo "Reference validation skipped." > {output.report}
-        echo "Input: {input.fasta}" >> {output.report}
-        echo "Output: {output.reference}" >> {output.report}
-        echo "WARNING: No adapter structure validation performed." >> {output.report}
+        echo "Reference validation skipped." >{output.report}
+        echo "Input: {input.fasta}" >>{output.report}
+        echo "Output: {output.reference}" >>{output.report}
+        echo "WARNING: No adapter structure validation performed." >>{output.report}
         echo "Reference copied without validation." | tee {log}
         """
 
 
 rule trim_reference:
     """
-    Produce tRNA-only FASTA by stripping adapter sequences.
+Produce tRNA-only FASTA by stripping adapter sequences.
 
-    Removes the 5' adapter + N position from the start and 3' adapter
-    from the end of each reference sequence. The output is used by
-    clover for MODOMICS annotation and tRNA structure visualization.
+Removes the 5' adapter + N position from the start and 3' adapter
+from the end of each reference sequence. The output is used by
+clover for MODOMICS annotation and tRNA structure visualization.
 
-    Note: only the first 3' adapter is used here because trimming is
-    length-based (fixed offset), not sequence-based. This is safe because
-    validate_reference enforces that all configured 3' adapters have equal
-    length. If adapters of different lengths are ever needed, this rule
-    must be updated to handle per-adapter offsets.
-    """
+Note: only the first 3' adapter is used here because trimming is
+length-based (fixed offset), not sequence-based. This is safe because
+validate_reference enforces that all configured 3' adapters have equal
+length. If adapters of different lengths are ever needed, this rule
+must be updated to handle per-adapter offsets.
+"""
     input:
         fasta=get_validated_reference(),
     output:

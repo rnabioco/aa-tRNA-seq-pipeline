@@ -4,8 +4,8 @@
 
 rule get_cca_trna:
     """
-    extract and report charing probability (ML tag) per read
-    """
+extract and report charing probability (ML tag) per read
+"""
     input:
         bam=rules.finalize_bam.output.bam,
     output:
@@ -18,17 +18,17 @@ rule get_cca_trna:
         src=SCRIPT_DIR,
     shell:
         """
-    python {params.src}/get_charging_table.py \
-      --tag cl \
-      {input.bam} \
-      {output.charging_tab}
-    """
+        python {params.src}/get_charging_table.py \
+            --tag cl \
+            {input.bam} \
+            {output.charging_tab}
+        """
 
 
 rule get_cca_trna_cpm:
     """
-    calculate cpm for cca classified trnas
-    """
+calculate cpm for cca classified trnas
+"""
     input:
         charging_tab=rules.get_cca_trna.output.charging_tab,
     output:
@@ -43,8 +43,8 @@ rule get_cca_trna_cpm:
         ml_thresh=200,
     shell:
         """
-    python {params.src}/get_trna_charging_cpm.py \
-      --input {input.charging_tab} \
-      --output {output.cpm} \
-      --ml-threshold {params.ml_thresh}
-    """
+        python {params.src}/get_trna_charging_cpm.py \
+            --input {input.charging_tab} \
+            --output {output.cpm} \
+            --ml-threshold {params.ml_thresh}
+        """

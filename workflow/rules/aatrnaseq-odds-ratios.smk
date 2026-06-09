@@ -4,13 +4,13 @@
 
 rule compute_odds_ratios:
     """
-    Compute per-tRNA pairwise modification odds ratios.
+Compute per-tRNA pairwise modification odds ratios.
 
-    For each tRNA, uses individual reads as the unit of observation to test
-    whether modification at position X is correlated with modification at
-    position Y (and with charging status) via 2x2 contingency tables,
-    odds ratios, and Fisher's exact test.
-    """
+For each tRNA, uses individual reads as the unit of observation to test
+whether modification at position X is correlated with modification at
+position Y (and with charging status) via 2x2 contingency tables,
+odds ratios, and Fisher's exact test.
+"""
     input:
         modkit=rules.modkit_extract_calls.output.tsv,
         charging=rules.get_cca_trna.output.charging_tab,
@@ -38,12 +38,12 @@ rule compute_odds_ratios:
 
 rule filter_odds_ratios:
     """
-    Pre-filter odds ratios to keep only well-observed position pairs.
+Pre-filter odds ratios to keep only well-observed position pairs.
 
-    Keeps rows where total_obs >= min_obs (default 100), matching the
-    downstream clover::filter_linkages() threshold. This reduces file
-    sizes ~10x and speeds up R data loading.
-    """
+Keeps rows where total_obs >= min_obs (default 100), matching the
+downstream clover::filter_linkages() threshold. This reduces file
+sizes ~10x and speeds up R data loading.
+"""
     input:
         tsv=rules.compute_odds_ratios.output.tsv,
     output:

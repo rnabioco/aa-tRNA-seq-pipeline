@@ -9,12 +9,12 @@ TSV files with amino acid identity predictions. Only loaded when
 
 rule classify_aa:
     """
-    Run leech multiclass bundle on final BAMs to predict amino acid identity.
+Run leech multiclass bundle on final BAMs to predict amino acid identity.
 
-    Uses reference-anchored signal extraction over the CCA 3' end junction.
-    Outputs per-read predictions as gzipped TSV with probability columns for
-    each amino acid class, plus the CL (charging) tag from the BAM.
-    """
+Uses reference-anchored signal extraction over the CCA 3' end junction.
+Outputs per-read predictions as gzipped TSV with probability columns for
+each amino acid class, plus the CL (charging) tag from the BAM.
+"""
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,

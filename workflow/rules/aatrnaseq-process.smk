@@ -5,8 +5,8 @@ Rules for processing raw data from aa-tRNA-seq experiments
 
 rule merge_pods:
     """
-  merge pod5s into a single pod5
-  """
+merge pod5s into a single pod5
+"""
     input:
         get_raw_inputs,
     output:
@@ -16,16 +16,16 @@ rule merge_pods:
     threads: 12
     shell:
         """
-      pod5 merge -t {threads} -f -o {output} {input}
-    """
+        pod5 merge -t {threads} -f -o {output} {input}
+        """
 
 
 rule download_mod_models:
     """
-    Download dorado modified bases models if not already present.
-    Runs once on the submission node before basecalling to avoid
-    race conditions from parallel GPU jobs downloading simultaneously.
-    """
+Download dorado modified bases models if not already present.
+Runs once on the submission node before basecalling to avoid
+race conditions from parallel GPU jobs downloading simultaneously.
+"""
     output:
         sentinel=os.path.join(PIPELINE_DIR, "resources", "models", ".mod_models_ready"),
     params:
@@ -52,10 +52,10 @@ rule download_mod_models:
 
 rule rebasecall:
     """
-  rebasecall using different accuracy model
+rebasecall using different accuracy model
 
-  TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
-  """
+TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
+"""
     input:
         pod5=get_sample_pod5,
         mod_models=rules.download_mod_models.output.sentinel,
@@ -73,19 +73,19 @@ rule rebasecall:
         models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+            export CUDA_VISIBLE_DEVICES
+        fi
 
-    dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} > {output}
-    """
+        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} >{output}
+        """
 
 
 rule ubam_to_fastq:
     """
-  extract reads from bam into FASTQ format for alignment
-  """
+extract reads from bam into FASTQ format for alignment
+"""
     input:
         rules.rebasecall.output,
     output:
@@ -94,15 +94,15 @@ rule ubam_to_fastq:
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
         """
-    samtools fastq {input} | gzip > {output}
-    """
+        samtools fastq {input} | gzip >{output}
+        """
 
 
 rule bwa_idx:
     """
-    Build BWA index for the validated/built reference.
-    Depends on reference validation/building completing first.
-    """
+Build BWA index for the validated/built reference.
+Depends on reference validation/building completing first.
+"""
     input:
         get_validated_reference(),
     output:
@@ -111,17 +111,17 @@ rule bwa_idx:
         os.path.join(outdir, "logs", "bwa_idx", "log"),
     shell:
         """
-    bwa index {input}
-    """
+        bwa index {input}
+        """
 
 
 rule bwa_align:
     """
-    Align reads to tRNA references with bwa mem.
-    Uses the validated/built reference.
+Align reads to tRNA references with bwa mem.
+Uses the validated/built reference.
 
-    For EDX samples, input FASTQ is pre-filtered to matching reads only.
-    """
+For EDX samples, input FASTQ is pre-filtered to matching reads only.
+"""
     input:
         reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
@@ -132,20 +132,20 @@ rule bwa_align:
         bai=maybe_temp(
             os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai")
         ),
-    params:
-        index=get_validated_reference(),
-        bwa_opts=config["opts"]["bwa"],
     log:
         os.path.join(outdir, "logs", "bwa_align", "{sample}"),
     threads: 16
+    params:
+        index=get_validated_reference(),
+        bwa_opts=config["opts"]["bwa"],
     shell:
         """
-    bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-        | samtools view -F 20 -Sb - \
-        | samtools sort -m 2G -@ 4 -o {output.bam}
+        bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
+            | samtools view -F 20 -Sb - \
+            | samtools sort -m 2G -@ 4 -o {output.bam}
 
-    samtools index {output.bam}
-    """
+        samtools index {output.bam}
+        """
 
 
 rule inject_ubam_tags:
@@ -163,31 +163,31 @@ rule inject_ubam_tags:
                 outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
             )
         ),
+    log:
+        os.path.join(outdir, "logs", "inject_ubam_tags", "{sample}"),
     threads: 4
     params:
         src=SCRIPT_DIR,
-    log:
-        os.path.join(outdir, "logs", "inject_ubam_tags", "{sample}"),
     shell:
         """
-    python {params.src}/transfer_tags.py \
-      --all-tags \
-      --threads {threads} \
-      --source {input.source_bam} \
-      --target {input.target_bam} \
-      --output {output.bam}
+        python {params.src}/transfer_tags.py \
+            --all-tags \
+            --threads {threads} \
+            --source {input.source_bam} \
+            --target {input.target_bam} \
+            --output {output.bam}
 
-    samtools index -@ {threads} {output.bam}
-    """
+        samtools index -@ {threads} {output.bam}
+        """
 
 
 rule classify_charging:
     """
-  run remora trained model to classify charged and uncharged reads
-  runs on CPU by default (no --device flag)
+run remora trained model to classify charged and uncharged reads
+runs on CPU by default (no --device flag)
 
-  For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
-  """
+For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+"""
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -214,31 +214,31 @@ rule classify_charging:
         model=config["remora_cca_classifier"],
     shell:
         """
-    remora infer from_pod5_and_bam {input.pod5} {input.bam} \
-      --model {params.model} \
-      --out-bam {output.charging_bam} \
-      --log-filename {log} \
-      --reference-anchored \
-      --num-extract-alignment-workers 2 \
-      --num-prepare-read-workers 2 \
-      --num-prepare-nn-input-workers 2 \
-      --num-post-process-workers 2
+        remora infer from_pod5_and_bam {input.pod5} {input.bam} \
+            --model {params.model} \
+            --out-bam {output.charging_bam} \
+            --log-filename {log} \
+            --reference-anchored \
+            --num-extract-alignment-workers 2 \
+            --num-prepare-read-workers 2 \
+            --num-prepare-nn-input-workers 2 \
+            --num-post-process-workers 2
 
-    # sort the result
-    samtools sort -@ {threads} {output.charging_bam} > {output.temp_sorted_bam}
-    cp {output.temp_sorted_bam} {output.charging_bam}
+        # sort the result
+        samtools sort -@ {threads} {output.charging_bam} >{output.temp_sorted_bam}
+        cp {output.temp_sorted_bam} {output.charging_bam}
 
-    samtools index {output.charging_bam}
-    """
+        samtools index {output.charging_bam}
+        """
 
 
 rule classify_charging_leech:
     """
-  run leech trained model to classify charged and uncharged reads
-  GPU-accelerated alternative to remora (requires leech installed from resources/leech)
+run leech trained model to classify charged and uncharged reads
+GPU-accelerated alternative to remora (requires leech installed from resources/leech)
 
-  For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
-  """
+For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+"""
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -261,37 +261,37 @@ rule classify_charging_leech:
         model=config["remora_cca_classifier"],
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+            export CUDA_VISIBLE_DEVICES
+        fi
 
-    leech predict \
-      --model {params.model} \
-      --pod5 {input.pod5} \
-      --bam {input.bam} \
-      --output {output.charging_bam} \
-      --device cuda \
-      --motif CCAGGC \
-      --motif-offset 2 \
-      --reference-anchored \
-      --workers 4 \
-      --batch-size 512 \
-      2>&1 | tee {log}
+        leech predict \
+            --model {params.model} \
+            --pod5 {input.pod5} \
+            --bam {input.bam} \
+            --output {output.charging_bam} \
+            --device cuda \
+            --motif CCAGGC \
+            --motif-offset 2 \
+            --reference-anchored \
+            --workers 4 \
+            --batch-size 512 \
+            2>&1 | tee {log}
 
-    # sort the result
-    samtools sort -@ {threads} {output.charging_bam} > {output.temp_sorted_bam}
-    cp {output.temp_sorted_bam} {output.charging_bam}
+        # sort the result
+        samtools sort -@ {threads} {output.charging_bam} >{output.temp_sorted_bam}
+        cp {output.temp_sorted_bam} {output.charging_bam}
 
-    samtools index {output.charging_bam}
-    """
+        samtools index {output.charging_bam}
+        """
 
 
 rule classify_aa_identity:
     """
-  Run leech one-vs-all bundle to predict amino acid identity per read.
-  Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
-  """
+Run leech one-vs-all bundle to predict amino acid identity per read.
+Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
+"""
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -310,36 +310,36 @@ rule classify_aa_identity:
         bundle=config.get("aa_identity", {}).get("bundle", ""),
     shell:
         """
-    if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-      echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-      export CUDA_VISIBLE_DEVICES
-    fi
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+            export CUDA_VISIBLE_DEVICES
+        fi
 
-    leech predict \
-      --bundle {params.bundle} \
-      --all \
-      --pod5 {input.pod5} \
-      --bam {input.bam} \
-      --output {output.bam} \
-      --device cuda \
-      --workers 4 \
-      --batch-size 512 \
-      --raw \
-      2>&1 | tee {log}
+        leech predict \
+            --bundle {params.bundle} \
+            --all \
+            --pod5 {input.pod5} \
+            --bam {input.bam} \
+            --output {output.bam} \
+            --device cuda \
+            --workers 4 \
+            --batch-size 512 \
+            --raw \
+            2>&1 | tee {log}
 
-    samtools sort -@ {threads} {output.bam} > {output.temp_sorted}
-    cp {output.temp_sorted} {output.bam}
-    samtools index {output.bam}
-    """
+        samtools sort -@ {threads} {output.bam} >{output.temp_sorted}
+        cp {output.temp_sorted} {output.bam}
+        samtools index {output.bam}
+        """
 
 
 rule transfer_bam_tags:
     """
-  creates classified bam with MM and ML tags transferred to cm/cl
+creates classified bam with MM and ML tags transferred to cm/cl
 
-  MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
-  base modifications.
-  """
+MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
+base modifications.
+"""
     input:
         source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.inject_ubam_tags.output.bam,
@@ -357,28 +357,28 @@ rule transfer_bam_tags:
         src=SCRIPT_DIR,
     shell:
         """
-    python {params.src}/transfer_tags.py \
-      --tags ML MM \
-      --rename ML=cl MM=cm \
-      --threads {threads} \
-      --source {input.source_bam} \
-      --target {input.target_bam} \
-      --output {output.classified_bam}
+        python {params.src}/transfer_tags.py \
+            --tags ML MM \
+            --rename ML=cl MM=cm \
+            --threads {threads} \
+            --source {input.source_bam} \
+            --target {input.target_bam} \
+            --output {output.classified_bam}
 
-    samtools index -@ {threads} {output.classified_bam}
-    """
+        samtools index -@ {threads} {output.classified_bam}
+        """
 
 
 rule add_adapter_tags:
     """
-    Detect adapter positions in reads using parasail alignment
-    and add pt tags (SAM-spec read annotation format) to BAM file.
+Detect adapter positions in reads using parasail alignment
+and add pt tags (SAM-spec read annotation format) to BAM file.
 
-    pt tag format: start;end;strand;type|start;end;strand;type
-    Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+pt tag format: start;end;strand;type|start;end;strand;type
+Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
-    This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
-    """
+This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
+"""
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
@@ -409,30 +409,30 @@ rule add_adapter_tags:
         max_ref_start_for_5p=config["adapters"].get("max_ref_start_for_5p", 20),
     shell:
         """
-    python {params.src}/add_adapter_tags.py \
-      -i {input.bam} \
-      -o {output.bam} \
-      --adapter-5p "{params.adapter_5p}" \
-      {params.adapter_3p_args} \
-      --min-score-5p {params.min_score_5p} \
-      --min-score-3p {params.min_score_3p} \
-      {params.infer_5p_flag} \
-      --max-ref-start-for-5p {params.max_ref_start_for_5p} \
-      2> {log}
+        python {params.src}/add_adapter_tags.py \
+            -i {input.bam} \
+            -o {output.bam} \
+            --adapter-5p "{params.adapter_5p}" \
+            {params.adapter_3p_args} \
+            --min-score-5p {params.min_score_5p} \
+            --min-score-3p {params.min_score_3p} \
+            {params.infer_5p_flag} \
+            --max-ref-start-for-5p {params.max_ref_start_for_5p} \
+            2>{log}
 
-    samtools index {output.bam}
-    """
+        samtools index {output.bam}
+        """
 
 
 rule finalize_bam:
     """
-    Produce the final BAM for downstream analysis.
+Produce the final BAM for downstream analysis.
 
-    EDX filtering now happens early in the pipeline (before alignment) via
-    the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
-    This rule hardlinks the adapter-tagged BAM as the final output so that
-    temp() cleanup of upstream BAMs doesn't break downstream consumers.
-    """
+EDX filtering now happens early in the pipeline (before alignment) via
+the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
+This rule hardlinks the adapter-tagged BAM as the final output so that
+temp() cleanup of upstream BAMs doesn't break downstream consumers.
+"""
     input:
         bam=rules.add_adapter_tags.output.bam,
         bai=rules.add_adapter_tags.output.bai,
@@ -445,7 +445,7 @@ rule finalize_bam:
         os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
     shell:
         """
-    ln -f $(realpath {input.bam}) {output.bam}
-    ln -f $(realpath {input.bai}) {output.bai}
-    echo "Hardlinked adapter-tagged BAM as final" > {log}
-    """
+        ln -f $(realpath {input.bam}) {output.bam}
+        ln -f $(realpath {input.bai}) {output.bai}
+        echo "Hardlinked adapter-tagged BAM as final" >{log}
+        """
