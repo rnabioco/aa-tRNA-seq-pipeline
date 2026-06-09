@@ -297,9 +297,7 @@ rule classify_aa_identity:
         bam=rules.inject_ubam_tags.output.bam,
     output:
         bam=os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam"),
-        bai=os.path.join(
-            outdir, "bam", "aa_classified", "{sample}", "{sample}.bam.bai"
-        ),
+        bai=os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam.bai"),
         temp_sorted=temp(
             os.path.join(
                 outdir, "bam", "aa_classified", "{sample}", "{sample}.bam.tmp"

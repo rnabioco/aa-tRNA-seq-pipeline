@@ -378,4 +378,5 @@ class TestTransferTags:
         assert len(st_reads) == len(mt_reads) == 10
         for st_read, mt_read in zip(st_reads, mt_reads):
             assert st_read.query_name == mt_read.query_name
-            assert list(st_read.get_tag("ML")) == list(mt_read.get_tag("ML"))
+            # Single-element arrays are unwrapped to scalar by transfer_tags
+            assert st_read.get_tag("ML") == mt_read.get_tag("ML")
