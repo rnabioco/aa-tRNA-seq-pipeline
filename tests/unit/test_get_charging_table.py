@@ -163,6 +163,47 @@ class TestExtractTag:
         assert len(lines) == 2
         assert "mapped" in lines[1]
 
+    def test_retains_ml_zero_reads(self, temp_dir):
+        """ML==0 is a valid, maximally-confident *uncharged* call and must be
+        written to the table. Regression test for a bug where the write gate
+        used `if tag_value` (falsy at 0), silently dropping ML==0 reads and
+        biasing charging fraction upward."""
+        input_bam = temp_dir / "input.bam"
+        output_tsv = temp_dir / "output.tsv"
+
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "tRNA-Ala-AGC-1-1", "LN": 100}],
+        }
+
+        with pysam.AlignmentFile(str(input_bam), "wb", header=header) as outf:
+            # One confidently-uncharged read (ML=0) and one charged (ML=255)
+            for name, ml_val in [("uncharged_zero", 0), ("charged_max", 255)]:
+                read = pysam.AlignedSegment()
+                read.query_name = name
+                read.query_sequence = "A" * 100
+                read.flag = 0
+                read.reference_id = 0
+                read.reference_start = 0
+                read.cigartuples = [(0, 100)]
+                read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+                read.set_tag("ML", array("B", [ml_val]))
+                outf.write(read)
+
+        pysam.index(str(input_bam))
+
+        extract_tag(str(input_bam), str(output_tsv), "ML")
+
+        with open(output_tsv) as f:
+            lines = f.readlines()
+
+        # Header + both reads (the ML=0 read must NOT be dropped)
+        assert len(lines) == 3
+        assert any(
+            line.startswith("uncharged_zero\t") and line.rstrip().endswith("\t0")
+            for line in lines[1:]
+        )
+
     def test_different_tag(self, temp_dir):
         """Should work with different tag names."""
         input_bam = temp_dir / "input.bam"
