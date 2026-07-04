@@ -8,11 +8,15 @@ import pysam
 import argparse
 import csv
 import gzip
+import sys
 
 
 def extract_tag(bam_file, output_tsv, tag):
     open_func = gzip.open if output_tsv.endswith(".gz") else open
     mode = "wt" if output_tsv.endswith(".gz") else "w"
+
+    n_written = 0
+    n_multi_skipped = 0
 
     with (
         pysam.AlignmentFile(bam_file, "rb") as bam,
@@ -35,9 +39,15 @@ def extract_tag(bam_file, output_tsv, tag):
             if tag_raw is None:
                 continue
 
-            # Handle both scalar (cl:i:200) and array (CL:B:C:200) tag values
+            # Handle both scalar (cl:i:200) and array (CL:B:C:200) tag values.
+            # A multi-element array is not a single charging score (e.g. the
+            # dorado `ML` mod-base tag holds one probability per modified base),
+            # so it cannot be collapsed to one value and is skipped. Count and
+            # warn rather than dropping silently: a silent drop here biases the
+            # charging fraction and CPM denominator exactly like the ML==0 bug.
             if hasattr(tag_raw, "__len__") and not isinstance(tag_raw, str):
                 if len(tag_raw) > 1:
+                    n_multi_skipped += 1
                     continue
                 tag_value = tag_raw[0]
             else:
@@ -50,6 +60,21 @@ def extract_tag(bam_file, output_tsv, tag):
             # CPM denominator downstream.
             if tag_value is not None and reference != "*":
                 writer.writerow([read_id, reference, tag_value])
+                n_written += 1
+
+    if n_multi_skipped:
+        print(
+            f"WARNING: skipped {n_multi_skipped} read(s) whose '{tag}' tag was a "
+            f"multi-element array (not a single charging score). If you meant to "
+            f"extract the charging tag, pass --tag cl.",
+            file=sys.stderr,
+        )
+    if n_written == 0:
+        print(
+            f"WARNING: wrote 0 reads to {output_tsv}; no read carried a usable "
+            f"scalar '{tag}' tag.",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
