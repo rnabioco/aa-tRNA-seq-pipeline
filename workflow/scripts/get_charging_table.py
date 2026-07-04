@@ -43,7 +43,12 @@ def extract_tag(bam_file, output_tsv, tag):
             else:
                 tag_value = tag_raw
 
-            if tag_value and reference != "*":
+            # Write on tag PRESENCE, not truthiness: a charging tag of 0 is a
+            # valid, maximally-confident *uncharged* call (ML score range is
+            # 0-255, >=200 = charged). `if tag_value` would silently drop
+            # ML==0 reads, biasing charging fraction upward and shrinking the
+            # CPM denominator downstream.
+            if tag_value is not None and reference != "*":
                 writer.writerow([read_id, reference, tag_value])
 
 
