@@ -6,6 +6,7 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Fixed
 - `get_charging_table.py` no longer drops reads whose charging ML tag is exactly 0. The write gate used `if tag_value` (falsy at 0), silently discarding maximally-confident *uncharged* reads (ML score range is 0-255, >=200 = charged). This biased charging fraction upward and shrank the CPM denominator in `get_trna_charging_cpm.py`. Gate now checks tag presence (`is not None`). Added a regression test covering ML==0.
+- `get_charging_table.py` now warns on stderr (instead of dropping silently) when a tag is a multi-element array that cannot be reduced to a single charging score — the same denominator-biasing failure mode as the ML==0 bug. This is reachable via the default `--tag ML` on a dorado mod-base BAM, where every read would otherwise be discarded with no signal. Also warns when the output table ends up empty.
 - Pipeline summary outputs (bcerror, odds_ratios) now report positions in tRNA-only coordinates (1-indexed) instead of full-reference coordinates that included adapter sequences. This fixes incorrect nucleotide positions in downstream tools like clover's `plot_tRNA_structure()`.
 
 ### Added

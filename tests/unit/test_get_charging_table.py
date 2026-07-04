@@ -204,6 +204,59 @@ class TestExtractTag:
             for line in lines[1:]
         )
 
+    def test_skips_and_warns_on_multielement_tag(self, temp_dir, capsys):
+        """A multi-element tag array (e.g. the dorado mod-base ML tag) is not a
+        single charging score and is skipped, but the skip must be reported on
+        stderr rather than dropped silently (silent drops bias the charging
+        fraction like the ML==0 bug did)."""
+        input_bam = temp_dir / "input.bam"
+        output_tsv = temp_dir / "output.tsv"
+
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "tRNA-Ala-AGC-1-1", "LN": 100}],
+        }
+
+        with pysam.AlignmentFile(str(input_bam), "wb", header=header) as outf:
+            # One scalar-usable read and one multi-element read (2 mod probs)
+            scalar_read = pysam.AlignedSegment()
+            scalar_read.query_name = "scalar"
+            scalar_read.query_sequence = "A" * 100
+            scalar_read.flag = 0
+            scalar_read.reference_id = 0
+            scalar_read.reference_start = 0
+            scalar_read.cigartuples = [(0, 100)]
+            scalar_read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            scalar_read.set_tag("ML", array("B", [200]))
+            outf.write(scalar_read)
+
+            multi_read = pysam.AlignedSegment()
+            multi_read.query_name = "multi"
+            multi_read.query_sequence = "A" * 100
+            multi_read.flag = 0
+            multi_read.reference_id = 0
+            multi_read.reference_start = 0
+            multi_read.cigartuples = [(0, 100)]
+            multi_read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            multi_read.set_tag("ML", array("B", [10, 250]))
+            outf.write(multi_read)
+
+        pysam.index(str(input_bam))
+
+        extract_tag(str(input_bam), str(output_tsv), "ML")
+
+        with open(output_tsv) as f:
+            lines = f.readlines()
+
+        # Header + only the scalar read; the multi-element read is skipped
+        assert len(lines) == 2
+        assert lines[1].startswith("scalar\t")
+        assert not any(line.startswith("multi\t") for line in lines[1:])
+
+        # ...but the skip is reported, not silent
+        err = capsys.readouterr().err
+        assert "skipped 1" in err
+
     def test_different_tag(self, temp_dir):
         """Should work with different tag names."""
         input_bam = temp_dir / "input.bam"
