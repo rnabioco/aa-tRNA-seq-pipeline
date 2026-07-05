@@ -153,7 +153,15 @@ def get_tool_versions(pipeline_dir, config):
         if os.path.exists(dorado_bin):
             versions["dorado"] = get_command_version(dorado_bin)
 
-    # Remora - Python package
+    # escpod (escapepod-rs) - downloaded binary, version pinned in config
+    escpod_version = config.get("escpod_version")
+    if escpod_version:
+        versions["escpod"] = escpod_version
+
+    # Charging classifier engines (Python packages, whichever is installed)
+    leech_version = get_python_package_version("leech")
+    if leech_version:
+        versions["leech"] = leech_version
     remora_version = get_python_package_version("remora")
     if remora_version:
         versions["remora"] = remora_version

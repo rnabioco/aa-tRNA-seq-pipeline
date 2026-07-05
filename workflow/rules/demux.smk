@@ -259,10 +259,13 @@ Filter raw POD5 files by sample using read IDs from demultiplexing.
     log:
         os.path.join(outdir, "logs", "split_pod5", "{sample}"),
     params:
-        pod5_dirs=get_sample_pod5_dirs,
+        run_path=lambda wildcards: get_run_path(samples[wildcards.sample]["run_id"]),
     shell:
         """
-        pod5 filter {params.pod5_dirs} --ids {input.read_ids} --missing-ok --output {output} 2>&1 | tee {log}
+        # escpod filter takes one input path and walks it recursively for *.pod5,
+        # so point it at the run directory (covers pod5_pass/pod5_fail/pod5).
+        rm -f {output}
+        escpod filter -i {input.read_ids} -o {output} {params.run_path} 2>&1 | tee {log}
         """
 
 
@@ -381,7 +384,8 @@ Filter POD5 to keep only reads matching this sample's EDX adapter.
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:
         """
-        pod5 filter {input.pod5} --ids {input.read_ids} --missing-ok --output {output.pod5} 2>&1 | tee {log}
+        rm -f {output.pod5}
+        escpod filter -i {input.read_ids} -o {output.pod5} {input.pod5} 2>&1 | tee {log}
         """
 
 

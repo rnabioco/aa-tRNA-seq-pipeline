@@ -14,8 +14,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 DORADO_VERSION="${DORADO_VERSION:-$(awk '/^dorado_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 DORADO_MODEL="${DORADO_MODEL:-$(awk '/^dorado_model:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+ESCPOD_VERSION="${ESCPOD_VERSION:-$(awk '/^escpod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
+ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
 
 # ============================================================================
@@ -72,6 +74,98 @@ download_dorado() {
     echo "Dorado installed to ${DORADO_DIR}"
 }
 
+escpod_target_triple() {
+    # Map uname to the Rust target triple used in escapepod-rs release assets.
+    local system machine
+    system=$(uname -s | tr '[:upper:]' '[:lower:]')
+    machine=$(uname -m | tr '[:upper:]' '[:lower:]')
+
+    case "${system}" in
+        linux)
+            case "${machine}" in
+                x86_64|amd64|x64) echo "x86_64-unknown-linux-musl" ;;
+                arm64|aarch64)    echo "aarch64-unknown-linux-musl" ;;
+                *) echo "Error: Unsupported architecture: ${machine}" >&2; return 1 ;;
+            esac ;;
+        darwin)
+            case "${machine}" in
+                x86_64|amd64|x64) echo "x86_64-apple-darwin" ;;
+                arm64|aarch64)    echo "aarch64-apple-darwin" ;;
+                *) echo "Error: Unsupported architecture: ${machine}" >&2; return 1 ;;
+            esac ;;
+        *) echo "Error: Unsupported OS: ${system}" >&2; return 1 ;;
+    esac
+}
+
+download_escpod() {
+    # escpod (rnabioco/escapepod-rs) — prebuilt CLI binary from GitHub releases.
+    # The repo is private, so fetch release assets with authenticated `gh`
+    # (falls back to curl with GITHUB_TOKEN, which also works once public).
+    local triple tarball tmpdir tmpfile sumsfile
+    triple=$(escpod_target_triple) || return 1
+    tarball="escpod-v${ESCPOD_VERSION}-${triple}.tar.gz"
+    tmpdir="$(mktemp -d)"
+    tmpfile="${tmpdir}/${tarball}"
+    sumsfile="${tmpdir}/SHA256SUMS.txt"
+
+    echo "Downloading escpod ${ESCPOD_VERSION} for ${triple}..."
+    mkdir -p "${ESCPOD_DIR}"
+
+    if command -v gh >/dev/null 2>&1; then
+        if ! gh release download "v${ESCPOD_VERSION}" \
+            --repo rnabioco/escapepod-rs \
+            --pattern "${tarball}" --pattern "SHA256SUMS.txt" \
+            --dir "${tmpdir}" --clobber; then
+            echo "Error: 'gh release download' failed for escpod v${ESCPOD_VERSION}." >&2
+            echo "       Ensure 'gh auth login' has access to rnabioco/escapepod-rs." >&2
+            rm -rf "${tmpdir}"
+            return 1
+        fi
+    else
+        local base="https://github.com/rnabioco/escapepod-rs/releases/download/v${ESCPOD_VERSION}"
+        local auth=()
+        [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: token ${GITHUB_TOKEN}")
+        if ! curl -fL "${auth[@]}" -o "${tmpfile}" "${base}/${tarball}"; then
+            echo "Error: Failed to download escpod (repo is private)." >&2
+            echo "       Install 'gh' and run 'gh auth login', or set GITHUB_TOKEN." >&2
+            rm -rf "${tmpdir}"
+            return 1
+        fi
+        curl -fsL "${auth[@]}" -o "${sumsfile}" "${base}/SHA256SUMS.txt" || true
+    fi
+
+    # Best-effort checksum verification against the release SHA256SUMS.txt
+    if [ -f "${sumsfile}" ]; then
+        local expected actual
+        expected=$(awk -v f="${tarball}" '$2 == f || $2 == "*"f {print $1}' "${sumsfile}" | head -1)
+        if [ -n "${expected}" ]; then
+            actual=$(sha256sum "${tmpfile}" | awk '{print $1}')
+            if [ "${expected}" != "${actual}" ]; then
+                echo "Error: escpod checksum mismatch (expected ${expected}, got ${actual})" >&2
+                rm -rf "${tmpdir}"
+                return 1
+            fi
+            echo "escpod checksum verified"
+        fi
+    fi
+
+    echo "Extracting escpod..."
+    tar -xzf "${tmpfile}" -C "${tmpdir}"
+    # The binary may sit at the archive root or inside a versioned subdir; locate it.
+    local bin
+    bin=$(find "${tmpdir}" -type f -name escpod -perm -u+x 2>/dev/null | head -1)
+    [ -n "${bin}" ] || bin=$(find "${tmpdir}" -type f -name escpod 2>/dev/null | head -1)
+    if [ -z "${bin}" ]; then
+        echo "Error: escpod binary not found in ${tarball}" >&2
+        rm -rf "${tmpdir}"
+        return 1
+    fi
+    cp "${bin}" "${ESCPOD_DIR}/escpod"
+    chmod +x "${ESCPOD_DIR}/escpod"
+    rm -rf "${tmpdir}"
+    echo "escpod installed to ${ESCPOD_DIR}/escpod"
+}
+
 download_model() {
     local model_path="${MODEL_DIR}/${DORADO_MODEL}"
     echo "Downloading dorado model ${DORADO_MODEL}..."
@@ -94,6 +188,13 @@ if [ -x "${DORADO_DIR}/bin/dorado" ]; then
     echo "Dorado already installed at ${DORADO_DIR}"
 else
     download_dorado
+fi
+
+echo "=== Checking escpod ==="
+if [ -x "${ESCPOD_DIR}/escpod" ]; then
+    echo "escpod already installed at ${ESCPOD_DIR}"
+else
+    download_escpod
 fi
 
 echo "=== Checking dorado model ==="

@@ -57,24 +57,36 @@ reference:
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
 remora_kmer_table: null
 
-# read classification model - remora trained model to classify charged vs uncharged reads
+# read classification model - trained model to classify charged vs uncharged reads
+# (loaded by both the leech and remora engines; the key name is kept for
+# backward compatibility)
 remora_cca_classifier: "resources/models/cca_classifier.pt"
 
-# CCA charging classifier to use: "remora" (default) or "leech"
-# Leech is a GPU-accelerated alternative (requires resources/leech submodule)
-classifier: "remora"
+# CCA charging classifier to use: "leech" (default) or "remora"
+# leech is the escapepod-based, GPU-accelerated engine (requires resources/leech
+# submodule) and loads the same cca_classifier.pt. remora is kept as a CPU
+# fallback but pulls in the pod5 python library.
+classifier: "leech"
 
 # AA identity classification using leech one-vs-all bundle (optional)
 aa_identity:
   enabled: false
   bundle: ""
 
-# software tools (modkit and remora managed by pixi)
+# software tools (modkit managed by pixi; dorado and escpod are downloaded
+# binaries installed by `pixi run setup`)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
-dorado_version: 1.4.0
+# After installing a new dorado, confirm the newest rna004_130bps_sup model with
+# `dorado download --list` and update dorado_model + base_calling_model to match
+# (v5.3.0 is the floor; also verify the modification-model "@vN" suffix).
+dorado_version: 2.0.1
 dorado_model: rna004_130bps_sup@v5.3.0
+
+# escpod (rnabioco/escapepod-rs) — Rust CLI over the same .pod5 format, used for
+# pod5 merge/filter. Installed as a prebuilt binary by `pixi run setup`.
+escpod_version: 0.5.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)

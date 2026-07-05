@@ -8,9 +8,11 @@ min_version("8.0")
 configfile: "config/config-base.yml"
 
 
-# Dorado path setup (modkit and remora are managed by pixi)
+# Dorado path setup (modkit is managed by pixi; dorado/escpod are downloaded binaries)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
+ESCPOD_VERSION = config["escpod_version"]
+ESCPOD_DIR = f"resources/tools/escpod/{ESCPOD_VERSION}"
 
 
 onstart:
@@ -19,8 +21,9 @@ onstart:
     import subprocess
 
     dorado_bin_path = os.path.abspath(f"{DORADO_DIR}/bin")
-    os.environ["PATH"] = f"{dorado_bin_path}:{os.environ['PATH']}"
-    shell.prefix(f"export PATH={dorado_bin_path}:$PATH; ")
+    escpod_bin_path = os.path.abspath(ESCPOD_DIR)
+    os.environ["PATH"] = f"{dorado_bin_path}:{escpod_bin_path}:{os.environ['PATH']}"
+    shell.prefix(f"export PATH={dorado_bin_path}:{escpod_bin_path}:$PATH; ")
     # Verify dorado version matches config
     dorado_bin = os.path.join(dorado_bin_path, "dorado")
     if os.path.isfile(dorado_bin):
@@ -44,15 +47,18 @@ onstart:
     repo_root = os.path.dirname(os.path.dirname(workflow.snakefile))
     tools_to_check = [
         ("dorado", [os.path.join(repo_root, "resources")]),
+        ("escpod", [os.path.join(repo_root, "resources")]),
         ("samtools", [conda_prefix]),
         ("bwa", [conda_prefix]),
         ("modkit", [conda_prefix]),
-        ("remora", [conda_prefix]),
-        ("pod5", [conda_prefix]),
     ]
     if config.get("warpdemux", {}).get("enabled", False):
         tools_to_check.append(("warpdemux", [conda_prefix]))
-    if config.get("classifier", "remora") == "leech":
+    if config.get("classifier", "leech") == "remora":
+        # remora fallback engine still needs the pod5 python library
+        tools_to_check.append(("remora", [conda_prefix]))
+        tools_to_check.append(("pod5", [conda_prefix]))
+    else:
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
         )
@@ -106,14 +112,14 @@ localrules:
     generate_squiggy_session,
 
 
-# Route charging classifier: prefer leech or remora based on config
-if config.get("classifier", "remora") == "leech":
+# Route charging classifier: leech (default) or remora based on config
+if config.get("classifier", "leech") == "remora":
 
-    ruleorder: classify_charging_leech > classify_charging
+    ruleorder: classify_charging > classify_charging_leech
 
 else:
 
-    ruleorder: classify_charging > classify_charging_leech
+    ruleorder: classify_charging_leech > classify_charging
 
 
 # Conditionally include WarpDemuX demultiplexing rules

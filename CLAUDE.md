@@ -89,14 +89,14 @@ workflow/
 **Key Architectural Details:**
 
 - **Sample Management**: `workflow/rules/common.smk` contains `parse_samples()` which reads `config/samples.tsv` and `find_raw_inputs()` which recursively searches for pod5 files in specified directories
-- **Tool Management**: Modkit and Remora are managed by pixi. Dorado is downloaded on first `pixi shell` activation via `scripts/setup-dorado.sh`
+- **Tool Management**: Modkit is managed by pixi. Dorado and escpod (`rnabioco/escapepod-rs`, used for pod5 merge/filter) are downloaded binaries installed by `pixi run setup` (`scripts/setup-tools.sh`) and put on PATH via `scripts/setup-env.sh`. The charging classifier is **leech** by default (escapepod-based); Remora is an optional CPU fallback
 - **Output Aggregation**: `pipeline_outputs()` in `common.smk` defines all final output files for the `rule all` target
 
 ### Pipeline Flow
 
 ```
 POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
-classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → finalize_bam → Summary tables
+classify_charging (leech by default; Remora optional) → transfer_bam_tags → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 For EDX samples (dual barcoding), 3' adapter detection and FASTQ/POD5 splitting happens before alignment:
@@ -108,11 +108,11 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
-1. **merge_pods**: Merge all pod5 files per sample into single pod5
+1. **merge_pods**: Merge all pod5 files per sample into single pod5 (via `escpod merge`)
 2. **rebasecall**: Use dorado to rebasecall with move tables (required for Remora)
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
-5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
+5. **classify_charging**: Classify charged vs uncharged reads (adds ML tag to BAM). Uses leech by default (`classifier: leech`), which loads the same `cca_classifier.pt`; Remora is an optional CPU fallback (`classifier: remora`)
 6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→cl, MM→cm)
 7. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
 8. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
@@ -281,8 +281,8 @@ Rules requiring GPU (rebasecall, classify_charging) must set:
 ## Important Notes
 
 - The pipeline requires Snakemake 8.0+
-- Modkit and Remora are managed by pixi (bioconda and pypi-dependencies)
-- Dorado is downloaded automatically on first `pixi shell` activation
+- Modkit is managed by pixi; leech (default classifier) and Remora (optional fallback) are installed by `pixi run setup`
+- Dorado and escpod are downloaded binaries installed by `pixi run setup`; pod5 merge/filter use escpod (same `.pod5` format)
 - The pipeline tracks git commit ID for reproducibility (see `get_pipeline_commit()`)
 - CUDA_VISIBLE_DEVICES is passed through to dorado if set
 - Pod5 files are searched recursively in pod5_pass/pod5_fail/pod5 subdirectories
