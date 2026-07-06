@@ -25,6 +25,28 @@ from pathlib import Path
 
 import pysam
 
+try:
+    import parasail
+
+    _DNA_MATRIX = parasail.dnafull
+except Exception:  # parasail optional; fall back to difflib
+    parasail = None
+
+
+def _identity(a: str, b: str) -> float:
+    """Global-alignment identity (matches / alignment length) of two reads.
+
+    Uses parasail (Needleman-Wunsch) when available; otherwise difflib with
+    autojunk disabled. autojunk MUST be off: on 4-letter sequences >200 nt it
+    flags every base as junk and collapses the ratio to a meaningless value.
+    """
+    if not a or not b:
+        return 0.0
+    if parasail is not None:
+        res = parasail.nw_stats_striped_16(a, b, 10, 1, _DNA_MATRIX)
+        return res.matches / res.length if res.length else 0.0
+    return difflib.SequenceMatcher(None, a, b, autojunk=False).ratio()
+
 
 def _read_bam(path: Path) -> dict[str, tuple[str, float, int]]:
     """read_id -> (sequence, mean_quality, length) for primary records."""
@@ -53,7 +75,7 @@ def _pair_stats(ref: dict, other: dict, sim_cap: int) -> dict:
         return stats
 
     exact = 0
-    sims = []
+    idents = []
     dlen = dq = 0.0
     for i, rid in enumerate(shared):
         s_ref, q_ref, l_ref = ref[rid]
@@ -61,16 +83,15 @@ def _pair_stats(ref: dict, other: dict, sim_cap: int) -> dict:
         if s_ref == s_oth:
             exact += 1
             if i < sim_cap:
-                sims.append(1.0)
+                idents.append(1.0)
         elif i < sim_cap:
-            # difflib ratio: cheap normalized similarity for short tRNA reads
-            sims.append(difflib.SequenceMatcher(None, s_ref, s_oth).ratio())
+            idents.append(_identity(s_ref, s_oth))
         dlen += l_oth - l_ref
         dq += q_oth - q_ref
 
     stats["exact_seq_match_frac"] = exact / n
-    stats["mean_similarity"] = (sum(sims) / len(sims)) if sims else None
-    stats["similarity_reads_sampled"] = min(n, sim_cap)
+    stats["mean_identity"] = (sum(idents) / len(idents)) if idents else None
+    stats["identity_reads_sampled"] = min(n, sim_cap)
     stats["mean_len_delta"] = dlen / n
     stats["mean_qual_delta"] = dq / n
     stats["mean_qual_ref"] = sum(v[1] for v in ref.values()) / len(ref)
@@ -134,11 +155,11 @@ def main() -> None:
         )
         if s["n_shared"]:
             print(f"  exact seq match     : {s['exact_seq_match_frac']:.4f}")
-            ms = s["mean_similarity"]
+            mi = s["mean_identity"]
             print(
-                f"  mean similarity     : {ms:.4f} (n={s['similarity_reads_sampled']})"
-                if ms is not None
-                else "  mean similarity     : n/a"
+                f"  mean identity       : {mi:.4f} (n={s['identity_reads_sampled']})"
+                if mi is not None
+                else "  mean identity       : n/a"
             )
             print(f"  mean length delta   : {s['mean_len_delta']:+.2f} bp")
             print(
