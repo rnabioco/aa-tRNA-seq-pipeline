@@ -27,7 +27,7 @@
 #       --label old --profile cluster/slurm --setup
 #   benchmark/run_ref.sh --ref migrate/dorado-2.0.1-escpod --config config/config-test.yml \
 #       --label new --profile cluster/slurm --setup
-#   pixi run -e benchmark python benchmark/compare.py \
+#   pixi run python benchmark/compare.py \
 #       benchmark/snapshots/old/fingerprint benchmark/snapshots/new/fingerprint \
 #       --profile aggregate
 
@@ -96,7 +96,7 @@ pixi run "${SMK[@]}"
 
 # Fingerprint with the CURRENT checkout's scripts (old ref lacks benchmark/).
 echo ">> fingerprinting -> $FINGERPRINT_DIR"
-pixi run -e benchmark python "$REPO_ROOT/benchmark/fingerprint.py" \
+pixi run python "$REPO_ROOT/benchmark/fingerprint.py" \
     "$OUTPUT_DIR" "$FINGERPRINT_DIR" --label "$LABEL" --git-ref "$REF"
 
 if [[ "$KEEP_WORKTREE" == 0 ]]; then

@@ -16,15 +16,17 @@ rate, per-tRNA CPM, charged fraction) should survive. The escpod and leech swaps
 by contrast, *should* be lossless, so they get their own exact checks that are
 not muddied by basecaller drift.
 
-Everything runs in the `benchmark` pixi environment:
-
-```bash
-pixi install            # picks up the new benchmark env (adds pod5, pyyaml)
-```
+Everything runs in the **default pixi env** — `pixi run setup` installs `pod5`
+(the escpod oracle) and the analysis deps (pandas/pysam/pyarrow/pyyaml) are
+already there. No separate environment.
 
 There are two ways to drive the harness: **Snakemake targets** (integrated with
-the pipeline DAG, below) or the **standalone scripts / pixi tasks** (sections 1–3
+the pipeline DAG, below) or the **standalone scripts / pixi tasks** (sections 1–4
 further down). Use whichever fits.
+
+For comparing **dorado versions specifically** (the change that actually moves
+results), the harness installs multiple dorado versions side-by-side and compares
+their outputs directly — no git worktrees needed. See section 4.
 
 ## Snakemake targets (run separately from `all`)
 
@@ -41,6 +43,10 @@ pixi run snakemake benchmark_fingerprint --configfile=config/config-test.yml --c
 pixi run snakemake benchmark_pod5_equivalence_all --configfile=config/config-test.yml --cores 4
 pixi run snakemake benchmark_classifier_equivalence_all --profile cluster/slurm   # GPU (leech)
 pixi run snakemake benchmark_isolation_all --profile cluster/slurm                 # both isolation checks
+
+# dorado version comparison: basecall each sample's pod5 with every configured
+# dorado version and diff the basecalls (GPU). See section 4.
+pixi run snakemake benchmark_basecall_compare_all --profile cluster/slurm
 
 # compare two fingerprints (paths from config; see benchmark_compare below)
 pixi run snakemake benchmark_compare --configfile=config/config-test.yml --cores 1 \
@@ -70,31 +76,41 @@ under a named tolerance profile in `tolerances.yml`:
 
 ### Generate the two sides
 
-`run_ref.sh` checks out a git ref into a throwaway worktree, runs the pipeline
-into an isolated output dir, and fingerprints it. GPU rules (`rebasecall`,
-`classify_charging`) need a GPU — pass a cluster `--profile`.
+**By dorado version (recommended for tool-version parity):** run the pipeline
+twice with different `dorado_version`/`dorado_model`, into separate output dirs,
+then fingerprint each. Same code, same env — only the basecaller changes.
 
 ```bash
-# baseline = pre-migration commit
-benchmark/run_ref.sh --ref 403e755 --config config/config-test.yml \
-    --label old --profile cluster/slurm --setup
-
-# candidate = migrated branch
-benchmark/run_ref.sh --ref migrate/dorado-2.0.1-escpod --config config/config-test.yml \
-    --label new --profile cluster/slurm --setup
+# old basecaller
+pixi run snakemake benchmark_fingerprint --profile cluster/slurm \
+    --config output_directory=.tests/out-1.4.0 \
+             dorado_version=1.4.0 dorado_model=rna004_130bps_sup@v5.0.0 \
+             base_calling_model=resources/models/rna004_130bps_sup@v5.0.0 \
+             benchmark_label=v1.4.0
+# new basecaller (the pipeline default)
+pixi run snakemake benchmark_fingerprint --profile cluster/slurm \
+    --config output_directory=.tests/out-2.0.1 benchmark_label=v2.0.1
 ```
 
-`--setup` runs `pixi run setup` inside each worktree so each ref fetches its own
-dorado/escpod/leech versions. Snapshots land in `benchmark/snapshots/<label>/`
-(git-ignored).
+**By git ref (for arbitrary code changes, not just tool versions):**
+`run_ref.sh` checks out a ref into a throwaway worktree, runs the pipeline, and
+fingerprints it. Heavier (worktree + optional per-ref `--setup`); use it when the
+difference is in pipeline *code*, not just the dorado version.
+
+```bash
+benchmark/run_ref.sh --ref 403e755 --config config/config-test.yml \
+    --label old --profile cluster/slurm --setup
+```
+
+Snapshots land in `benchmark/snapshots/<label>/` (git-ignored).
 
 ### Compare
 
 ```bash
-pixi run -e benchmark python benchmark/compare.py \
-    benchmark/snapshots/old/fingerprint \
-    benchmark/snapshots/new/fingerprint \
-    --profile aggregate --json benchmark/snapshots/report.json
+pixi run python benchmark/compare.py \
+    .tests/out-1.4.0/benchmark/fingerprint \
+    .tests/out-2.0.1/benchmark/fingerprint \
+    --profile aggregate --json report.json
 ```
 
 Exit status is non-zero if any checked metric exceeds tolerance (use in CI).
@@ -112,21 +128,20 @@ pixi run bench-compare    -- benchmark/snapshots/old/fingerprint benchmark/snaps
 ## 2. Isolation: escpod vs pod5
 
 Run both tools on the same input and compare read-id set + raw signal per read.
-The `pod5` CLI and the `pod5` python oracle both ship in the benchmark env; only
-`escpod` must be added to PATH (via `scripts/setup-env.sh` or `~/.cargo/bin`):
+The `pod5` CLI and the `pod5` python oracle are in the default env; only `escpod`
+must be on PATH (via `scripts/setup-env.sh` or `~/.cargo/bin`):
 
 ```bash
-pixi run -e benchmark bash -c '
-  source scripts/setup-env.sh            # or: export PATH="$HOME/.cargo/bin:$PATH"
+source scripts/setup-env.sh            # or: export PATH="$HOME/.cargo/bin:$PATH"
 
-  # merge losslessness
-  python benchmark/equivalence/pod5_equivalence.py merge --workdir benchmark/snapshots/pod5eq \
-      .tests/sample1/pod5_pass/1.pod5 .tests/sample1/pod5_pass/2.pod5
+# merge losslessness
+pixi run python benchmark/equivalence/pod5_equivalence.py merge \
+    --workdir benchmark/snapshots/pod5eq \
+    .tests/sample1/pod5_pass/1.pod5 .tests/sample1/pod5_pass/2.pod5
 
-  # filter losslessness
-  python benchmark/equivalence/pod5_equivalence.py filter --ids read_ids.txt \
-      --workdir benchmark/snapshots/pod5eq .tests/sample1/pod5_pass/1.pod5
-'
+# filter losslessness
+pixi run python benchmark/equivalence/pod5_equivalence.py filter --ids read_ids.txt \
+    --workdir benchmark/snapshots/pod5eq .tests/sample1/pod5_pass/1.pod5
 ```
 
 Verified on the test data: `escpod merge` of the two sample1 pod5s is
@@ -151,6 +166,40 @@ pixi run bench-classifier-eq -- compare --leech leech.charging.bam --remora remo
 Reports charged/uncharged call agreement (threshold 200) and the `|Δcl|`
 distribution; fails if agreement < 0.995, max `|Δcl|` > 5, or read overlap < 0.99.
 
+## 4. Basecaller: compare dorado versions
+
+Config `dorado_variants` lists the `(version, model)` pairs to install and
+compare; `pixi run setup` installs each dorado binary + base model side-by-side
+under `resources/tools/dorado/<version>/`:
+
+```yaml
+dorado_variants:
+  - version: "1.4.0"
+    model: "rna004_130bps_sup@v5.0.0"
+  - version: "2.0.1"
+    model: "rna004_130bps_sup@v5.3.0"
+```
+
+`benchmark_basecall_compare_all` basecalls each sample's merged pod5 with every
+configured version (canonical basecalls, no modified bases) and diffs them per
+sample — read-id overlap, exact sequence match, mean similarity, and length/quality
+deltas — writing `{output_directory}/benchmark/basecall/<sample>.compare.txt`:
+
+```bash
+pixi run snakemake benchmark_basecall_compare_all --profile cluster/slurm
+```
+
+Or diff already-basecalled uBAMs directly:
+
+```bash
+pixi run bench-basecall-compare -- --bam 1.4.0=a.ubam --bam 2.0.1=b.ubam
+```
+
+This isolates the basecaller's sequence/quality change. Whether those changes move
+the biological conclusions (charging, CPM, mods) is the end-to-end fingerprint
+comparison in section 1 — run per version via config override (see "Generate the
+two sides").
+
 ## Files
 
 ```
@@ -160,7 +209,8 @@ benchmark/
 ├── lib.py                             # output-schema readers
 ├── fingerprint.py                     # OUTPUT_DIR -> fingerprint/
 ├── compare.py                         # two fingerprints -> report + exit code
-├── run_ref.sh                         # run a git ref -> snapshot
+├── basecall_compare.py                # dorado version basecall diff
+├── run_ref.sh                         # run a git ref -> snapshot (arbitrary code changes)
 └── equivalence/
     ├── pod5_equivalence.py            # escpod vs pod5 (exact)
     └── classifier_equivalence.py      # leech vs remora (near-exact)

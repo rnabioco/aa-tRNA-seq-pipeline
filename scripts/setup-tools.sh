@@ -228,6 +228,44 @@ echo "=== Checking modification models ==="
 download_mod_models
 
 # ============================================================================
+# Additional dorado versions for benchmarking (version-comparison rules)
+# Installs each (version, model) pair in config `dorado_variants` side-by-side.
+# Only the binary + base model are fetched here; the basecaller comparison uses
+# canonical basecalls, and per-run mod models are handled by the pipeline.
+# ============================================================================
+echo "=== Checking dorado benchmark variants ==="
+DORADO_VARIANTS="$(python - "${REPO_ROOT}/config/config-base.yml" <<'PY'
+import sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1])) or {}
+for v in cfg.get("dorado_variants", []) or []:
+    print(f"{v['version']}\t{v['model']}")
+PY
+)"
+if [ -z "${DORADO_VARIANTS}" ]; then
+    echo "  no dorado_variants configured; skipping"
+else
+    while IFS=$'\t' read -r ver model; do
+        [ -z "${ver}" ] && continue
+        vdir="${REPO_ROOT}/resources/tools/dorado/${ver}"
+        if [ -x "${vdir}/bin/dorado" ]; then
+            echo "  dorado ${ver} already installed"
+        else
+            echo "  Installing dorado ${ver}..."
+            DORADO_VERSION="${ver}" DORADO_DIR="${vdir}" download_dorado \
+                || { echo "  warn: failed to fetch dorado ${ver}, skipping" >&2; continue; }
+        fi
+        if [ -d "${MODEL_DIR}/${model}" ]; then
+            echo "  model ${model} already present"
+        else
+            echo "  Downloading model ${model} for dorado ${ver}..."
+            "${vdir}/bin/dorado" download --model "${model}" \
+                --models-directory "${MODEL_DIR}" \
+                || echo "  warn: failed to fetch model ${model}" >&2
+        fi
+    done <<< "${DORADO_VARIANTS}"
+fi
+
+# ============================================================================
 # Remora Setup (via uv)
 # ============================================================================
 echo "=== Checking remora ==="

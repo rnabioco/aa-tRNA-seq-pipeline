@@ -35,8 +35,8 @@ def _load_pod5():
         return pod5
     except ImportError:
         sys.exit(
-            "ERROR: the 'pod5' package is required (use the benchmark pixi env: "
-            "`pixi run -e benchmark ...`)"
+            "ERROR: the 'pod5' package is required; it is installed into the "
+            "default env by `pixi run setup`. Run via `pixi run python ...`."
         )
 
 

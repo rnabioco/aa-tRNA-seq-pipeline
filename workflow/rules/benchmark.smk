@@ -16,6 +16,12 @@ All outputs land under {outdir}/benchmark/.
 BENCH_DIR = os.path.join(outdir, "benchmark")
 BENCH_SRC = os.path.join(PIPELINE_DIR, "benchmark")
 
+# dorado versions to compare, from config `dorado_variants` (version -> model).
+# Installed side-by-side by `pixi run setup`.
+DORADO_VARIANTS = config.get("dorado_variants", []) or []
+VARIANT_MODEL = {str(v["version"]): v["model"] for v in DORADO_VARIANTS}
+VARIANT_VERSIONS = list(VARIANT_MODEL.keys())
+
 
 def _bench_cfg(key, default=None):
     """Read benchmark.<key> from config, honoring a flat benchmark_<key> override
@@ -98,8 +104,7 @@ rule benchmark_pod5_equivalence:
     """
     escpod vs pod5 merge losslessness for one sample: the pipeline's escpod-merged
     POD5 (merge_pods output) is compared read-for-read against a fresh `pod5 merge`
-    of the same raw inputs. Uses the benchmark pixi env (ships the pod5 CLI + the
-    pod5 python oracle).
+    of the same raw inputs. The pod5 CLI + python oracle are in the default env.
     """
     input:
         escpod_pod5=os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
@@ -116,13 +121,13 @@ rule benchmark_pod5_equivalence:
         # the trailing `|| true` on the comparator keeps the report (which states
         # PASS/FAIL) even when the two POD5s diverge.
         """
-        pixi run -e benchmark bash -c '
-            set -e
-            rm -f {params.ref_pod5}
-            pod5 merge {input.raw} -o {params.ref_pod5}
-            python {params.src}/equivalence/pod5_equivalence.py compare \
-                --a {input.escpod_pod5} --b {params.ref_pod5} || true
-        ' >{output.report} 2>{log}
+        {{
+                    set -e
+                    rm -f {params.ref_pod5}
+                    pod5 merge {input.raw} -o {params.ref_pod5}
+                    python {params.src}/equivalence/pod5_equivalence.py compare \
+                        --a {input.escpod_pod5} --b {params.ref_pod5} || true
+                }} >{output.report} 2>{log}
         rm -f {params.ref_pod5}
         """
 
@@ -187,3 +192,80 @@ rule benchmark_isolation_all:
     input:
         rules.benchmark_pod5_equivalence_all.input,
         rules.benchmark_classifier_equivalence_all.input,
+
+
+# ---------------------------------------------------------------------------
+# Basecaller version comparison: basecall the same POD5 with each configured
+# dorado version and quantify how much the basecalls change. Canonical basecalls
+# (no --modified-bases) isolate the sequence/quality change; downstream result
+# effects are covered by the end-to-end fingerprint/compare path.
+# ---------------------------------------------------------------------------
+
+
+wildcard_constraints:
+    version=r"[0-9]+\.[0-9]+(\.[0-9]+)?",
+
+
+rule benchmark_basecall:
+    """Basecall a sample's merged POD5 with one dorado version (GPU rule)."""
+    input:
+        pod5=os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
+    output:
+        ubam=os.path.join(BENCH_DIR, "basecall", "{sample}", "{sample}.{version}.ubam"),
+    log:
+        os.path.join(outdir, "logs", "benchmark", "basecall", "{sample}.{version}"),
+    params:
+        dorado=lambda w: os.path.join(
+            PIPELINE_DIR, "resources", "tools", "dorado", w.version, "bin", "dorado"
+        ),
+        model=lambda w: VARIANT_MODEL[w.version],
+        models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
+    shell:
+        """
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+            export CUDA_VISIBLE_DEVICES
+        fi
+
+        {params.dorado} basecaller --models-directory {params.models_dir} \
+            {params.model} {input.pod5} >{output.ubam} 2>{log}
+        """
+
+
+def _basecall_ubams(wildcards):
+    return expand(
+        os.path.join(BENCH_DIR, "basecall", "{sample}", "{sample}.{version}.ubam"),
+        sample=[wildcards.sample],
+        version=VARIANT_VERSIONS,
+    )
+
+
+rule benchmark_basecall_compare:
+    """Diff the per-version basecalls for one sample."""
+    input:
+        _basecall_ubams,
+    output:
+        report=os.path.join(BENCH_DIR, "basecall", "{sample}.compare.txt"),
+        json=os.path.join(BENCH_DIR, "basecall", "{sample}.compare.json"),
+    log:
+        os.path.join(outdir, "logs", "benchmark", "basecall_compare", "{sample}"),
+    params:
+        src=BENCH_SRC,
+        bam_args=lambda w: " ".join(
+            f"--bam {v}="
+            + os.path.join(BENCH_DIR, "basecall", w.sample, f"{w.sample}.{v}.ubam")
+            for v in VARIANT_VERSIONS
+        ),
+    shell:
+        """
+        python {params.src}/basecall_compare.py {params.bam_args} \
+            --json {output.json} >{output.report} 2>{log}
+        """
+
+
+rule benchmark_basecall_compare_all:
+    """Basecall version comparison for every sample."""
+    input:
+        expand(
+            os.path.join(BENCH_DIR, "basecall", "{sample}.compare.txt"),
+            sample=samples.keys(),
+        ),

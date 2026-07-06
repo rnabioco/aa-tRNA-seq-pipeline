@@ -67,6 +67,23 @@ set-resources:
     mem_mb: 32000
     cpus_per_task: 4
 
+  # Benchmark GPU rules (workflow/rules/benchmark.smk)
+  benchmark_basecall:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "16h"
+    mem_mb: 48000
+    cpus_per_task: 4
+
+  benchmark_classifier_equivalence:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "2h"
+    mem_mb: 24000
+    cpus_per_task: 4
+
   # Tag transfer rules
   inject_ubam_tags:
     runtime: "6h"
