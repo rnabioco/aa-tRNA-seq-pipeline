@@ -393,8 +393,13 @@ def get_modified_bases():
     """Parse modification names from the dorado opts string.
 
     Returns list of modification names, e.g. ["pseU", "m5C", "inosine_m6A"].
+
+    Honors `dorado_opts_override` so a canonical run (no --modified-bases) does
+    not try to fetch mod models the active dorado_model lacks.
     """
-    dorado_opts = config.get("opts", {}).get("dorado", "")
+    dorado_opts = config.get(
+        "dorado_opts_override", config.get("opts", {}).get("dorado", "")
+    )
     if "--modified-bases" not in dorado_opts:
         return []
     # extract tokens after --modified-bases until the next flag or end of string

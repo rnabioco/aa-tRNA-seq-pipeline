@@ -77,19 +77,29 @@ under a named tolerance profile in `tolerances.yml`:
 ### Generate the two sides
 
 **By dorado version (recommended for tool-version parity):** run the pipeline
-twice with different `dorado_version`/`dorado_model`, into separate output dirs,
-then fingerprint each. Same code, same env — only the basecaller changes.
+once per version into separate output dirs, then fingerprint each. Same code,
+same env — only the basecaller changes.
+
+Use `dorado_opts_override="--emit-moves"` (canonical basecalls, no
+`--modified-bases`) for BOTH runs. Modification models differ across model
+versions (e.g. v5.0.0 has no 2′-O-methyl mods), so mods are not comparable
+across versions — and they don't affect charging or alignment anyway (same
+simplex sequence/moves). The comparison then covers the mod-independent
+readouts: charging, CPM, mapping rate, base-call errors.
 
 ```bash
-# old basecaller
-pixi run snakemake benchmark_fingerprint --profile cluster/slurm \
-    --config output_directory=.tests/out-1.4.0 \
+# old basecaller (canonical)
+pixi run snakemake benchmark_fingerprint \
+    --configfile=config/config-test.yml --profile cluster/slurm \
+    --config output_directory=.tests/cmp-1.4.0 \
              dorado_version=1.4.0 dorado_model=rna004_130bps_sup@v5.0.0 \
              base_calling_model=resources/models/rna004_130bps_sup@v5.0.0 \
-             benchmark_label=v1.4.0
-# new basecaller (the pipeline default)
-pixi run snakemake benchmark_fingerprint --profile cluster/slurm \
-    --config output_directory=.tests/out-2.0.1 benchmark_label=v2.0.1
+             dorado_opts_override=--emit-moves benchmark_label=v1.4.0
+# new basecaller (canonical; version/model default to config)
+pixi run snakemake benchmark_fingerprint \
+    --configfile=config/config-test.yml --profile cluster/slurm \
+    --config output_directory=.tests/cmp-2.0.1 \
+             dorado_opts_override=--emit-moves benchmark_label=v2.0.1
 ```
 
 **By git ref (for arbitrary code changes, not just tool versions):**
@@ -108,10 +118,13 @@ Snapshots land in `benchmark/snapshots/<label>/` (git-ignored).
 
 ```bash
 pixi run python benchmark/compare.py \
-    .tests/out-1.4.0/benchmark/fingerprint \
-    .tests/out-2.0.1/benchmark/fingerprint \
+    .tests/cmp-1.4.0/benchmark/fingerprint \
+    .tests/cmp-2.0.1/benchmark/fingerprint \
     --profile aggregate --json report.json
 ```
+
+Modkit is skipped (no shared modified sites under canonical basecalls); the
+report covers charging, CPM, mapping, and base-call errors.
 
 Exit status is non-zero if any checked metric exceeds tolerance (use in CI).
 Metrics missing from either side are **skipped**, not failed. `--report-only`

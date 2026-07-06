@@ -70,7 +70,10 @@ TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
         model=config["base_calling_model"],
         raw_data_dir=get_basecalling_dir,
         temp_pod5=os.path.join(outdir, "{sample}", "{sample}.pod5"),
-        dorado_opts=config["opts"]["dorado"],
+        # `dorado_opts_override` lets a run swap the dorado options wholesale
+        # (e.g. drop --modified-bases for a canonical basecall when comparing
+        # dorado versions whose mod models differ). Falls back to opts.dorado.
+        dorado_opts=config.get("dorado_opts_override", config["opts"]["dorado"]),
         models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
     shell:
         """
