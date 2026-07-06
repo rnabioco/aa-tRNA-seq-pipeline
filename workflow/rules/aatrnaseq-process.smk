@@ -17,7 +17,7 @@ merge pod5s into a single pod5
     shell:
         """
         rm -f {output}
-        escpod merge -t {threads} -o {output} {input}
+        escpod merge -t {threads} -o {output} {input} 2>{log}
         """
 
 
@@ -79,7 +79,10 @@ TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
             export CUDA_VISIBLE_DEVICES
         fi
 
-        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} >{output}
+        # stdout is the BAM, so send dorado's stderr (errors + progress) to the
+        # rule log; otherwise a failed basecall leaves an empty log and an
+        # opaque "Reason: Unknown" on the cluster.
+        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} >{output} 2>{log}
         """
 
 
@@ -95,7 +98,7 @@ extract reads from bam into FASTQ format for alignment
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
         """
-        samtools fastq {input} | gzip >{output}
+        samtools fastq {input} 2>{log} | gzip >{output}
         """
 
 
@@ -112,7 +115,7 @@ Depends on reference validation/building completing first.
         os.path.join(outdir, "logs", "bwa_idx", "log"),
     shell:
         """
-        bwa index {input}
+        bwa index {input} 2>{log}
         """
 
 
@@ -141,11 +144,13 @@ For EDX samples, input FASTQ is pre-filtered to matching reads only.
         bwa_opts=config["opts"]["bwa"],
     shell:
         """
-        bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-            | samtools view -F 20 -Sb - \
-            | samtools sort -m 2G -@ 4 -o {output.bam}
+        {{
+            bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
+                | samtools view -F 20 -Sb - \
+                | samtools sort -m 2G -@ 4 -o {output.bam}
 
-        samtools index {output.bam}
+            samtools index {output.bam}
+        }} 2>{log}
         """
 
 
@@ -171,14 +176,16 @@ rule inject_ubam_tags:
         src=SCRIPT_DIR,
     shell:
         """
-        python {params.src}/transfer_tags.py \
-            --all-tags \
-            --threads {threads} \
-            --source {input.source_bam} \
-            --target {input.target_bam} \
-            --output {output.bam}
+        {{
+            python {params.src}/transfer_tags.py \
+                --all-tags \
+                --threads {threads} \
+                --source {input.source_bam} \
+                --target {input.target_bam} \
+                --output {output.bam}
 
-        samtools index -@ {threads} {output.bam}
+            samtools index -@ {threads} {output.bam}
+        }} 2>{log}
         """
 
 
@@ -243,6 +250,13 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
+        # leech reads the index (bam.mapped) for reference-anchored inference;
+        # the .bai is a temp output of inject_ubam_tags, so require it here or
+        # snakemake deletes it before this rule runs.
+        bai=rules.inject_ubam_tags.output.bai,
+        # reference-anchored mode needs the actual reference sequences; the BAM
+        # @SQ header carries only names/lengths.
+        reference=get_validated_reference(),
     output:
         charging_bam=os.path.join(
             outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
@@ -267,15 +281,17 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
             export CUDA_VISIBLE_DEVICES
         fi
 
+        # motif/motif-offset are intentionally omitted: leech auto-reads them
+        # from the model config (cca_classifier.pt was trained with
+        # motif-offset=3, and leech refuses a mismatched override).
         leech predict \
             --model {params.model} \
             --pod5 {input.pod5} \
             --bam {input.bam} \
             --output {output.charging_bam} \
             --device cuda \
-            --motif CCAGGC \
-            --motif-offset 2 \
             --reference-anchored \
+            --reference-fasta {input.reference} \
             --workers 4 \
             --batch-size 512 \
             2>&1 | tee {log}

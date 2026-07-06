@@ -290,11 +290,26 @@ else
         echo "Initializing leech submodule..."
         git -C "${REPO_ROOT}" submodule update --init --recursive resources/leech
     fi
+    # The nested escapepod-rs submodule provides the escapepod-signal crate that
+    # leech-core builds against. The superproject `--recursive` above does NOT
+    # descend into leech when it is already checked out, so init it explicitly
+    # from within leech (requires access to the private rnabioco/escapepod-rs).
+    if [ -d "${REPO_ROOT}/resources/leech/.git" ] || [ -f "${REPO_ROOT}/resources/leech/.git" ]; then
+        if [ ! -f "${REPO_ROOT}/resources/leech/escapepod-rs/crates/escapepod-signal/Cargo.toml" ]; then
+            echo "Initializing nested leech submodules (escapepod-rs)..."
+            git -C "${REPO_ROOT}/resources/leech" submodule update --init --recursive
+        fi
+    fi
     if [ -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
         echo "Installing leech-core (Rust, release build)..."
         uv pip install "${REPO_ROOT}/resources/leech/rust"
         echo "Installing leech (Python, editable)..."
         uv pip install --no-deps -e "${REPO_ROOT}/resources/leech"
+        # leech imports `escapepod` (pyo3 pod5 reader) unconditionally at predict
+        # time but declares it only as an optional extra, so --no-deps above does
+        # not pull it. Build it from the nested escapepod-rs submodule.
+        echo "Installing escapepod (Rust/pyo3 pod5 bindings for leech)..."
+        uv pip install "${REPO_ROOT}/resources/leech/escapepod-rs/crates/escapepod-python"
         echo "Leech installed successfully"
         echo "NOTE: pyarrow will be reconciled with conda in the next step"
     else
