@@ -121,8 +121,30 @@ zensical = "*"
 docs-build = "zensical build"
 docs-serve = "zensical serve"
 
+# Benchmarking feature: validate result-parity across the dorado/escpod/leech
+# migration. See benchmark/README.md.
+[feature.benchmark.dependencies]
+python = ">=3.10"
+pandas = "*"
+pysam = "*"
+pyyaml = "*"
+pod5 = "*"
+# pod5's reader uses the pre-20 pyarrow scalar API (ExtensionScalar.values) and
+# lib_pod5 is native-linked to a matching libarrow. Pinning arrow to 16 keeps
+# the python API, the native ABI, and pyarrow (parquet in fingerprint.py) on one
+# self-consistent version. Newer arrow (20/24) breaks pod5 import or signal read.
+pyarrow = "16.*"
+libarrow = "16.*"
+
+[feature.benchmark.tasks]
+bench-fingerprint = { cmd = "python benchmark/fingerprint.py", description = "Snapshot a run's outputs: OUTPUT_DIR FINGERPRINT_DIR [--label ..]" }
+bench-compare = { cmd = "python benchmark/compare.py", description = "Diff two fingerprints: BASELINE CANDIDATE [--profile strict|aggregate]" }
+bench-pod5-eq = { cmd = "python benchmark/equivalence/pod5_equivalence.py", description = "escpod vs pod5 merge/filter losslessness" }
+bench-classifier-eq = { cmd = "python benchmark/equivalence/classifier_equivalence.py", description = "leech vs remora charging equivalence" }
+
 [environments]
 default = []
 test = ["test"]
 report = ["report"]
 docs = { features = ["docs"], solve-group = "default" }
+benchmark = ["benchmark"]

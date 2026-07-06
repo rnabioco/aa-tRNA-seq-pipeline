@@ -11,6 +11,10 @@ resources/tools/*
 *.pod5
 .tmp_pod5_v3_v4_migration_*/
 
+# benchmark harness run artifacts (scripts are tracked; runs are not)
+benchmark/snapshots/
+benchmark/.worktrees/
+
 # python testing
 __pycache__/
 .coverage

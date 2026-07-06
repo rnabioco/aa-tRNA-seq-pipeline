@@ -1,0 +1,54 @@
+# Tolerance profiles for benchmark/compare.py
+#
+# Two named profiles, matched to the two things the migration needs to prove:
+#
+#   strict     - for changes that SHOULD be lossless / near-exact: the escpod
+#                pod5 I/O swap and the remora->leech classifier swap (same
+#                cca_classifier.pt). Run old vs new with dorado held fixed.
+#                Near-identical per-read charging calls are expected here.
+#
+#   aggregate  - for the full old->new comparison including the dorado 1.4.0 ->
+#                2.0.1 + model v5.0.0 -> v5.3.0 bump. Basecalls legitimately
+#                change, so per-read identity is NOT expected; only aggregate
+#                biological conclusions (mapping rate, per-tRNA CPM, charged
+#                fraction) must hold within tolerance.
+#
+# A metric is only checked when present in BOTH fingerprints. Any field left
+# null disables that check.
+
+strict:
+  charging:
+    # fraction of read_ids shared between the two runs (per sample)
+    read_join_min_fraction: 0.99
+    # agreement on the charged/uncharged call (threshold 200) over shared reads
+    call_agreement_min: 0.995
+    # 99th percentile of |cl_old - cl_new| over shared reads
+    cl_abs_diff_p99_max: 3
+    charged_fraction_abs_tol: 0.01
+  cpm:
+    min_reads_for_cpm_check: 20   # only check tRNAs with >= this many total reads
+    cpm_rel_tol: 0.02
+  align_stats:
+    pct_mapped_abs_tol: 0.5       # percentage points
+    n_reads_rel_tol: 0.005
+  bcerror:
+    mean_abs_freq_diff_max: 0.005
+  modkit:
+    frac_mod_mean_abs_diff_max: 0.02
+
+aggregate:
+  charging:
+    read_join_min_fraction: 0.90
+    call_agreement_min: 0.95
+    cl_abs_diff_p99_max: 40
+    charged_fraction_abs_tol: 0.05
+  cpm:
+    min_reads_for_cpm_check: 20
+    cpm_rel_tol: 0.15
+  align_stats:
+    pct_mapped_abs_tol: 3.0
+    n_reads_rel_tol: 0.05
+  bcerror:
+    mean_abs_freq_diff_max: 0.03
+  modkit:
+    frac_mod_mean_abs_diff_max: 0.10

@@ -105,11 +105,14 @@ include: "rules/aatrnaseq-qc.smk"
 include: "rules/aatrnaseq-modifications.smk"
 include: "rules/aatrnaseq-odds-ratios.smk"
 include: "rules/aatrnaseq-report.smk"
+include: "rules/benchmark.smk"
 
 
 localrules:
     download_mod_models,
     generate_squiggy_session,
+    benchmark_fingerprint,
+    benchmark_compare,
 
 
 # Route charging classifier: leech (default) or remora based on config
