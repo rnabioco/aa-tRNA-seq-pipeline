@@ -78,20 +78,22 @@ aa_identity:
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
-# After installing a new dorado, confirm the newest rna004_130bps_sup model with
-# `dorado download --list` and update dorado_model + base_calling_model to match
-# (v5.3.0 is the floor; also verify the modification-model "@vN" suffix).
-dorado_version: 2.0.1
+# dorado is held at 1.4.0 for now: this PR migrates pod5 I/O to escpod and the
+# charging classifier to leech, but keeps the basecaller version pending a more
+# thorough analysis of the 1.4.0 -> 2.0.1 change. dorado 1.4.0 runs the v5.3.0
+# model (verified), so only the binary version differs from 2.0.1.
+dorado_version: 1.4.0
 dorado_model: rna004_130bps_sup@v5.3.0
 
 # dorado versions to install side-by-side for benchmarking (basecaller
 # version-comparison rules in workflow/rules/benchmark.smk). Each entry is a
 # (version, model) pair; `pixi run setup` installs each binary + base model.
-# Include the active dorado_version here so it is part of the comparison set.
+# BOTH use the v5.3.0 model so the comparison isolates the binary version
+# (1.4.0 vs 2.0.1) — the only thing the dorado bump would change.
 # Leave empty ([]) to skip installing extra versions.
 dorado_variants:
   - version: "1.4.0"
-    model: "rna004_130bps_sup@v5.0.0"
+    model: "rna004_130bps_sup@v5.3.0"
   - version: "2.0.1"
     model: "rna004_130bps_sup@v5.3.0"
 

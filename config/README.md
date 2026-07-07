@@ -76,7 +76,7 @@ See `config-demux-test.yml` for a complete example.
 
 ## Other Configuration Parameters
 
-- `base_calling_model`: Path to the dorado basecalling model to use for rebasecalling. We currently use `rna004_130bps_sup@v5.3.0` with dorado 2.0.1. When bumping dorado, confirm the newest `rna004_130bps_sup` model with `dorado download --list` and keep this in sync with `dorado_model`.
+- `base_calling_model`: Path to the dorado basecalling model to use for rebasecalling. We currently use `rna004_130bps_sup@v5.3.0` with dorado 1.4.0 (the 2.0.1 bump is deferred pending analysis; 1.4.0 runs the v5.3.0 model). When bumping dorado, confirm the newest `rna004_130bps_sup` model with `dorado download --list` and keep this in sync with `dorado_model`.
 
 - `input_format`: A string, either "FAST5" or "POD5". If FAST5, files will be converted to POD5 before rebasecalling.
 
