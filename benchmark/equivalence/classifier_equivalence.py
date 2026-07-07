@@ -105,7 +105,11 @@ def run_both(pod5: Path, bam: Path, model: Path, workdir: Path) -> tuple[Path, P
     leech_bam = workdir / "leech.charging.bam"
     remora_bam = workdir / "remora.charging.bam"
 
-    # invocations mirror rules classify_charging_leech / classify_charging
+    # invocations mirror rules classify_charging_leech / classify_charging.
+    # No --motif/--motif-offset: both engines read the motif ('CCAGGC', offset 3)
+    # from the model, so this compares them on identical anchoring — the whole
+    # point of the check. Passing an explicit offset that disagrees with the
+    # model makes leech refuse to run.
     subprocess.run(
         [
             "leech",
@@ -120,10 +124,6 @@ def run_both(pod5: Path, bam: Path, model: Path, workdir: Path) -> tuple[Path, P
             str(leech_bam),
             "--device",
             "cuda",
-            "--motif",
-            "CCAGGC",
-            "--motif-offset",
-            "2",
             "--reference-anchored",
             "--workers",
             "4",
