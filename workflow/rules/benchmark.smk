@@ -122,12 +122,12 @@ rule benchmark_pod5_equivalence:
         # PASS/FAIL) even when the two POD5s diverge.
         """
         {{
-                    set -e
-                    rm -f {params.ref_pod5}
-                    pod5 merge {input.raw} -o {params.ref_pod5}
-                    python {params.src}/equivalence/pod5_equivalence.py compare \
-                        --a {input.escpod_pod5} --b {params.ref_pod5} || true
-                }} >{output.report} 2>{log}
+                            set -e
+                            rm -f {params.ref_pod5}
+                            pod5 merge {input.raw} -o {params.ref_pod5}
+                            python {params.src}/equivalence/pod5_equivalence.py compare \
+                                --a {input.escpod_pod5} --b {params.ref_pod5} || true
+                        }} >{output.report} 2>{log}
         rm -f {params.ref_pod5}
         """
 
@@ -150,6 +150,8 @@ rule benchmark_classifier_equivalence:
     input:
         pod5=get_classification_pod5,
         bam=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
+        bai=os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"),
+        reference=get_validated_reference(),
     output:
         report=os.path.join(BENCH_DIR, "classifier_equivalence", "{sample}.txt"),
     log:
@@ -171,6 +173,7 @@ rule benchmark_classifier_equivalence:
             --pod5 {input.pod5} \
             --bam {input.bam} \
             --model {params.model} \
+            --reference-fasta {input.reference} \
             --workdir {params.workdir} \
             >{output.report} 2>{log} || true
 

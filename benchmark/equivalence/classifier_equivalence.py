@@ -100,50 +100,51 @@ def diff(
     return 0 if ok else 1
 
 
-def run_both(pod5: Path, bam: Path, model: Path, workdir: Path) -> tuple[Path, Path]:
+def run_both(
+    pod5: Path, bam: Path, model: Path, reference: Path, workdir: Path
+) -> tuple[Path, Path]:
     workdir.mkdir(parents=True, exist_ok=True)
     leech_bam = workdir / "leech.charging.bam"
     remora_bam = workdir / "remora.charging.bam"
 
-    # invocations mirror rules classify_charging_leech / classify_charging.
+    # Reference-anchored inference needs the reference sequences (the BAM @SQ
+    # header carries only names). leech takes --reference-fasta directly; remora
+    # has no such flag and reconstructs the reference from the BAM's MD tag, which
+    # bwa does not emit — so give remora an MD-tagged copy via `samtools calmd`.
+    subprocess.run(["samtools", "faidx", str(reference)], check=True)
+    md_bam = workdir / "tagged.md.bam"
+    with open(md_bam, "wb") as fh:
+        subprocess.run(
+            ["samtools", "calmd", "-b", str(bam), str(reference)],
+            check=True, stdout=fh, stderr=subprocess.DEVNULL,
+        )
+    subprocess.run(["samtools", "index", str(md_bam)], check=True)
+
     # No --motif/--motif-offset: both engines read the motif ('CCAGGC', offset 3)
     # from the model, so this compares them on identical anchoring — the whole
-    # point of the check. Passing an explicit offset that disagrees with the
-    # model makes leech refuse to run.
+    # point of the check. An explicit offset that disagrees makes leech refuse.
     subprocess.run(
         [
-            "leech",
-            "predict",
-            "--model",
-            str(model),
-            "--pod5",
-            str(pod5),
-            "--bam",
-            str(bam),
-            "--output",
-            str(leech_bam),
-            "--device",
-            "cuda",
+            "leech", "predict",
+            "--model", str(model),
+            "--pod5", str(pod5),
+            "--bam", str(bam),
+            "--output", str(leech_bam),
+            "--device", "cuda",
             "--reference-anchored",
-            "--workers",
-            "4",
-            "--batch-size",
-            "512",
+            "--reference-fasta", str(reference),
+            "--workers", "4",
+            "--batch-size", "512",
         ],
         check=True,
     )
 
     subprocess.run(
         [
-            "remora",
-            "infer",
-            "from_pod5_and_bam",
-            str(pod5),
-            str(bam),
-            "--model",
-            str(model),
-            "--out-bam",
-            str(remora_bam),
+            "remora", "infer", "from_pod5_and_bam",
+            str(pod5), str(md_bam),
+            "--model", str(model),
+            "--out-bam", str(remora_bam),
             "--reference-anchored",
         ],
         check=True,
@@ -168,6 +169,8 @@ def main() -> None:
         "--bam", type=Path, required=True, help="inject_ubam_tags output BAM"
     )
     r.add_argument("--model", type=Path, required=True)
+    r.add_argument("--reference-fasta", type=Path, required=True,
+                   help="reference FASTA for reference-anchored inference")
     r.add_argument("--workdir", type=Path, required=True)
 
     for p in (c, r):
@@ -177,7 +180,9 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.mode == "run":
-        leech_bam, remora_bam = run_both(args.pod5, args.bam, args.model, args.workdir)
+        leech_bam, remora_bam = run_both(
+            args.pod5, args.bam, args.model, args.reference_fasta, args.workdir
+        )
     else:
         leech_bam, remora_bam = args.leech, args.remora
 
