@@ -284,17 +284,20 @@ def pipeline_outputs():
         values=["cpm", "counts"],
     )
 
-    # modkit outputs
-    outs += expand(
-        os.path.join(
-            outdir,
-            "summary",
-            "modkit",
-            "{sample}",
-            "{sample}.pileup.bed.gz",
-        ),
-        sample=samples.keys(),
-    )
+    # modkit outputs — only when modified bases are called. Canonical basecalls
+    # (e.g. dorado_opts_override without --modified-bases, used for cross-version
+    # comparison) carry no MM/ML tags, and `modkit pileup` errors on them.
+    if get_modified_bases():
+        outs += expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "modkit",
+                "{sample}",
+                "{sample}.pileup.bed.gz",
+            ),
+            sample=samples.keys(),
+        )
 
     # outs += expand(
     #     os.path.join(
