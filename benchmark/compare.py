@@ -281,6 +281,22 @@ def render_text(rep, base_fp, cand_fp, profile) -> str:
             L.append(f"  {k:<20} {va} -> {vb}{flag}")
         L.append("")
 
+    ra, rb = base_fp.get("runtimes") or {}, cand_fp.get("runtimes") or {}
+    if ra or rb:
+        L.append("runtime — wall seconds, baseline -> candidate (informational):")
+        for rule in sorted(set(ra) | set(rb)):
+            sa = ra.get(rule, {}).get("wall_s")
+            sb = rb.get(rule, {}).get("wall_s")
+            if sa is None or sb is None:
+                L.append(f"  {rule:<26} {sa if sa is not None else '-'} -> "
+                         f"{sb if sb is not None else '-'}  (one side only)")
+                continue
+            pct = ((sb - sa) / sa * 100) if sa else float("inf")
+            arrow = "faster" if sb < sa else "slower" if sb > sa else "same"
+            L.append(f"  {rule:<26} {sa:>8.1f} -> {sb:>8.1f}  "
+                     f"({pct:+.0f}% {arrow})")
+        L.append("")
+
     samples = sorted({c.sample for c in rep.checks})
     for sample in samples:
         L.append(f"[{sample}]")

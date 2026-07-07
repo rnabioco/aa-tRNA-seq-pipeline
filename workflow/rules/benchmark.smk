@@ -122,12 +122,12 @@ rule benchmark_pod5_equivalence:
         # PASS/FAIL) even when the two POD5s diverge.
         """
         {{
-                            set -e
-                            rm -f {params.ref_pod5}
-                            pod5 merge {input.raw} -o {params.ref_pod5}
-                            python {params.src}/equivalence/pod5_equivalence.py compare \
-                                --a {input.escpod_pod5} --b {params.ref_pod5} || true
-                        }} >{output.report} 2>{log}
+                                    set -e
+                                    rm -f {params.ref_pod5}
+                                    pod5 merge {input.raw} -o {params.ref_pod5}
+                                    python {params.src}/equivalence/pod5_equivalence.py compare \
+                                        --a {input.escpod_pod5} --b {params.ref_pod5} || true
+                                }} >{output.report} 2>{log}
         rm -f {params.ref_pod5}
         """
 
@@ -217,6 +217,8 @@ rule benchmark_basecall:
         ubam=os.path.join(BENCH_DIR, "basecall", "{sample}", "{sample}.{version}.ubam"),
     log:
         os.path.join(outdir, "logs", "benchmark", "basecall", "{sample}.{version}"),
+    benchmark:
+        os.path.join(BENCH_DIR, "basecall", "{sample}.{version}.time.tsv")
     params:
         dorado=lambda w: os.path.join(
             PIPELINE_DIR, "resources", "tools", "dorado", w.version, "bin", "dorado"

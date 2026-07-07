@@ -68,8 +68,13 @@ ref/config, e.g. via `run_ref.sh`), then diff them with `benchmark_compare`.
 
 A **fingerprint** is a compact, diffable snapshot of a run's result-bearing
 outputs (charging tables, CPM, alignment stats, base-calling errors, modkit
-pileups) plus the tool-version manifest. `compare.py` diffs two fingerprints
-under a named tolerance profile in `tolerances.yml`:
+pileups), the tool-version manifest, and **per-rule wall time + peak RSS**
+(from Snakemake `benchmark:` directives on merge_pods, rebasecall, and the
+classifiers). `compare.py` diffs two fingerprints under a named tolerance
+profile in `tolerances.yml`, and prints an informational runtime section
+(baseline → candidate seconds, % faster/slower) so you can see whether the
+migration sped up or regressed each step. The leech-vs-remora check also reports
+each engine's wall time (GPU vs CPU) directly.
 
 - **`strict`** — for the isolation swaps (run old vs new with dorado held fixed).
 - **`aggregate`** — for the full old→new comparison including the dorado bump.

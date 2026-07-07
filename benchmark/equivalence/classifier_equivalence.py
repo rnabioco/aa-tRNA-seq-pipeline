@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -143,6 +144,7 @@ def run_both(
     # No --motif/--motif-offset: both engines read the motif ('CCAGGC', offset 3)
     # from the model, so this compares them on identical anchoring — the whole
     # point of the check. An explicit offset that disagrees makes leech refuse.
+    t0 = time.monotonic()
     subprocess.run(
         [
             "leech", "predict",
@@ -158,7 +160,9 @@ def run_both(
         ],
         check=True,
     )
+    t_leech = time.monotonic() - t0
 
+    t1 = time.monotonic()
     subprocess.run(
         [
             "remora", "infer", "from_pod5_and_bam",
@@ -169,7 +173,13 @@ def run_both(
         ],
         check=True,
     )
+    t_remora = time.monotonic() - t1
 
+    speed = f"{t_remora / t_leech:.1f}x" if t_leech else "n/a"
+    print(
+        f"  runtime: leech(GPU)={t_leech:.1f}s  remora(CPU)={t_remora:.1f}s  "
+        f"(leech {speed} faster)"
+    )
     return leech_bam, remora_bam
 
 

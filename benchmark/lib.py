@@ -150,6 +150,43 @@ def read_manifest(outdir: Path) -> dict | None:
         return json.load(fh)
 
 
+def read_benchmarks(outdir: Path) -> dict:
+    """Aggregate Snakemake `benchmark:` TSVs under {outdir}/benchmarks/.
+
+    Layout is benchmarks/<rule>/<name>.tsv, each with a header row and one data
+    row (cols: s, h:m:s, max_rss, ...). Returns
+    {rule: {"wall_s": total_seconds, "max_rss_mb": peak, "n": count}}.
+    """
+    bdir = outdir / "benchmarks"
+    if not bdir.is_dir():
+        return {}
+    out: dict[str, dict] = {}
+    for rule_dir in sorted(p for p in bdir.iterdir() if p.is_dir()):
+        wall = 0.0
+        rss = 0.0
+        n = 0
+        for tsv in rule_dir.glob("*.tsv"):
+            try:
+                df = pd.read_csv(tsv, sep="\t")
+            except Exception:
+                continue
+            if df.empty:
+                continue
+            row = df.iloc[0]
+            if "s" in row:
+                wall += float(row["s"])
+                n += 1
+            if "max_rss" in row and pd.notna(row["max_rss"]):
+                rss = max(rss, float(row["max_rss"]))
+        if n:
+            out[rule_dir.name] = {
+                "wall_s": round(wall, 2),
+                "max_rss_mb": round(rss, 1),
+                "n": n,
+            }
+    return out
+
+
 # --- BAM tag extraction (used by classifier equivalence) -----------------------
 
 

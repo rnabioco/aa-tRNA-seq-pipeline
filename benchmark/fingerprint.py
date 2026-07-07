@@ -64,6 +64,8 @@ def fingerprint(outdir: Path, dest: Path, label: str, git_ref: str | None) -> di
         "output_directory": str(outdir),
         "charged_threshold": CL_CHARGED_THRESHOLD,
         "manifest_tools": (lib.read_manifest(outdir) or {}).get("tools"),
+        # per-rule wall time + peak RSS from Snakemake `benchmark:` directives
+        "runtimes": lib.read_benchmarks(outdir),
         "samples": {},
     }
 
