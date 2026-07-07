@@ -28,3 +28,6 @@ workflow/report/_custom.qmd
 
 # benchmark real-sample pod5 (built by make_benchmark_sample.sh; destined for S3)
 benchmark/data/
+
+# samtools fasta indices (derived)
+*.fai
