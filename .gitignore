@@ -25,3 +25,6 @@ resources/models/.mod_models_ready
 
 # generated at render time by Snakemake rule
 workflow/report/_custom.qmd
+
+# benchmark real-sample pod5 (built by make_benchmark_sample.sh; destined for S3)
+benchmark/data/

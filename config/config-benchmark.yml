@@ -1,0 +1,14 @@
+# Benchmark config: a real E. coli aa-tRNA-seq sample (~10k reads) for the
+# version-comparison rules. Unlike the ~200-read .tests data, this gives
+# statistically meaningful per-tRNA counts (51 E. coli isodecoders).
+#
+# The reference is BUILT from the collapsed E. coli GtRNAdb fasta (dual adapters
+# added by the pipeline). The pod5 is produced by scripts/make_benchmark_sample.sh
+# and is NOT tracked in git (destined for S3); build it once before running.
+samples: config/samples-benchmark.tsv
+output_directory: ".tests/benchmark"
+
+reference:
+  mode: "build"
+  raw_fasta: "resources/references/ecoliK12-mature-tRNAs.fa"
+  cca_spacer: ""
