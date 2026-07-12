@@ -99,11 +99,13 @@ include: "rules/aatrnaseq-qc.smk"
 include: "rules/aatrnaseq-modifications.smk"
 include: "rules/aatrnaseq-odds-ratios.smk"
 include: "rules/aatrnaseq-report.smk"
+include: "rules/clean.smk"
 
 
 localrules:
     download_mod_models,
     generate_squiggy_session,
+    clean,
 
 
 # Route charging classifier: prefer leech or remora based on config
