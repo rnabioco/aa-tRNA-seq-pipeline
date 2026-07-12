@@ -113,8 +113,14 @@ Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
     input:
         get_run_raw_inputs,
     output:
-        outdir=directory(os.path.join(outdir, "demux", "warpdemux_output", "{run_id}")),
-        done=os.path.join(outdir, "demux", "warpdemux_output", "{run_id}", ".done"),
+        outdir=maybe_temp(
+            directory(os.path.join(outdir, "demux", "warpdemux_output", "{run_id}")),
+            tier="demux_scratch",
+        ),
+        done=maybe_temp(
+            os.path.join(outdir, "demux", "warpdemux_output", "{run_id}", ".done"),
+            tier="demux_scratch",
+        ),
     log:
         os.path.join(outdir, "logs", "warpdemux", "{run_id}"),
     threads: config.get("warpdemux", {}).get("threads", 16)
@@ -151,12 +157,14 @@ Parse WarpDemuX predictions and create a barcode mapping file per run.
         mapping=maybe_temp(
             os.path.join(
                 outdir, "demux", "read_ids", "{run_id}", "barcode_mapping.tsv.gz"
-            )
+            ),
+            tier="demux_scratch",
         ),
         summary=maybe_temp(
             os.path.join(
                 outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
-            )
+            ),
+            tier="demux_scratch",
         ),
     log:
         os.path.join(outdir, "logs", "parse_warpdemux", "{run_id}"),
@@ -217,7 +225,8 @@ Extract read IDs for a specific sample based on its barcode assignment.
         mapping=get_sample_barcode_mapping,
     output:
         read_ids=maybe_temp(
-            os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt")
+            os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt"),
+            tier="demux_scratch",
         ),
     log:
         os.path.join(outdir, "logs", "extract_sample_reads", "{sample}"),
@@ -255,7 +264,10 @@ Filter raw POD5 files by sample using read IDs from demultiplexing.
         pod5=get_sample_run_raw_inputs,
         read_ids=get_sample_read_ids,
     output:
-        maybe_temp(os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5")),
+        maybe_temp(
+            os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
+            tier="split_pod5",
+        ),
     log:
         os.path.join(outdir, "logs", "split_pod5", "{sample}"),
     params:
@@ -320,7 +332,8 @@ Extract read IDs matching this sample's EDX adapter assignment.
         read_ids=maybe_temp(
             os.path.join(
                 outdir, "demux", "edx", "{sample}", "{sample}.edx_read_ids.txt"
-            )
+            ),
+            tier="demux_scratch",
         ),
     params:
         edx_adapter_name=get_sample_edx,
@@ -353,7 +366,8 @@ Extract FASTQ for reads matching this sample's EDX adapter.
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
         fq=maybe_temp(
-            os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz")
+            os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"),
+            tier="fastq",
         ),
     log:
         os.path.join(outdir, "logs", "filter_fastq_by_edx", "{sample}"),
@@ -374,8 +388,8 @@ Filter POD5 to keep only reads matching this sample's EDX adapter.
         pod5=get_sample_pod5,
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        pod5=maybe_temp(
-            os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5")
+        pod5=os.path.join(
+            outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"
         ),
     log:
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),

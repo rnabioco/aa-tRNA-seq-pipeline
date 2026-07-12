@@ -161,6 +161,7 @@ After classification, generates (split across three rule files):
 - **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
 - **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
 - **ml-threshold**: Currently hardcoded in `get_cca_trna_cpm` rule (200-255 = charged, <200 = uncharged)
+- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `fastq`, `merged_pod5`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`. `bam/final` and `demux/edx/pod5` (the classification-input POD5) are always kept. Only enable `split_pod5` for all-EDX runs (where `demux/edx/pod5` is the leaf classification input); for non-EDX/mixed runs `demux/pod5` must be kept. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
 ## WarpDemuX Demultiplexing (Optional)
 

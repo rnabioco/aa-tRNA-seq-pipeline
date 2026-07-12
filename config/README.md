@@ -82,6 +82,30 @@ See `config-demux-test.yml` for a complete example.
 
 - `output_directory`: Path where pipeline outputs will be written.
 
+- `cleanup_intermediates`: Controls automatic `temp()` deletion of large,
+  regenerable intermediates *during* a run. Accepts a boolean or a list of tier
+  names (default: off / opt-in):
+  - `false` (or omitted): nothing is auto-deleted (all intermediates retained).
+  - `true`: all tiers enabled.
+  - a list: only the named tiers are deleted. Tiers:
+    - `cascade` — `bam/aln`, `bam/tagged`, `bam/charging`, `bam/classified`,
+      `bam/adapter_tagged` (redundant near-copies; `bam/final` hardlinks the last one)
+    - `basecall` — `bam/rebasecall` (GPU-hours to regenerate)
+    - `fastq` — `fq/`, `demux/edx/fq`
+    - `merged_pod5` — `pod5/` (pre-demux merged)
+    - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
+    - `split_pod5` — `demux/pod5` (split, pre-EDX-filter)
+
+  Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
+  EDX-filtered POD5 used as the classification input — keeping it lets
+  `classify_charging` / `classify_aa_identity` be re-run without redoing rebasecall
+  or demux), plus `summary/`, `bam/aa_classified/`, `reference/`, and `logs/`.
+
+  **Constraint:** only enable `split_pod5` for **all-EDX** runs. In non-EDX or
+  mixed runs, `demux/pod5` is the classification input for non-EDX samples and must
+  be kept. The on-demand `clean` rule remains the catch-all for reclaiming space on
+  runs that completed with intermediates retained.
+
 - `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
 
 - `remora_kmer_table`: Path to a table of expected normalized signal intensities for each kmer, provided by ONT at [nanoporetech/kmer_models](https://github.com/nanoporetech/kmer_models).

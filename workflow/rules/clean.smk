@@ -18,8 +18,14 @@ specific target (e.g. `--forcerun merge_pods`) if you actually want the raw
 intermediates back.
 
 Note: this is a superset of the auto-`temp()` cleanup controlled by
-`cleanup_intermediates`; it is meant for runs completed with intermediates
-retained, or for reclaiming space on an older output directory.
+`cleanup_intermediates` (a bool or list of tier names; see common.smk
+`maybe_temp` / `_enabled_cleanup_tiers` and config/README.md). It is meant for
+runs completed with intermediates retained (e.g. `cleanup_intermediates: false`,
+or a partial tier list), or for reclaiming space on an older output directory.
+
+Unlike the tiered auto-cleanup, this rule also removes `demux/pod5` and (via the
+`demux` target) the split/EDX POD5 that the tiers may intentionally keep — so run
+it only when you no longer need to re-run classification from the EDX POD5.
 """
 
 # Directories under `output_directory` that are large and cheaply regenerable.

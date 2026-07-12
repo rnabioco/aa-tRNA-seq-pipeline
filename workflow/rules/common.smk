@@ -8,11 +8,38 @@ from git import Repo
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
 
-def maybe_temp(path):
-    """Mark path as temp() when cleanup_intermediates is enabled."""
-    if config.get("cleanup_intermediates", True):
-        return temp(path)
-    return path
+# Cleanup tiers for maybe_temp(). Each large intermediate is assigned a tier so
+# they can be deleted or kept independently via the `cleanup_intermediates`
+# config key (see maybe_temp / _enabled_cleanup_tiers below).
+_CLEANUP_TIERS = {
+    "cascade",  # bam/aln, tagged, charging, classified, adapter_tagged (redundant near-copies)
+    "basecall",  # bam/rebasecall (GPU-hours to regenerate)
+    "fastq",  # fq/, demux/edx/fq
+    "merged_pod5",  # pod5/ (pre-demux merged per-sample)
+    "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
+    "split_pod5",  # demux/pod5 (split; pre-EDX-filter). Only enable for all-EDX runs.
+}
+
+
+def _enabled_cleanup_tiers():
+    """Resolve `cleanup_intermediates` config into a set of enabled tier names.
+
+    Accepts a bool or a list of tier names:
+      - True         -> all tiers enabled
+      - False/absent -> no tiers (opt-in default; nothing auto-deleted)
+      - list         -> only the named tiers
+    """
+    cfg = config.get("cleanup_intermediates", False)
+    if cfg is True:
+        return set(_CLEANUP_TIERS)
+    if not cfg:
+        return set()
+    return set(cfg) & _CLEANUP_TIERS
+
+
+def maybe_temp(path, tier="cascade"):
+    """Mark path as temp() only when its cleanup tier is enabled."""
+    return temp(path) if tier in _enabled_cleanup_tiers() else path
 
 
 def is_demux_enabled():

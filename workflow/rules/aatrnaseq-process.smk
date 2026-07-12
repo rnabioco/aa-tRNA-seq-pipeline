@@ -10,7 +10,10 @@ merge pod5s into a single pod5
     input:
         get_raw_inputs,
     output:
-        maybe_temp(os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5")),
+        maybe_temp(
+            os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
+            tier="merged_pod5",
+        ),
     log:
         os.path.join(outdir, "logs", "merge_pods", "{sample}"),
     threads: 12
@@ -61,7 +64,8 @@ TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
         mod_models=rules.download_mod_models.output.sentinel,
     output:
         maybe_temp(
-            os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam")
+            os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
+            tier="basecall",
         ),
     log:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
@@ -89,7 +93,10 @@ extract reads from bam into FASTQ format for alignment
     input:
         rules.rebasecall.output,
     output:
-        maybe_temp(os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz")),
+        maybe_temp(
+            os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz"),
+            tier="fastq",
+        ),
     log:
         os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
     shell:
@@ -127,10 +134,12 @@ For EDX samples, input FASTQ is pre-filtered to matching reads only.
         idx=rules.bwa_idx.output,
     output:
         bam=maybe_temp(
-            os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam")
+            os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
+            tier="cascade",
         ),
         bai=maybe_temp(
-            os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai")
+            os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
+            tier="cascade",
         ),
     log:
         os.path.join(outdir, "logs", "bwa_align", "{sample}"),
@@ -156,12 +165,14 @@ rule inject_ubam_tags:
         target_bai=rules.bwa_align.output.bai,
     output:
         bam=maybe_temp(
-            os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam")
+            os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
+            tier="cascade",
         ),
         bai=maybe_temp(
             os.path.join(
                 outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
-            )
+            ),
+            tier="cascade",
         ),
     log:
         os.path.join(outdir, "logs", "inject_ubam_tags", "{sample}"),
@@ -195,12 +206,14 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
         charging_bam=maybe_temp(
             os.path.join(
                 outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
-            )
+            ),
+            tier="cascade",
         ),
         charging_bam_bai=maybe_temp(
             os.path.join(
                 outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
-            )
+            ),
+            tier="cascade",
         ),
         temp_sorted_bam=temp(
             os.path.join(
@@ -243,11 +256,17 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
     output:
-        charging_bam=os.path.join(
-            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
+        charging_bam=maybe_temp(
+            os.path.join(
+                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
+            ),
+            tier="cascade",
         ),
-        charging_bam_bai=os.path.join(
-            outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
+        charging_bam_bai=maybe_temp(
+            os.path.join(
+                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
+            ),
+            tier="cascade",
         ),
         temp_sorted_bam=temp(
             os.path.join(
@@ -345,10 +364,12 @@ base modifications.
         target_bam=rules.inject_ubam_tags.output.bam,
     output:
         classified_bam=maybe_temp(
-            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam")
+            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam"),
+            tier="cascade",
         ),
         classified_bam_bai=maybe_temp(
-            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam.bai")
+            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam.bai"),
+            tier="cascade",
         ),
     log:
         os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
@@ -384,12 +405,14 @@ This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
     output:
         bam=maybe_temp(
-            os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam")
+            os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),
+            tier="cascade",
         ),
         bai=maybe_temp(
             os.path.join(
                 outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam.bai"
-            )
+            ),
+            tier="cascade",
         ),
     log:
         os.path.join(outdir, "logs", "add_adapter_tags", "{sample}"),
@@ -437,10 +460,8 @@ temp() cleanup of upstream BAMs doesn't break downstream consumers.
         bam=rules.add_adapter_tags.output.bam,
         bai=rules.add_adapter_tags.output.bai,
     output:
-        bam=maybe_temp(os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam")),
-        bai=maybe_temp(
-            os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai")
-        ),
+        bam=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam"),
+        bai=os.path.join(outdir, "bam", "final", "{sample}", "{sample}.bam.bai"),
     log:
         os.path.join(outdir, "logs", "finalize_bam", "{sample}"),
     shell:
