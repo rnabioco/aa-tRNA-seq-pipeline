@@ -17,7 +17,12 @@ show-failed-logs: true
 slurm-logdir: "logs/slurm"
 slurm-keep-successful-logs: false
 slurm-delete-logfiles-older-than: 10
-slurm-qos: normal
+# NOTE: no profile-wide slurm-qos here. The executor plugin appends
+# settings.slurm-qos *after* any per-rule `qos` resource, so a global
+# value here silently overrides (or, if passed via slurm_extra, is
+# outright rejected by) per-rule QOS overrides like rebasecall's
+# gpu_long. Rules without an explicit `qos` resource just get the
+# partition's default QOS.
 
 # Default resources (CPU)
 default-resources:
