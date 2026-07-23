@@ -322,13 +322,20 @@ Compute pairwise sequence similarity matrix for the reference FASTA.
 | Property | Value |
 |----------|-------|
 | Input | Reference FASTA |
-| Output | `summary/qc/reference_similarity.tsv` |
+| Output | `summary/qc/reference_similarity.tsv`, `summary/qc/reference_similarity.clusters.tsv` |
+| Threads | 4 |
 | GPU | No |
 
 **Command:**
 ```bash
-python compute_seq_similarity.py {fasta} {output}
+python compute_seq_similarity.py {fasta} {output} \
+    --threads {threads} --max-mismatch {max_mismatch} --clusters {clusters}
 ```
+
+Identical sequences are collapsed before aligning (lossless). Gated by
+`qc.reference_similarity` and skipped above `qc.reference_similarity_max_seqs`;
+`qc.reference_similarity_max_mismatch` additionally collapses near-identical
+sequences by Hamming distance.
 
 **Notes:**
 

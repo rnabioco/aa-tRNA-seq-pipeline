@@ -137,6 +137,25 @@ report:
   # path to a .qmd file to include at the end of the QC report (optional)
   custom_include: ""
 
+# Optional QC steps
+qc:
+  # All-vs-all pairwise reference similarity. Identical sequences are always
+  # collapsed before aligning, but the work is still quadratic in the number of
+  # DISTINCT sequences.
+  reference_similarity: true
+  # Skip (with a warning) when the reference exceeds this many sequences. The
+  # heatmap stops being legible in the low hundreds, and the dense square TSV
+  # grows as n^2. Set to null to disable the guard. Ignored when
+  # reference_similarity_max_mismatch is set, since collapsing bounds the
+  # output size independently of the input size.
+  reference_similarity_max_seqs: 2000
+  # Additionally collapse sequences within this Hamming distance of a cluster
+  # representative. 0 keeps only the lossless exact-duplicate collapse. Values
+  # above 0 are lossy: the matrix is reported over representatives, with
+  # membership recorded in reference_similarity.clusters.tsv. Hamming distance
+  # requires equal lengths, so sequences differing by an indel never collapse.
+  reference_similarity_max_mismatch: 0
+
 # Reuse reference-independent outputs from a previous pipeline run.
 # Set to the output_directory of a completed run to skip POD5 merging,
 # basecalling, FASTQ extraction, and demultiplexing.

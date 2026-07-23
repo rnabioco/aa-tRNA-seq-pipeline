@@ -232,6 +232,23 @@ Pairwise sequence similarity matrix for the reference FASTA, useful for identify
 
 **Format:** Square TSV matrix with sequence names as row and column headers, values are percent identity (0-100).
 
+`summary/qc/reference_similarity.clusters.tsv` records which input sequences were
+collapsed into each matrix row (`cluster_id`, `representative`, `n_members`,
+`members`).
+
+!!! warning "Large references"
+    The number of alignments is quadratic in the number of *distinct* reference
+    sequences. Identical sequences are always collapsed first, which is lossless
+    and a large win for multi-copy tRNA gene families — the danRer11 mature tRNA
+    set is 8879 records but only 3315 distinct sequences.
+
+    The step is skipped with a warning above `qc.reference_similarity_max_seqs`
+    (default 2000), since the heatmap stops being legible well before that. To
+    run it on a large reference, raise that limit and set
+    `qc.reference_similarity_max_mismatch` to collapse near-identical sequences
+    by Hamming distance. That collapse is lossy: the matrix is reported over
+    cluster representatives, with membership in the `.clusters.tsv` sidecar.
+
 ## Modification Odds Ratios
 
 `summary/tables/{sample}/{sample}.odds_ratios.tsv.gz`

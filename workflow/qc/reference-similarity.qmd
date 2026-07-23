@@ -131,19 +131,16 @@ Sequence pairs with >90% identity may be at risk for cross-mapping:
 # Find pairs with high similarity (excluding diagonal)
 high_sim_threshold <- 90
 
-# Get upper triangle indices (excluding diagonal)
-pairs <- data.frame()
-for (i in 1:(nrow(mat) - 1)) {
-  for (j in (i + 1):ncol(mat)) {
-    if (mat[i, j] >= high_sim_threshold) {
-      pairs <- rbind(pairs, data.frame(
-        Seq1 = rownames(mat)[i],
-        Seq2 = colnames(mat)[j],
-        Percent_Identity = round(mat[i, j], 2)
-      ))
-    }
-  }
-}
+# Get upper triangle indices (excluding diagonal).
+# Indexed rather than looped: a nested loop over the matrix is O(n^2)
+# interpreted iterations and does not finish on a large reference.
+hits <- which(mat >= high_sim_threshold & upper.tri(mat), arr.ind = TRUE)
+
+pairs <- data.frame(
+  Seq1 = rownames(mat)[hits[, "row"]],
+  Seq2 = colnames(mat)[hits[, "col"]],
+  Percent_Identity = round(mat[hits], 2)
+)
 
 # Sort by similarity (descending)
 pairs <- pairs %>% arrange(desc(Percent_Identity))
