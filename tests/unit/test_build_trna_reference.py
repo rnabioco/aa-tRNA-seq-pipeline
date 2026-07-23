@@ -64,6 +64,19 @@ class TestReadFasta:
 
         assert sequences[0] == ("seq1", "ACGTACGT")
 
+    def test_rna_to_dna_conversion(self, temp_dir):
+        """RNA (U) sequences should be normalized to DNA (T).
+
+        GtRNAdb mature-tRNA FASTAs use the RNA alphabet; downstream BWA
+        requires DNA.
+        """
+        fasta = temp_dir / "test.fa"
+        fasta.write_text(">seq1\nACGUacgu\n")
+
+        sequences = list(read_fasta(str(fasta)))
+
+        assert sequences[0] == ("seq1", "ACGTACGT")
+
     def test_header_parsing(self, temp_dir):
         """Only first word of header should be used as name."""
         fasta = temp_dir / "test.fa"

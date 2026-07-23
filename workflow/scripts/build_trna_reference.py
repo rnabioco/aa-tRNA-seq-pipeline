@@ -30,10 +30,20 @@ import sys
 from collections import defaultdict
 
 
+def normalize_sequence(seq):
+    """Uppercase and convert RNA (U) to DNA (T).
+
+    Reference sources such as GtRNAdb provide RNA-alphabet mature tRNA
+    sequences; downstream tooling (BWA index/align) requires DNA, so U->T
+    normalization happens on read.
+    """
+    return seq.upper().replace("U", "T")
+
+
 def read_fasta(fasta_path):
     """
     Read FASTA file and yield (name, sequence) tuples.
-    Handles multi-line sequences.
+    Handles multi-line sequences. Sequences are normalized to uppercase DNA.
     """
     name = None
     seq_parts = []
@@ -45,14 +55,14 @@ def read_fasta(fasta_path):
                 continue
             if line.startswith(">"):
                 if name is not None:
-                    yield name, "".join(seq_parts).upper()
+                    yield name, normalize_sequence("".join(seq_parts))
                 name = line[1:].split()[0]  # Get first word after >
                 seq_parts = []
             else:
                 seq_parts.append(line)
 
         if name is not None:
-            yield name, "".join(seq_parts).upper()
+            yield name, normalize_sequence("".join(seq_parts))
 
 
 def write_fasta(sequences, output_path):
