@@ -374,7 +374,8 @@ def pipeline_outputs():
     outs.append(os.path.join(outdir, "squiggy-session.json"))
 
     # Reference sequence similarity QC (runs once per pipeline execution)
-    outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
+    if want_reference_similarity():
+        outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
 
     # Amino acid classification outputs (leech multiclass)
     if config.get("classify_aa", {}).get("enabled", False):
@@ -432,6 +433,62 @@ def get_modified_bases():
             break
         mods.append(part)
     return mods
+
+
+def count_fasta_seqs(path):
+    """Count records in a FASTA by '>' lines. Returns None if unreadable."""
+    try:
+        with open(path) as f:
+            return sum(1 for line in f if line.startswith(">"))
+    except OSError:
+        return None
+
+
+def get_similarity_max_mismatch():
+    """Hamming distance for collapsing near-identical reference sequences.
+
+    0 collapses exact duplicates only, which is lossless.
+    """
+    return config.get("qc", {}).get("reference_similarity_max_mismatch", 0)
+
+
+def want_reference_similarity():
+    """Whether to emit the reference similarity QC matrix.
+
+    Alignment count is quadratic in the number of distinct reference sequences,
+    and the downstream heatmap stops being legible well before it gets slow, so
+    a large reference is skipped with a warning rather than silently costing
+    hours and gigabytes.
+    """
+    qc = config.get("qc", {})
+    if not qc.get("reference_similarity", True):
+        return False
+
+    max_seqs = qc.get("reference_similarity_max_seqs", 2000)
+    if not max_seqs:
+        return True
+
+    # Collapsing is an explicit opt-in to a large reference: the matrix is then
+    # reported over cluster representatives, so it does not grow with input size
+    if get_similarity_max_mismatch() > 0:
+        return True
+
+    n_seqs = count_fasta_seqs(get_raw_reference())
+    if n_seqs is None:
+        # Reference not readable yet; include the target rather than drop QC
+        return True
+
+    if n_seqs > max_seqs:
+        logger.warning(
+            f"Skipping reference similarity QC: {get_raw_reference()} has "
+            f"{n_seqs} sequences (limit {max_seqs}). Raise or null out "
+            f"qc.reference_similarity_max_seqs to run it anyway, and consider "
+            f"setting qc.reference_similarity_max_mismatch to collapse "
+            f"near-identical sequences."
+        )
+        return False
+
+    return True
 
 
 def get_modkit_threshold_opts():

@@ -8,20 +8,39 @@ Compute pairwise sequence similarity matrix for reference FASTA.
 
 This QC step identifies potential cross-mapping issues by calculating
 all-vs-all sequence similarities using global alignment.
+
+Alignment count is quadratic in the number of reference sequences, so the
+script collapses identical sequences before aligning (lossless) and, when
+`qc.reference_similarity_max_mismatch` is set, additionally collapses
+near-identical ones by Hamming distance. See `config/config-base.yml`.
 """
     input:
         fasta=get_raw_reference(),
     output:
         matrix=os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"),
+        clusters=os.path.join(
+            outdir, "summary", "qc", "reference_similarity.clusters.tsv"
+        ),
     log:
         os.path.join(outdir, "logs", "qc", "reference_similarity.log"),
+    # Only ~1.5x from threading even at 16 cores: parasail is a ctypes binding
+    # that holds the GIL during marshalling, and the TSV write is serial. The
+    # real win is collapsing duplicates, so do not over-request cores here.
+    threads: 4
+    resources:
+        mem_mb=8000,
+        runtime=120,
     params:
         src=SCRIPT_DIR,
+        max_mismatch=get_similarity_max_mismatch(),
     shell:
         """
         python {params.src}/compute_seq_similarity.py \
             {input.fasta} \
             {output.matrix} \
+            --threads {threads} \
+            --max-mismatch {params.max_mismatch} \
+            --clusters {output.clusters} \
             2>&1 | tee {log}
         """
 
