@@ -14,6 +14,7 @@ from build_trna_reference import (
     adapter_matches,
     validate_reference,
     build_reference,
+    collapse_similar_sequences,
 )
 
 # Default adapters
@@ -455,3 +456,114 @@ class TestBuildReference:
             )
 
         assert "must start with GGC" in report.read_text()
+
+
+class TestCollapseSimilarSequences:
+    """Merging near-identical reference sequences by Hamming distance."""
+
+    def test_zero_keeps_everything(self):
+        keys = [("a", "ACGTACGT"), ("b", "ACGTACGA")]
+        kept, collapsed = collapse_similar_sequences(keys, 0)
+        assert kept == ["a", "b"]
+        assert collapsed == {}
+
+    def test_merges_within_distance(self):
+        keys = [("a", "ACGTACGT"), ("b", "ACGTACGA")]
+        kept, collapsed = collapse_similar_sequences(keys, 1)
+        assert kept == ["a"]
+        assert collapsed == {"a": ["b"]}
+
+    def test_does_not_merge_beyond_distance(self):
+        keys = [("a", "ACGTACGT"), ("b", "ACGTAAAA")]
+        kept, collapsed = collapse_similar_sequences(keys, 2)
+        assert kept == ["a", "b"]
+        assert collapsed == {}
+
+    def test_never_merges_different_lengths(self):
+        """Hamming distance is undefined across lengths, so an indel never merges."""
+        keys = [("a", "ACGTACGT"), ("b", "ACGTACGTA")]
+        kept, collapsed = collapse_similar_sequences(keys, 99)
+        assert kept == ["a", "b"]
+        assert collapsed == {}
+
+    def test_bounded_radius_not_single_linkage(self):
+        """a-b and b-c are each 1 apart but a-c is 2, so c must not join a."""
+        keys = [("a", "AAAA"), ("b", "AAAT"), ("c", "AATT")]
+        kept, collapsed = collapse_similar_sequences(keys, 1)
+        assert kept == ["a", "c"]
+        assert collapsed == {"a": ["b"]}
+
+    def test_every_name_accounted_for(self):
+        keys = [("a", "AAAA"), ("b", "AAAT"), ("c", "CCCC"), ("d", "CCCG")]
+        kept, collapsed = collapse_similar_sequences(keys, 1)
+        seen = set(kept) | {m for v in collapsed.values() for m in v}
+        assert seen == {"a", "b", "c", "d"}
+
+    def test_leader_is_never_also_merged(self):
+        keys = [("a", "AAAA"), ("b", "AAAT"), ("c", "AAAA")]
+        kept, collapsed = collapse_similar_sequences(keys, 1)
+        merged = {m for v in collapsed.values() for m in v}
+        assert not (set(kept) & merged)
+
+    def test_input_order_preserved(self):
+        keys = [("z", "AAAA"), ("y", "CCCC"), ("x", "GGGG")]
+        kept, _ = collapse_similar_sequences(keys, 1)
+        assert kept == ["z", "y", "x"]
+
+
+class TestBuildReferenceCollapse:
+    """max_mismatch wiring through build_reference."""
+
+    def test_collapses_near_identical_in_build(self, tmp_path):
+        # Two tRNAs differing by one base, plus one clearly distinct
+        fasta = tmp_path / "raw.fa"
+        fasta.write_text(
+            ">t1\nGGGGGGGGGGGGGGGGGGGGCCA\n"
+            ">t2\nGGGGGGGGGGGGGGGGGGGACCA\n"
+            ">t3\nAAAAAAAAAAAAAAAAAAAACCA\n"
+        )
+        out = tmp_path / "adapted.fa"
+        report = tmp_path / "report.txt"
+
+        build_reference(
+            str(fasta), str(out), str(report), ADAPTER_5P, ADAPTER_3P, max_mismatch=1
+        )
+
+        names = [n for n, _ in read_fasta(str(out))]
+        assert names == ["t1", "t3"]
+        assert "t1 <- t2" in report.read_text()
+
+    def test_default_does_not_collapse_near_identical(self, tmp_path):
+        fasta = tmp_path / "raw.fa"
+        fasta.write_text(
+            ">t1\nGGGGGGGGGGGGGGGGGGGGCCA\n>t2\nGGGGGGGGGGGGGGGGGGGACCA\n"
+        )
+        out = tmp_path / "adapted.fa"
+        report = tmp_path / "report.txt"
+
+        build_reference(str(fasta), str(out), str(report), ADAPTER_5P, ADAPTER_3P)
+
+        names = [n for n, _ in read_fasta(str(out))]
+        assert names == ["t1", "t2"]
+
+    def test_grouping_uses_input_lengths_not_post_cca(self, tmp_path):
+        """Clustering keys are the input sequences, before CCA is appended.
+
+        t1 already ends in CCA (23 nt); t2 lacks it (20 nt). As provided they
+        differ in length, so Hamming distance is undefined and they must not
+        merge. After CCA is appended both are 23 nt and differ by a single
+        base, so clustering on the post-CCA sequence would wrongly merge them.
+        """
+        fasta = tmp_path / "raw.fa"
+        fasta.write_text(
+            ">t1\nGGGGGGGGGGGGGGGGGGGGCCA\n>t2\nGGGGGGGGGGGGGGGGGGGA\n"
+        )
+        out = tmp_path / "adapted.fa"
+        report = tmp_path / "report.txt"
+
+        build_reference(
+            str(fasta), str(out), str(report), ADAPTER_5P, ADAPTER_3P, max_mismatch=1
+        )
+
+        names = [n for n, _ in read_fasta(str(out))]
+        assert names == ["t1", "t2"]
