@@ -136,6 +136,11 @@ r-yaml = "*"
 r-circlize = "*"
 bioconductor-complexheatmap = ">=2.10"
 r-pheatmap = "*"
+# clover (rnabioco/clover) Imports -- installed from GitHub with pak, but its
+# Bioconductor dependencies come from bioconda so the install does not depend on
+# bioconductor.org being reachable.
+bioconductor-biostrings = "*"
+bioconductor-summarizedexperiment = "*"
 
 [feature.report.tasks]
 install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }
