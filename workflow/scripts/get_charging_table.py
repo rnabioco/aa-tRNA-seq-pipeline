@@ -12,6 +12,36 @@ import sys
 import pysam
 
 
+def charging_tag_value(read, tag):
+    """
+    Return the scalar charging tag for one read, or None if it has none.
+
+    Raises ValueError if the tag holds a multi-element array, which is not a
+    single charging score (e.g. the dorado `ML` mod-base tag holds one
+    probability per modified base) and so cannot be collapsed to one value.
+
+    Note that a tag value of 0 is a valid, maximally-confident *uncharged*
+    call, so callers must test for None rather than truthiness.
+    """
+    tags_dict = dict(read.tags)
+    tag_raw = tags_dict.get(tag)
+
+    # Fallback to uppercase tag for backward compat with older BAMs
+    # TODO: remove fallback once all BAMs have been reprocessed
+    if tag_raw is None and tag.islower():
+        tag_raw = tags_dict.get(tag.upper())
+
+    if tag_raw is None:
+        return None
+
+    if hasattr(tag_raw, "__len__") and not isinstance(tag_raw, str):
+        if len(tag_raw) > 1:
+            raise ValueError(f"tag '{tag}' holds a multi-element array")
+        return tag_raw[0]
+
+    return tag_raw
+
+
 def extract_tag(bam_file, output_tsv, tag):
     open_func = gzip.open if output_tsv.endswith(".gz") else open
     mode = "wt" if output_tsv.endswith(".gz") else "w"
@@ -29,30 +59,19 @@ def extract_tag(bam_file, output_tsv, tag):
         for read in bam.fetch():
             read_id = read.query_name
             reference = read.reference_name or "*"
-            tags_dict = dict(read.tags)
-            tag_raw = tags_dict.get(tag)
-
-            # Fallback to uppercase tag for backward compat with older BAMs
-            # TODO: remove fallback once all BAMs have been reprocessed
-            if tag_raw is None and tag.islower():
-                tag_raw = tags_dict.get(tag.upper())
-
-            if tag_raw is None:
-                continue
 
             # Handle both scalar (cl:i:200) and array (CL:B:C:200) tag values.
-            # A multi-element array is not a single charging score (e.g. the
-            # dorado `ML` mod-base tag holds one probability per modified base),
-            # so it cannot be collapsed to one value and is skipped. Count and
-            # warn rather than dropping silently: a silent drop here biases the
-            # charging fraction and CPM denominator exactly like the ML==0 bug.
-            if hasattr(tag_raw, "__len__") and not isinstance(tag_raw, str):
-                if len(tag_raw) > 1:
-                    n_multi_skipped += 1
-                    continue
-                tag_value = tag_raw[0]
-            else:
-                tag_value = tag_raw
+            # Count and warn on a multi-element array rather than dropping it
+            # silently: a silent drop here biases the charging fraction and CPM
+            # denominator exactly like the ML==0 bug.
+            try:
+                tag_value = charging_tag_value(read, tag)
+            except ValueError:
+                n_multi_skipped += 1
+                continue
+
+            if tag_value is None:
+                continue
 
             # Write on tag PRESENCE, not truthiness: a charging tag of 0 is a
             # valid, maximally-confident *uncharged* call (ML score range is
