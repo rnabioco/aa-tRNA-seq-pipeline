@@ -144,6 +144,8 @@ bioconductor-summarizedexperiment = "*"
 # clover Suggests: run_deseq() needs DESeq2, plot_volcano() needs ggtext
 bioconductor-deseq2 = "*"
 r-ggtext = "*"
+# modomics_mods() aligns tRNAs to MODOMICS entries by identity
+bioconductor-pwalign = "*"
 
 [feature.report.tasks]
 install-quartabs = { cmd = "R -e \"pak::pak('sayuks/quartabs')\"", description = "Install quartabs from GitHub" }
