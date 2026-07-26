@@ -20,7 +20,13 @@ When adding new functionality:
 | `aatrnaseq-charging.smk` | Charging analysis rules |
 | `aatrnaseq-qc.smk` | Quality control and statistics |
 | `aatrnaseq-modifications.smk` | Modification calling and coverage |
-| `warpdemux.smk` | Demultiplexing (conditional) |
+| `demux.smk` | Backend-agnostic demux + EDX rules (conditional) |
+| `demux-escpod.smk` | `escpod demux` backend rules (default) |
+| `demux-warpdemux.smk` | WarpDemuX backend rules |
+
+A backend-specific rule set must produce the shared contract
+`demux/read_ids/{run_id}/barcode_mapping.tsv.gz` and
+`demux/pod5/{sample}/{sample}.pod5`; everything downstream is backend-agnostic.
 
 ## Rule Template
 

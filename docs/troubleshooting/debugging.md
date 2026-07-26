@@ -295,10 +295,10 @@ samtools flagstat results/bam/final/sample1.bam
 
 ```bash
 # Summary
-pod5 inspect summary results/pod5/sample1/sample1.pod5
+escpod inspect summary results/pod5/sample1/sample1.pod5
 
 # Read info
-pod5 inspect reads results/pod5/sample1/sample1.pod5 | head
+escpod inspect reads results/pod5/sample1/sample1.pod5 | head
 ```
 
 ### TSV Files

@@ -118,5 +118,30 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 1
 
+  # escpod demux backend. The fused pipeline streams the POD5s and does the
+  # boundary detection, fingerprinting, classification and splitting in one
+  # pass, so it needs the CPUs but far less wall time than WarpDemuX.
+  escpod_demux:
+    runtime: "3h"
+    mem_mb: 32000
+    cpus_per_task: 16
+
+  parse_escpod_demux:
+    runtime: "1h"
+    mem_mb: 8000
+    cpus_per_task: 1
+
+  extract_escpod_sample_reads:
+    runtime: "1h"
+    mem_mb: 8000
+    cpus_per_task: 1
+
+  # A symlink when warpdemux.min_confidence is 0, otherwise an escpod filter
+  # pass over the (already small) per-barcode POD5.
+  collect_escpod_pod5:
+    runtime: "2h"
+    mem_mb: 16000
+    cpus_per_task: 4
+
   compute_odds_ratios:
     mem_mb: 16000

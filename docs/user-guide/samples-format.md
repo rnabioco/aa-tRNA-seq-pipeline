@@ -118,7 +118,8 @@ Sample values can be:
 
 ### Barcode Names
 
-For WarpDemuX-tRNA kits:
+Barcode names are the same for both demux backends (`escpod` labels them `BC03`
+internally, and the pipeline translates). For WarpDemuX-tRNA kits:
 
 | Kit | Available Barcodes |
 |-----|-------------------|
@@ -154,8 +155,8 @@ flowchart LR
 flowchart LR
     A[samples.yml] --> B[parse_samples]
     B --> C[find_raw_inputs per run]
-    C --> D[warpdemux]
-    D --> E[split_pod5 per sample]
+    C --> D[escpod_demux or warpdemux]
+    D --> E[per-sample POD5]
     E --> F[Continue to rebasecall...]
 ```
 

@@ -114,6 +114,12 @@ These rules are automatically submitted to the GPU queue:
 | `remora_signal_stats` | 24 GB |
 | `bwa_align` | 24 GB |
 
+!!! note "escpod demux backend"
+    The profile ships resources for the `warpdemux` / `parse_warpdemux` rules. If
+    `warpdemux.backend` is `escpod` (the default), add equivalent entries for
+    `escpod_demux` and `parse_escpod_demux` — the fused `escpod demux` pass replaces
+    both `warpdemux` and `split_pod5`.
+
 ## Customization
 
 ### Change Default Queue

@@ -21,8 +21,13 @@ Merge all POD5 files for a sample into a single file.
 
 **Command:**
 ```bash
-pod5 merge -t {threads} -f -o {output} {input}
+escpod merge -t {threads} -f -o {output} {input}
 ```
+
+**Notes:**
+
+- Uses `escpod` (escapepod-rs) rather than the ONT `pod5` CLI: 3-9x faster, and output is
+  staged to a temp file and renamed, so an interrupted run never leaves a corrupt POD5
 
 ---
 
@@ -156,6 +161,53 @@ samtools index {output}
 
 - `ML`: Modification likelihood (0-255)
 - `MM`: Modification metadata
+
+---
+
+### classify_charging_leech
+
+GPU-accelerated alternative to `classify_charging`, selected with `classifier: leech`.
+Runs the same CCA model over the CCAGGC junction with [leech](https://github.com/rnabioco/leech).
+
+**File:** `workflow/rules/aatrnaseq-process.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | POD5, aligned BAM |
+| Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai` |
+| Threads | 4 |
+| GPU | Yes (`--device cuda`) |
+| Parameters | `remora_cca_classifier` |
+
+**Command:**
+```bash
+leech predict \
+    --model {model} \
+    --pod5 {pod5} \
+    --bam {bam} \
+    --output {output} \
+    --device cuda \
+    --motif CCAGGC \
+    --motif-offset 2 \
+    --anchor reference \
+    --workers 4 \
+    --batch-size 512
+samtools sort -@ {threads} {output} > {temp}
+samtools index {output}
+```
+
+**Output tags:**
+
+- `ML`: Charging score (0-255)
+- `MP`: Query position — note leech writes `MP` where Remora writes `MM`, so tag
+  transfer differs between the two classifiers
+
+**Notes:**
+
+- leech v0.4.x deprecated (and hid) `--reference-anchored` in favor of
+  `--anchor {basecall,reference}`, and `--anchor` now defaults to `reference`; the rule
+  passes it explicitly
+- Requires leech (`pixi run install-leech`) and Python >= 3.12
 
 ---
 
@@ -649,31 +701,66 @@ quarto render qc-report.qmd \
 
 ## Demultiplexing Rules
 
-See [Demultiplexing](demultiplexing.md) for detailed documentation.
+See [Demultiplexing](demultiplexing.md) for detailed documentation. Which rules exist
+depends on `warpdemux.backend`: the `escpod` rules come from `demux-escpod.smk`, the
+WarpDemuX rules from `demux-warpdemux.smk`, and the EDX rules below from `demux.smk`.
+
+### escpod_demux
+
+*(escpod backend)* Classify barcodes and split POD5s in one fused `escpod demux` pass.
+
+| Output | `demux/escpod_output/{run_id}/` (per-barcode POD5s + `classifications.csv`) |
+
+### parse_escpod_demux
+
+*(escpod backend)* Convert the escpod classifications CSV to the pipeline's barcode
+mapping, renaming `BC03` → `barcode03`.
+
+| Output | `demux/read_ids/{run_id}/barcode_mapping.tsv.gz`, `demux/read_ids/{run_id}/demux_summary.tsv.gz` |
+
+### collect_escpod_pod5
+
+*(escpod backend)* Symlink the per-barcode POD5 from `escpod_demux` into the per-sample
+path (no second filter pass).
+
+| Output | `demux/pod5/{sample}/{sample}.pod5` |
 
 ### warpdemux
 
-Run WarpDemuX barcode prediction.
+*(warpdemux backend)* Run WarpDemuX barcode prediction.
 
 | Output | `demux/warpdemux_output/{run_id}/` |
 
 ### parse_warpdemux
 
-Parse predictions to barcode mapping file.
+*(warpdemux backend)* Parse predictions to barcode mapping file.
 
-| Output | `demux/read_ids/{run_id}/barcode_mapping.tsv.gz` |
+| Output | `demux/read_ids/{run_id}/barcode_mapping.tsv.gz`, `demux/read_ids/{run_id}/demux_summary.tsv.gz` |
 
 ### extract_sample_reads
 
-Filter read IDs for specific sample's barcode.
+*(warpdemux backend)* Filter read IDs for specific sample's barcode.
 
-| Output | `demux/read_ids/{sample}.txt` |
+| Output | `demux/read_ids/{sample}/{sample}.txt` |
 
 ### split_pod5
 
-Split merged POD5 by sample using read ID list.
+*(warpdemux backend)* Split raw POD5s by sample using the read ID list.
 
-| Output | `demux/pod5/{sample}.pod5` |
+| Output | `demux/pod5/{sample}/{sample}.pod5` |
+
+**Command:**
+```bash
+escpod filter {run_dir} --ids {input.read_ids} --threads {threads} --force --output {output}
+```
+
+**Notes:**
+
+- `escpod filter` takes a single positional input (a file, or a directory walked
+  recursively), so the run root is passed instead of the individual
+  `pod5_pass`/`pod5_fail`/`pod5` directories
+- An empty read-ID file is a hard error ("No read IDs found"); read IDs absent from the
+  input are only a warning
 
 ### detect_edx_adapters
 
@@ -695,7 +782,9 @@ Extract FASTQ for reads matching the sample's EDX adapter.
 
 ### filter_pod5_by_edx
 
-Filter POD5 to keep only reads matching the sample's EDX adapter.
+Filter POD5 with `escpod filter` to keep only reads matching the sample's EDX adapter. An
+adapter matching zero reads fails here ("No read IDs found") rather than producing an
+empty POD5.
 
 | Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
 

@@ -241,7 +241,8 @@ pixi run snakemake --report report.html --configfile=config/config.yml
 
 ## With Demultiplexing
 
-For demultiplexed samples, ensure WarpDemuX is installed (`pixi run setup`), then run as usual:
+For demultiplexed samples, ensure the demux backend is installed (`pixi run setup`; the
+default `escpod` backend also needs `pixi run install-demux-models`), then run as usual:
 
 ```bash
 # Dry run

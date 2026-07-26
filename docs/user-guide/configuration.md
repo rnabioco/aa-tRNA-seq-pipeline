@@ -216,19 +216,36 @@ opts:
 | `--filterRNAstrand 'reverse'` | Filter by RNA strand |
 | `--samFlagExclude 256` | Exclude non-primary alignments |
 
-## WarpDemuX Demultiplexing
-
-See [WarpDemuX](https://github.com/KleistLab/WarpDemuX) for more information.
+## Demultiplexing
 
 For multiplexed samples, enable barcode demultiplexing:
 
 ```yaml
 warpdemux:
     enabled: true
-    barcode_kit: "WDX4_tRNA_rna004_v1_0"
-    save_boundaries: true
+    backend: "escpod"                     # "escpod" (default) or "warpdemux"
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"  # warpdemux backend
+    save_boundaries: true                 # warpdemux backend
     threads: 8
+
+    # escpod backend only
+    method: "cnn"                         # "cnn" (default) or "llr"
+    barcode_model: "resources/models/demux/barcode_wdx4_rna004.gbm.json"
+    adapter_model: "resources/models/demux/adapter_rna004.onnx"
 ```
+
+The section name is kept as `warpdemux` for backward compatibility. `backend` selects
+between `escpod demux` (Rust, one fused classify+split pass — the default) and the
+original [WarpDemuX](https://github.com/KleistLab/WarpDemuX) python implementation. Both
+write the same downstream files.
+
+!!! warning "Backends give different barcode calls"
+    `escpod` cannot load a WarpDemuX kit, so it uses `barcode_wdx4_rna004`, a GBM
+    distilled from the `WDX4_tRNA_rna004_v1_0` teacher. Barcode numbering is unchanged,
+    but the shipped GBM has no per-class confidence thresholds, so the `unclassified`
+    fraction drops sharply. Install the models with `pixi run install-demux-models` and
+    see [Demultiplexing](../workflow/demultiplexing.md#choosing-a-backend) before
+    switching.
 
 ### Available Barcode Kits
 
@@ -237,8 +254,13 @@ warpdemux:
 | `WDX4_tRNA_rna004_v1_0` | bc03, bc04, bc05, bc07 | Recommended, +3-7% recovery |
 | `WDX4b_tRNA_rna004_v1_0` | bc04, bc05, bc07, bc11 | Alternative |
 
+`barcode_kit` applies to the `warpdemux` backend. The escpod backend's shipped
+`barcode_wdx4_rna004` model covers the same barcodes as `WDX4_tRNA_rna004_v1_0`
+(bc03, bc04, bc05, bc07); there is no escpod equivalent of `WDX4b_tRNA_rna004_v1_0`.
+
 !!! warning "Protocol Compatibility"
-    WarpDemuX-tRNA models work with Nano-tRNAseq protocol only. They do NOT work with Thomas splint adapter data.
+    WarpDemuX-tRNA models (and the escpod model distilled from them) work with the
+    Nano-tRNAseq protocol only. They do NOT work with Thomas splint adapter data.
 
 See [Demultiplexing](../workflow/demultiplexing.md) for detailed setup.
 
@@ -267,7 +289,8 @@ samples: config/samples.yml  # YAML format required
 output_directory: "results/analysis"
 warpdemux:
     enabled: true
-    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    backend: "escpod"
+    barcode_model: "resources/models/demux/barcode_wdx4_rna004.gbm.json"
 ```
 
 ### High-Stringency Modification Calling

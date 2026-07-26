@@ -365,19 +365,38 @@ When demultiplexing is enabled:
 
 `demux/read_ids/{run_id}/barcode_mapping.tsv.gz`
 
-Read ID to barcode assignments.
+Read ID to barcode assignments. Written by both demux backends.
+
+### Demux Summary
+
+`demux/read_ids/{run_id}/demux_summary.tsv.gz`
+
+Per-barcode read counts (`predicted_barcode`, `n_reads`, plus `mean_confidence` with the
+`escpod` backend). This is a first-class pipeline output whenever demultiplexing is
+enabled, and is never removed by the cleanup tiers.
 
 ### Per-Sample Read Lists
 
-`demux/read_ids/{sample}.txt`
+`demux/read_ids/{sample}/{sample}.txt`
 
-Read IDs belonging to each sample.
+Read IDs belonging to each sample. Only produced by the `warpdemux` backend — the
+`escpod` backend writes per-barcode POD5s directly and needs no read-ID pass.
 
 ### Split POD5
 
-`demux/pod5/{sample}.pod5`
+`demux/pod5/{sample}/{sample}.pod5`
 
-Per-sample POD5 files after demultiplexing.
+Per-sample POD5 files after demultiplexing. A real file on the `warpdemux` backend
+(`escpod filter`), or a symlink into `demux/escpod_output/{run_id}/` on the `escpod`
+backend.
+
+### escpod Classifications
+
+`demux/escpod_output/{run_id}/classifications.csv`
+
+Per-read barcode call with a `confidence` column, plus one `barcode_BC*.pod5` per barcode
+class in the same directory. `escpod` backend only. Filter on `confidence` to approximate
+WarpDemuX's rejection of low-confidence reads.
 
 ## Signal Metrics (Optional)
 

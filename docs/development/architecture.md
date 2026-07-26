@@ -14,7 +14,9 @@ aa-tRNA-seq-pipeline/
 │   │   ├── aatrnaseq-charging.smk   # Charging analysis
 │   │   ├── aatrnaseq-qc.smk         # Quality control
 │   │   ├── aatrnaseq-modifications.smk  # Modkit rules
-│   │   └── warpdemux.smk      # Demultiplexing (conditional)
+│   │   ├── demux.smk          # Demux dispatch + EDX rules (conditional)
+│   │   ├── demux-escpod.smk   # escpod demux backend (default)
+│   │   └── demux-warpdemux.smk # WarpDemuX backend
 │   └── scripts/               # Python processing scripts
 ├── config/
 │   ├── config-base.yml        # Default configuration
@@ -27,7 +29,7 @@ aa-tRNA-seq-pipeline/
 │   ├── ref/                   # Reference sequences
 │   ├── models/                # ML models
 │   ├── kmers/                 # Kmer tables
-│   └── tools/                 # External tools (dorado, modkit)
+│   └── tools/                 # External tools (dorado, escpod, leech wheels, WarpDemuX)
 ├── .tests/                    # Test data and scripts
 ├── pixi.toml                  # Pixi environment definition
 └── pixi.lock                  # Locked dependencies
@@ -56,9 +58,10 @@ include: "rules/aatrnaseq-charging.smk"
 include: "rules/aatrnaseq-qc.smk"
 include: "rules/aatrnaseq-modifications.smk"
 
-# Conditionally include demux rules
+# Conditionally include demux rules. demux.smk dispatches on warpdemux.backend
+# and includes either demux-escpod.smk (default) or demux-warpdemux.smk.
 if is_demux_enabled():
-    include: "rules/warpdemux.smk"
+    include: "rules/demux.smk"
 
 # Target rule
 rule all:
@@ -75,7 +78,9 @@ flowchart TB
     A --> D[aatrnaseq-charging.smk<br/>2 rules]
     A --> E[aatrnaseq-qc.smk<br/>3 rules]
     A --> F[aatrnaseq-modifications.smk<br/>4 rules]
-    A -.->|conditional| G[warpdemux.smk<br/>5 rules]
+    A -.->|conditional| G[demux.smk<br/>EDX rules + backend dispatch]
+    G --> G1[demux-escpod.smk<br/>3 rules]
+    G --> G2[demux-warpdemux.smk<br/>4 rules]
 ```
 
 ### Rule Categories
@@ -87,7 +92,9 @@ flowchart TB
 | `aatrnaseq-charging.smk` | Charging analysis | 2 |
 | `aatrnaseq-qc.smk` | Quality control | 3 |
 | `aatrnaseq-modifications.smk` | Modification calling | 4 |
-| `warpdemux.smk` | Demultiplexing | 5 |
+| `demux.smk` | Backend dispatch + EDX splitting/concordance | 5 |
+| `demux-escpod.smk` | escpod demux backend (default) | 3 |
+| `demux-warpdemux.smk` | WarpDemuX backend | 4 |
 
 ## Key Functions in common.smk
 
@@ -117,7 +124,17 @@ def get_pipeline_commit():
     """Get git commit ID for reproducibility."""
 
 def is_demux_enabled():
-    """Check if WarpDemuX is enabled in config."""
+    """Check if demultiplexing is enabled in config (warpdemux.enabled)."""
+```
+
+Backend dispatch lives in `demux.smk`:
+
+```python
+def get_demux_backend():
+    """Demultiplexing backend: 'escpod' (default) or 'warpdemux'."""
+
+def wdx_to_escpod_barcode(barcode):
+    """Map 'barcode03'/'WDX_bc03' to escpod's 'BC03' label."""
 ```
 
 ### Output Definition
@@ -217,32 +234,53 @@ modkit:
     filter_threshold: 0.5
     mod_thresholds: {...}
 
+# Pinned tool versions
+escapepod_version: v0.6.2   # escpod CLI source build + escapepod PyPI package
+leech_version: v0.4.1       # leech release wheels
+leech_core_version: 0.3.0   # optional Rust extension wheel
+
 # Optional demux
 warpdemux:
     enabled: false
+    backend: "escpod"       # or "warpdemux"
 ```
 
 ## External Tools
 
 ### Tool Management
 
-Tools are installed to `resources/tools/`:
+Tools are installed to `resources/tools/` by `scripts/setup-tools.sh` (`pixi run setup`):
 
 ```
 resources/tools/
 ├── dorado/
 │   └── <version>/
 │       └── bin/dorado
+├── escapepod/
+│   └── <version>/
+│       └── bin/escpod       # cargo install from source, --features cnn-detect
+├── leech/
+│   └── <version>/           # downloaded release wheels
+└── WarpDemuX/               # git clone, pip install -e
 ```
+
+`escpod` must be a source build (Rust >= 1.95): the published escapepod-rs release
+binaries are default-features only and lack a working `escpod demux`. leech comes from the
+private repo's release wheels via `gh` (or `LEECH_WHEEL_DIR`) — it is no longer a git
+submodule.
 
 ### PATH Setup
 
-Tools are added to PATH dynamically in `Snakefile`:
+`scripts/setup-env.sh` runs on `pixi shell` activation and prepends the dorado and escpod
+bin directories to `PATH`. `Snakefile`'s `onstart` hook re-adds dorado for shell commands
+and validates that each expected tool resolves inside the environment:
 
 ```python
 onstart:
     dorado_path = f"resources/tools/dorado/{config['dorado_version']}/bin"
     os.environ["PATH"] = f"{dorado_path}:{os.environ['PATH']}"
+    # ... then checks dorado, samtools, bwa, modkit, remora, escpod,
+    # plus leech / warpdemux / `escpod demux` depending on config
 ```
 
 ## Python Scripts

@@ -16,11 +16,11 @@ flowchart TD
     end
 
     subgraph Demux [Optional Demultiplexing]
-        W[warpdemux<br/>barcode classification]
+        W[escpod demux or warpdemux<br/>barcode classification]
     end
 
     subgraph Processing
-        A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
+        A[merge_pods<br/>escpod merge] --> B[rebasecall<br/>Dorado + move tables]
         B --> C[ubam_to_fastq]
         C --> D[bwa_align<br/>tRNA + adapter reference]
     end
@@ -65,7 +65,8 @@ The classification generates ML tag values (0-255) indicating the likelihood of 
 - **Charging Classification**: ML-based classification of charged vs uncharged tRNAs using Remora
 - **Modification Calling**: Detection of RNA modifications (pseU, m5C, m6A, inosine) via Dorado and Modkit
 - **Full-Length Filtering**: Only full-length tRNA reads with proper adapters are analyzed
-- **Barcode Demultiplexing**: Optional WarpDemuX support for pooled/multiplexed samples
+- **Barcode Demultiplexing**: Optional signal-level demultiplexing for pooled/multiplexed samples, via `escpod demux` (default) or WarpDemuX
+- **Fast POD5 I/O**: All POD5 merge/filter uses `escpod` (escapepod-rs) — 3-9x faster than the ONT `pod5` CLI, and crash-safe (output staged and renamed)
 - **Cluster Support**: Optimized profiles for LSF and SLURM schedulers
 - **Reproducibility**: Git commit tracking and locked dependencies via Pixi
 
@@ -79,7 +80,9 @@ cd aa-tRNA-seq-pipeline
 # Install environment
 pixi install
 
-# One-time setup: download tools, models, and test data
+# One-time setup: download/build tools and models, then test data
+# Needs a Rust toolchain (>=1.95) to build escpod, and an authenticated
+# `gh` CLI to install leech from its private release wheels
 pixi run setup
 pixi run dl-test-data
 

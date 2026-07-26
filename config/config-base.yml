@@ -186,13 +186,15 @@ warpdemux:
   # calls. It scores 0.971 balanced recall against that teacher and keeps the
   # same barcode numbering, but two deltas matter:
   #   1. The shipped GBM carries no per-class confidence thresholds, so escpod
-  #      assigns every read with a usable adapter boundary to a barcode. The
-  #      unclassified fraction therefore drops sharply relative to WarpDemuX.
-  #      Filter on `confidence` in the classifications table to restore it.
+  #      assigns every read with a usable adapter boundary to a barcode. On the
+  #      210-read test set it returned ZERO unclassified reads at a median
+  #      confidence of 0.57 -- WarpDemuX would have rejected most of those.
+  #      Set min_confidence below to restore that rejection.
   #   2. bc05 <-> bc07 is the residual confusable pair.
-  # Read-level concordance on the tRNA kit has not been measured; see
+  # Read-level concordance on the tRNA kit has not been measured on real data,
+  # which is why this defaults to warpdemux. See
   # docs/workflow/demultiplexing.md for how to compare the two backends.
-  backend: "escpod"
+  backend: "warpdemux"
   barcode_kit: "WDX4_tRNA_rna004_v1_0"
   save_boundaries: true
   threads: 8
@@ -202,6 +204,11 @@ warpdemux:
   method: "cnn"
   barcode_model: "resources/models/demux/barcode_wdx4_rna004.gbm.json"
   adapter_model: "resources/models/demux/adapter_rna004.onnx"
+  # Reject barcode calls below this classifier confidence to "unclassified",
+  # standing in for the per-class thresholds the shipped GBM lacks. 0.0 keeps
+  # escpod's native output (every read with an adapter boundary gets a barcode).
+  # Above 0 costs one extra filter pass over each per-barcode POD5.
+  min_confidence: 0.0
 
 # Amino acid identity classification (optional, disabled by default)
 # Uses leech multiclass models to predict which amino acid was charged

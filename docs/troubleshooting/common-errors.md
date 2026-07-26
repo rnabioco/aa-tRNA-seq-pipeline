@@ -37,7 +37,7 @@ Error: No input files found for sample: sample1
 
 **Error:**
 ```
-pod5 merge: error
+escpod merge: error
 ```
 
 **Solutions:**
@@ -49,10 +49,50 @@ pod5 merge: error
 
 2. Verify POD5 files are valid:
    ```bash
-   pod5 inspect summary input.pod5
+   escpod inspect summary input.pod5
    ```
 
 3. Check for corrupted files and exclude them
+
+!!! note "Interrupted merges are safe"
+    `escpod` stages output to a temp file and renames it into place, so an interrupted
+    or killed job never leaves a partially written POD5 at the destination. A truncated
+    output file is not an expected failure mode; look at disk space and the inputs
+    instead.
+
+### Empty Read-ID File
+
+**Error:**
+```
+No read IDs found
+```
+
+**Cause:**
+
+`escpod filter` (used by `split_pod5` and `filter_pod5_by_edx`) treats an empty read-ID
+list as a hard error. This happens when a barcode or an EDX 3' adapter matched zero
+reads. The ONT `pod5 filter --missing-ok` this replaced would instead have written an
+empty POD5, so this is a behavior change: the job now fails rather than silently
+producing an empty file that downstream rules process.
+
+**Solutions:**
+
+1. Check the barcode distribution for the run:
+   ```bash
+   zcat results/demux/read_ids/{run_id}/demux_summary.tsv.gz
+   ```
+
+2. For EDX samples, check the adapter detection table:
+   ```bash
+   zcat results/demux/edx/{sample}/{sample}.edx_adapters.tsv.gz | cut -f2 | sort | uniq -c
+   ```
+
+3. Fix the barcode / `edx` assignment in the samples file, or drop the sample
+
+!!! note "Missing read IDs are only a warning"
+    `escpod filter` has no `--missing-ok` flag because it does not need one — read IDs
+    present in the list but absent from the input POD5 produce a warning, not an error.
+    Only a completely empty list fails.
 
 ---
 
@@ -341,7 +381,123 @@ Ensure your config inherits from base:
 
 ---
 
-## WarpDemuX Errors
+## Leech Errors
+
+### Leech Not Found
+
+**Error:**
+```
+leech: command not found
+```
+
+**Solution:**
+
+leech is installed from the release wheels of the private `rnabioco/leech` repo, which
+needs an authenticated `gh`:
+
+```bash
+gh auth login
+pixi run install-leech
+```
+
+Or install from a local directory of wheels:
+
+```bash
+LEECH_WHEEL_DIR=/path/to/wheels pixi run install-leech
+```
+
+leech is only needed for `classifier: leech` and the amino-acid classification rules —
+the default Remora path does not require it. Note that there is no longer a
+`resources/leech` git submodule; do not run `git submodule update`.
+
+### Leech Requires Python 3.12
+
+**Error:**
+
+Wheel install fails, or `import leech` raises a syntax/ABI error on an older
+interpreter.
+
+**Solution:**
+
+leech requires Python >= 3.12. Check the environment's interpreter:
+
+```bash
+pixi run python --version
+```
+
+### `--backend rust` Unavailable / Slow Extraction
+
+**Warning during setup:**
+```
+no leech_core wheel for cpXY/<arch>; leech will use the slower pure-python backend
+```
+
+`leech-core` is a separate optional Rust extension wheel published per interpreter and
+architecture. Without it, leech still works but falls back to a slower pure-python
+extraction backend and `--backend rust` is unavailable. Check that
+`leech_core_version` in `config/config-base.yml` has a wheel matching your Python
+version and architecture in the release.
+
+---
+
+## Demultiplexing Errors
+
+### `escpod demux` Unavailable
+
+**Error:**
+```
+error: unrecognized subcommand 'demux'
+```
+
+or, at pipeline start:
+```
+'escpod demux' is unavailable — this escpod was built without the demux feature
+```
+
+**Cause:**
+
+The installed `escpod` is a default-features build. All published escapepod-rs release
+binaries are default-features only and do **not** include a working `escpod demux`.
+
+**Solution:**
+
+Rebuild from source (requires a Rust toolchain >= 1.95):
+
+```bash
+pixi run install-escpod
+```
+
+Or use the python backend instead:
+
+```yaml
+warpdemux:
+    backend: "warpdemux"
+```
+
+### Barcode Model Not Found
+
+**Error:**
+```
+warpdemux.barcode_model is not set. Run 'bash scripts/install-demux-models.sh' and check config.
+```
+
+or a missing `resources/models/demux/barcode_wdx4_rna004.gbm.json`.
+
+**Solution:**
+
+```bash
+pixi run install-demux-models
+```
+
+The barcode GBM models are not yet published as releases on `rnabioco/escapepod-models`
+(only `adapter_rna004@v1.0.1` is), so a local checkout is currently required:
+
+```bash
+ESCAPEPOD_MODELS_DIR=/path/to/escapepod-models pixi run install-demux-models
+```
+
+With `warpdemux.method: cnn` (the default, and the setting the barcode model was trained
+behind), `warpdemux.adapter_model` must also point at an existing ONNX file.
 
 ### WarpDemuX Not Found
 
@@ -352,11 +508,13 @@ warpdemux: command not found
 
 **Solution:**
 
-Install WarpDemuX via the setup command:
+Only the `warpdemux` backend needs the python package. Install it:
 
 ```bash
-pixi run setup
+pixi run install-warpdemux   # or: pixi run setup
 ```
+
+Or use the default `escpod` backend.
 
 ### Invalid Barcode Kit
 
@@ -367,15 +525,21 @@ Invalid barcode kit name
 
 **Solution:**
 
-Use a valid kit name:
+`barcode_kit` is only read by the `warpdemux` backend. Use a valid kit name:
 
 - `WDX4_tRNA_rna004_v1_0`
 - `WDX4b_tRNA_rna004_v1_0`
 
+On the `escpod` backend the barcode set comes from `warpdemux.barcode_model` instead; the
+shipped `barcode_wdx4_rna004` GBM covers barcodes 03, 04, 05 and 07. If a sample's
+barcode is not one of the model's classes, `collect_escpod_pod5` fails with a pointer to
+`warpdemux.barcode_model`.
+
 ### No Reads for Barcode
 
 **Error:**
-Sample has 0 reads after demultiplexing.
+Sample has 0 reads after demultiplexing (on the `warpdemux` backend this surfaces as
+`escpod filter`'s "No read IDs found" — see [Empty Read-ID File](#empty-read-id-file)).
 
 **Solutions:**
 
@@ -384,7 +548,15 @@ Sample has 0 reads after demultiplexing.
    ```bash
    zcat results/demux/read_ids/run_id/demux_summary.tsv.gz
    ```
-3. Ensure barcode kit matches library prep
+3. Ensure barcode kit / barcode model matches library prep
+
+### Unclassified Fraction Much Smaller Than Expected
+
+Expected on the `escpod` backend: the shipped barcode GBM carries no per-class confidence
+thresholds, so every read with a usable adapter boundary is assigned a barcode, whereas
+WarpDemuX rejected low-confidence reads to `unclassified`. Filter on the `confidence`
+column of `demux/escpod_output/{run_id}/classifications.csv` to restore WarpDemuX-like
+rejection. See [Demultiplexing](../workflow/demultiplexing.md#choosing-a-backend).
 
 ---
 

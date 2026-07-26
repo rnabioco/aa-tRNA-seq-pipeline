@@ -36,6 +36,10 @@ set-resources:
   - modkit_extract_full:mem_mb=48
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
+  - escpod_demux:mem_mb=32
+  - parse_escpod_demux:mem_mb=8
+  - extract_escpod_sample_reads:mem_mb=8
+  - collect_escpod_pod5:mem_mb=16
 
 
 printshellcmds: True

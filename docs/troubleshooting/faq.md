@@ -52,7 +52,7 @@ The 6-nucleotide kmer (CCAGGC) provides the classification signal.
 
 **POD5 format** from Oxford Nanopore sequencing. The pipeline does not accept:
 
-- FAST5 (convert with `pod5 convert`)
+- FAST5 (convert with ONT's `pod5 convert` first; the pipeline itself uses `escpod` for POD5 I/O, which has no FAST5 converter)
 - FASTQ (signal data required)
 - BAM (unless from Dorado with move tables)
 
@@ -222,14 +222,28 @@ The reference should include adapter sequences matching your library prep.
 
 ### When should I use demultiplexing?
 
-When samples were **pooled with WarpDemuX barcodes** during library preparation.
+When samples were **pooled with WDX barcodes** during library preparation.
+
+### Which backend should I use?
+
+`warpdemux.backend` defaults to `escpod` (`escpod demux`, Rust, one fused
+classify+split pass, fewer jobs). The original python `warpdemux` backend is still fully
+supported. They do **not** produce identical barcode calls — barcode numbering is the
+same, but escpod uses a GBM distilled from the WarpDemuX tRNA kit and assigns every read
+with a usable adapter boundary to a barcode, so the `unclassified` fraction is much
+smaller. See [Demultiplexing](../workflow/demultiplexing.md#choosing-a-backend).
 
 ### Which barcode kit should I use?
+
+For the `warpdemux` backend:
 
 | Kit | Barcodes | Recommendation |
 |-----|----------|----------------|
 | `WDX4_tRNA_rna004_v1_0` | 03, 04, 05, 07 | **Recommended** |
 | `WDX4b_tRNA_rna004_v1_0` | 04, 05, 07, 11 | Alternative |
+
+The `escpod` backend uses `warpdemux.barcode_model` instead; the shipped
+`barcode_wdx4_rna004` covers barcodes 03, 04, 05 and 07.
 
 ### Why are my demux reads unbalanced?
 

@@ -21,9 +21,9 @@ sample2    /path/to/run2_replicate
 
 If multiple rows share the same sample ID, the reads will be merged before processing. See `samples-test.tsv` for an example.
 
-### YAML Format (With WarpDemuX Demultiplexing)
+### YAML Format (With Barcode Demultiplexing)
 
-For multiplexed/pooled sequencing runs using WarpDemuX barcodes, use a YAML file:
+For multiplexed/pooled sequencing runs using WDX barcodes, use a YAML file:
 
 ```yaml
 runs:
@@ -52,7 +52,7 @@ See `samples-demux-example.yml` for a complete example with comments.
 
 **Note:** WarpDemuX-tRNA models do NOT work with Thomas splint adapter data.
 
-### Enabling WarpDemuX Demultiplexing
+### Enabling Demultiplexing
 
 To use demultiplexing, add the following to your config file:
 
@@ -61,10 +61,33 @@ samples: config/samples-demux.yml  # YAML format sample file
 
 warpdemux:
     enabled: true
-    barcode_kit: "WDX4_tRNA_rna004_v1_0"  # default kit if not specified per-run
-    save_boundaries: true  # optional, saves adapter boundary information
+    backend: "escpod"                     # "escpod" (default) or "warpdemux"
+    barcode_kit: "WDX4_tRNA_rna004_v1_0"  # warpdemux backend: default kit if not set per-run
+    save_boundaries: true  # warpdemux backend: saves adapter boundary information
     threads: 8
+
+    # escpod backend only
+    method: "cnn"  # "cnn" (default, matches how the barcode model was trained) or "llr"
+    barcode_model: "resources/models/demux/barcode_wdx4_rna004.gbm.json"
+    adapter_model: "resources/models/demux/adapter_rna004.onnx"  # needed by method: cnn
 ```
+
+The config section is still called `warpdemux` for backward compatibility, but
+`backend` now selects between two implementations that write the same downstream
+files (`demux/read_ids/{run_id}/barcode_mapping.tsv.gz`, `demux/pod5/{sample}/{sample}.pod5`):
+
+- `escpod` (default) — one fused `escpod demux` pass that classifies barcodes *and*
+  writes one POD5 per barcode, so no separate read-ID/filter pass is needed.
+- `warpdemux` — the original python implementation, followed by an `escpod filter` pass.
+
+**The two do not produce identical barcode calls.** `escpod` cannot load a WarpDemuX
+kit, so it uses `barcode_wdx4_rna004`, a GBM distilled from the
+`WDX4_tRNA_rna004_v1_0` teacher. Barcode numbering is unchanged, but the shipped GBM
+has no per-class confidence thresholds, so every read with a usable adapter boundary
+gets a barcode and the `unclassified` fraction drops sharply. Install the escpod
+models with `pixi run install-demux-models`. See
+[docs/workflow/demultiplexing.md](../docs/workflow/demultiplexing.md) for the full
+comparison, caveats, and how to validate a backend switch.
 
 Run with the demux environment:
 
@@ -93,14 +116,17 @@ See `config-demux-test.yml` for a complete example.
     - `basecall` — `bam/rebasecall` (GPU-hours to regenerate)
     - `fastq` — `fq/`, `demux/edx/fq`
     - `merged_pod5` — `pod5/` (pre-demux merged)
-    - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, the escpod
-      classifications CSV, EDX read-id lists
+    - `demux_scratch` — `demux/warpdemux_output`, the per-run `barcode_mapping.tsv.gz`
+      and per-sample read-id lists under `demux/read_ids`, the escpod
+      `classifications.csv`, EDX read-id lists
     - `split_pod5` — `demux/pod5` and `demux/escpod_output` (split, pre-EDX-filter)
 
   Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
   EDX-filtered POD5 used as the classification input — keeping it lets
   `classify_charging` / `classify_aa_identity` be re-run without redoing rebasecall
-  or demux), plus `summary/`, `bam/aa_classified/`, `reference/`, and `logs/`.
+  or demux), `demux/read_ids/{run_id}/demux_summary.tsv.gz` (the durable record of
+  what the demultiplexer called), plus `summary/`, `bam/aa_classified/`,
+  `reference/`, and `logs/`.
 
   **Constraint:** only enable `split_pod5` for **all-EDX** runs. In non-EDX or
   mixed runs, `demux/pod5` is the classification input for non-EDX samples and must
@@ -109,7 +135,23 @@ See `config-demux-test.yml` for a complete example.
 
 - `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
 
-- `remora_kmer_table`: Path to a table of expected normalized signal intensities for each kmer, provided by ONT at [nanoporetech/kmer_models](https://github.com/nanoporetech/kmer_models).
+- `remora_kmer_table`: Path to a table of expected normalized signal intensities for each kmer, provided by ONT at [nanoporetech/kmer_models](https://github.com/nanoporetech/kmer_models). Optional (default `null`); when set, the `remora_signal_stats` QC path runs, which is the only place the pipeline still uses the ONT `pod5` python package.
+
+- `classifier`: Charging classifier, `remora` (default) or `leech`. `leech` is a
+  GPU-accelerated alternative installed by `pixi run setup` / `pixi run install-leech`.
+  Note leech writes the `ML` and `MP` tags where remora writes `ML` and `MM`.
+
+- Pinned tool versions, read by the setup scripts as well as the workflow:
+  - `dorado_version` / `dorado_model`
+  - `escapepod_version`: the `escpod` CLI tag built from source *and* the `escapepod`
+    PyPI package version. escpod handles all POD5 merge/filter in the pipeline and
+    must be a source build — the published escapepod-rs release binaries are
+    default-features only and do not contain a working `escpod demux`. Building
+    requires a Rust toolchain >= 1.95.
+  - `leech_version` / `leech_core_version`: the leech release wheel and the optional
+    `leech-core` Rust extension wheel. Fetched from the private `rnabioco/leech`
+    release with an authenticated `gh`, or from `LEECH_WHEEL_DIR`. Without
+    `leech-core`, leech falls back to a slower pure-python extraction backend.
 
 - `trna_table`: Path to a table with tRNA isodecoder + sequencing adapter annotation from the FASTA reference file.
 

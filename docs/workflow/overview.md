@@ -15,7 +15,7 @@ flowchart TB
         D[aatrnaseq-modifications.smk<br/>Modification calling]
         OR[aatrnaseq-odds-ratios.smk<br/>Odds ratio analysis]
         R[aatrnaseq-report.smk<br/>QC report]
-        E[warpdemux.smk<br/>Demultiplexing<br/><i>conditional</i>]
+        E[demux.smk + demux-escpod.smk<br/>or demux-warpdemux.smk<br/>Demultiplexing<br/><i>conditional</i>]
     end
 
     subgraph common[common.smk]
@@ -39,7 +39,7 @@ flowchart TB
     end
 
     subgraph Processing[aatrnaseq-process.smk]
-        B[merge_pods<br/>Merge POD5s]
+        B[merge_pods<br/>escpod merge]
         C[rebasecall<br/>Dorado basecalling]
         D[ubam_to_fastq<br/>Extract FASTQ]
         E[bwa_align<br/>Align to reference]
@@ -93,7 +93,12 @@ flowchart TB
     K --> R
 ```
 
-### With Demultiplexing (WarpDemuX + EDX)
+### With Demultiplexing (WDX + EDX)
+
+Shown for the `warpdemux` backend. With the default `escpod` backend, the WDX subgraph is
+`escpod_demux` → `parse_escpod_demux` plus `collect_escpod_pod5` — one fused pass that
+classifies *and* writes the per-barcode POD5s, so `extract_sample_reads` and `split_pod5`
+do not run.
 
 ```mermaid
 flowchart TB
@@ -105,7 +110,7 @@ flowchart TB
         B[warpdemux<br/>Barcode prediction]
         C[parse_warpdemux<br/>Create mapping]
         D[extract_sample_reads<br/>Per-sample IDs]
-        E[split_pod5<br/>Split by WDX barcode]
+        E[split_pod5<br/>escpod filter by WDX barcode]
     end
 
     subgraph Standard[Standard Pipeline]
@@ -136,12 +141,13 @@ Core data processing from raw signal to classified reads:
 
 | Rule | Purpose | GPU |
 |------|---------|-----|
-| `merge_pods` | Combine POD5 files per sample | No |
+| `merge_pods` | Combine POD5 files per sample (`escpod merge`) | No |
 | `rebasecall` | Basecall with Dorado | Yes |
 | `ubam_to_fastq` | Extract reads for alignment | No |
 | `bwa_idx` | Build BWA index | No |
 | `bwa_align` | Align reads to reference | No |
-| `classify_charging` | ML charging classification | No |
+| `classify_charging` | Remora ML charging classification | No |
+| `classify_charging_leech` | leech charging classification (`classifier: leech`) | Yes |
 | `transfer_bam_tags` | Rename ML→CL tags | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Symlink final BAM | No |
@@ -195,14 +201,30 @@ QC report generation:
 
 ### Demultiplexing Rules
 
-Optional WarpDemuX barcode demultiplexing:
+Optional barcode demultiplexing. Which of the two backend rule sets is loaded depends on
+`warpdemux.backend`; the EDX rules are shared.
+
+escpod backend (default, `demux-escpod.smk`):
+
+| Rule | Purpose |
+|------|---------|
+| `escpod_demux` | Fused classify + split in one pass over raw signal |
+| `parse_escpod_demux` | Convert classifications CSV to mapping + summary |
+| `collect_escpod_pod5` | Symlink per-barcode POD5 to per-sample path |
+
+warpdemux backend (`demux-warpdemux.smk`):
 
 | Rule | Purpose |
 |------|---------|
 | `warpdemux` | Run WDX barcode prediction |
-| `parse_warpdemux` | Parse predictions to mapping |
+| `parse_warpdemux` | Parse predictions to mapping + summary |
 | `extract_sample_reads` | Filter reads by WDX barcode |
-| `split_pod5` | Create per-sample WDX POD5s |
+| `split_pod5` | Create per-sample WDX POD5s (`escpod filter`) |
+
+Shared EDX rules (`demux.smk`):
+
+| Rule | Purpose |
+|------|---------|
 | `detect_edx_adapters` | Detect 3' adapter identity per read |
 | `extract_edx_read_ids` | Extract matching read IDs for EDX |
 | `filter_fastq_by_edx` | Create EDX-filtered FASTQ |
@@ -213,13 +235,19 @@ Optional WarpDemuX barcode demultiplexing:
 
 ### 1. POD5 Merging
 
-Individual POD5 files from a sequencing run are merged into a single file per sample:
+Individual POD5 files from a sequencing run are merged into a single file per sample with
+`escpod merge`:
 
 ```
 run1/pod5_pass/*.pod5  ─┐
 run1/pod5_fail/*.pod5  ─┼──► sample.pod5
 run2/pod5/*.pod5       ─┘
 ```
+
+All POD5 manipulation in the pipeline (`merge_pods`, `split_pod5`, `filter_pod5_by_edx`)
+uses `escpod` from escapepod-rs rather than the ONT `pod5` CLI: it is 3-9x faster on these
+operations and stages output to a temp file before renaming, so an interrupted run never
+leaves a corrupt POD5.
 
 ### 2. Basecalling
 
@@ -294,6 +322,9 @@ These rules require GPU access:
 | `warpdemux` | 32 GB |
 | `remora_signal_stats` | 24 GB |
 
+The cluster profiles set resources for the `warpdemux`/`parse_warpdemux` rules; if you use
+the `escpod` backend, add equivalent entries for `escpod_demux` / `parse_escpod_demux`.
+
 ## Configuration Points
 
 Key parameters that affect pipeline behavior:
@@ -304,10 +335,13 @@ Key parameters that affect pipeline behavior:
 | `opts.bwa` | Alignment sensitivity |
 | `opts.bam_filter` | Full-length read filtering |
 | `modkit.mod_thresholds` | Modification calling stringency |
-| `warpdemux.barcode_kit` | Demultiplexing model |
+| `classifier` | Charging classifier: `remora` or `leech` |
+| `warpdemux.backend` | Demultiplexing implementation (`escpod` or `warpdemux`) |
+| `warpdemux.barcode_kit` | WarpDemuX demultiplexing model (warpdemux backend) |
+| `warpdemux.barcode_model` | escpod barcode GBM (escpod backend) |
 
 ## Next Steps
 
 - [Rules Reference](rules-reference.md) - Detailed rule documentation
 - [Scripts Reference](scripts-reference.md) - Python scripts documentation
-- [Demultiplexing](demultiplexing.md) - WarpDemuX setup guide
+- [Demultiplexing](demultiplexing.md) - Demux backends and setup guide

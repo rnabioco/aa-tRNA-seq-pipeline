@@ -13,7 +13,9 @@ bedtools = "*"
 deeptools = "*"
 pybigwig = "*"
 # Python dependencies
-python = ">=3.10"
+# >=3.12 is a hard floor: leech requires it, and its leech-core extension only
+# publishes cp312+ wheels.
+python = ">=3.12"
 pysam = "*"
 pandas = "*"
 pyarrow = "*"

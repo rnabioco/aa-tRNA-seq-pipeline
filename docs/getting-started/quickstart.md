@@ -12,6 +12,10 @@ pixi run setup
 pixi run dl-test-data
 ```
 
+`pixi run setup` builds the `escpod` CLI from source (needs a Rust toolchain >= 1.95)
+and installs `leech` from private release wheels (needs an authenticated `gh`, or
+`LEECH_WHEEL_DIR`). Neither the git clone nor setup involves submodules.
+
 ## Dry Run
 
 Preview what the pipeline will do without executing:

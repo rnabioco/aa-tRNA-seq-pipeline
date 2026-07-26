@@ -162,6 +162,8 @@ After classification, generates (split across three rule files):
   - Reference fasta
   - Remora models and kmer tables
   - Dorado version for download
+  - Pinned tool versions: `escapepod_version` (escpod CLI source build + `escapepod` PyPI package), `leech_version`, `leech_core_version`
+  - Demux backend settings: `warpdemux.backend`, `warpdemux.method`, `warpdemux.barcode_model`, `warpdemux.adapter_model`
   - Command-line options for tools (dorado, bwa, filters)
 
 - `config/samples.tsv`: Two-column TSV (no header)
@@ -353,3 +355,4 @@ Key outputs per sample:
 
 Pipeline-level outputs:
 - `squiggy-session.json` - Squiggy session file for loading samples in Positron
+- `demux/read_ids/{run_id}/demux_summary.tsv.gz` - per-barcode read counts (when demux is enabled; includes `mean_confidence` with the escpod backend)
