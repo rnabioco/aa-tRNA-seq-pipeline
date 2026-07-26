@@ -61,7 +61,7 @@ remora_kmer_table: null
 remora_cca_classifier: "resources/models/cca_classifier.pt"
 
 # CCA charging classifier to use: "remora" (default) or "leech"
-# Leech is a GPU-accelerated alternative (requires resources/leech submodule)
+# Leech is a GPU-accelerated alternative (installed by `pixi run setup`)
 classifier: "remora"
 
 # AA identity classification using leech one-vs-all bundle (optional)
@@ -69,12 +69,23 @@ aa_identity:
   enabled: false
   bundle: ""
 
-# software tools (modkit and remora managed by pixi)
+# software tools (modkit managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
 dorado_version: 1.4.0
 dorado_model: rna004_130bps_sup@v5.3.0
+
+# escapepod provides POD5 I/O (escpod CLI + escapepod python package) and, with
+# the demux feature, signal-level barcode demultiplexing. `pixi run setup`
+# builds the CLI from source because the published release binaries are
+# default-features only and do NOT include `escpod demux`.
+escapepod_version: v0.6.2
+
+# leech provides the GPU charging/amino-acid classifiers. Installed from the
+# GitHub release wheels (private repo — requires gh auth or a token).
+leech_version: v0.4.1
+leech_core_version: 0.3.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -164,9 +175,33 @@ reuse_outputs_from: null
 
 warpdemux:
   enabled: false
+  # Demultiplexing backend:
+  #   escpod    - escpod demux (Rust). Fast, and produces the per-barcode POD5
+  #               files directly, so no separate pod5 filter pass is needed.
+  #   warpdemux - the original WarpDemuX python implementation.
+  #
+  # The two do NOT produce identical calls. escpod cannot load a WarpDemuX kit
+  # (the tRNA kits wrap CatBoost, which no converter handles), so it uses
+  # `barcode_wdx4_rna004`, a GBM distilled from confident WDX4_tRNA_rna004_v1_0
+  # calls. It scores 0.971 balanced recall against that teacher and keeps the
+  # same barcode numbering, but two deltas matter:
+  #   1. The shipped GBM carries no per-class confidence thresholds, so escpod
+  #      assigns every read with a usable adapter boundary to a barcode. The
+  #      unclassified fraction therefore drops sharply relative to WarpDemuX.
+  #      Filter on `confidence` in the classifications table to restore it.
+  #   2. bc05 <-> bc07 is the residual confusable pair.
+  # Read-level concordance on the tRNA kit has not been measured; see
+  # docs/workflow/demultiplexing.md for how to compare the two backends.
+  backend: "escpod"
   barcode_kit: "WDX4_tRNA_rna004_v1_0"
   save_boundaries: true
   threads: 8
+  # escpod backend only. Boundary detection method: "cnn" matches how the
+  # barcode model was trained; "llr" needs no ONNX model but agrees with the
+  # CNN only ~82% within +/-200 samples.
+  method: "cnn"
+  barcode_model: "resources/models/demux/barcode_wdx4_rna004.gbm.json"
+  adapter_model: "resources/models/demux/adapter_rna004.onnx"
 
 # Amino acid identity classification (optional, disabled by default)
 # Uses leech multiclass models to predict which amino acid was charged

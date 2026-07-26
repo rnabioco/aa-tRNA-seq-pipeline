@@ -14,9 +14,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 DORADO_VERSION="${DORADO_VERSION:-$(awk '/^dorado_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 DORADO_MODEL="${DORADO_MODEL:-$(awk '/^dorado_model:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+ESCAPEPOD_VERSION="${ESCAPEPOD_VERSION:-$(awk '/^escapepod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+LEECH_VERSION="${LEECH_VERSION:-$(awk '/^leech_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+LEECH_CORE_VERSION="${LEECH_CORE_VERSION:-$(awk '/^leech_core_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
+TOOLS_DIR="${REPO_ROOT}/resources/tools"
 
 # ============================================================================
 # Helper Functions
@@ -146,23 +150,72 @@ else
 fi
 
 # ============================================================================
-# Pod5 Setup (via uv — bioconda version is outdated)
+# escapepod Setup — escpod CLI (Rust) + escapepod python bindings
+#
+# The pipeline uses escpod for all POD5 manipulation (merge, filter) and for
+# barcode demultiplexing. The published release binaries are built with default
+# features only, so `escpod demux` is absent from them — the CLI is therefore
+# built from source. Requires a Rust toolchain (>=1.95).
 # ============================================================================
-echo "=== Checking pod5 ==="
+ESCPOD_BIN="${TOOLS_DIR}/escapepod/${ESCAPEPOD_VERSION}/bin/escpod"
+
+echo "=== Checking escpod CLI ==="
+if [ -x "${ESCPOD_BIN}" ]; then
+    echo "escpod already installed at ${ESCPOD_BIN}"
+else
+    bash "${SCRIPT_DIR}/install-escpod.sh"
+fi
+
+echo "=== Checking escapepod python bindings ==="
+ESCAPEPOD_PY_VERSION="${ESCAPEPOD_VERSION#v}"
+if python -c "import escapepod" 2>/dev/null; then
+    echo "escapepod $(python -c 'import escapepod; print(escapepod.__version__)') already installed"
+else
+    echo "Installing escapepod==${ESCAPEPOD_PY_VERSION}..."
+    uv pip install "escapepod==${ESCAPEPOD_PY_VERSION}"
+    echo "escapepod installed successfully"
+fi
+
+# ============================================================================
+# ONT pod5 (legacy) — required only by the optional remora signal-metrics QC
+# path (workflow/scripts/extract_signal_metrics.py), which hands pod5 objects
+# to remora's io API and so cannot use escapepod's reader. Skipped unless
+# remora is present.
+# ============================================================================
+echo "=== Checking ONT pod5 (remora signal-metrics path) ==="
 POD5_MIN_VERSION="0.3.36"
 current_pod5=$(python -c "import pod5; print(pod5.__version__)" 2>/dev/null || echo "0.0.0")
 if python -c "from packaging.version import Version; exit(0 if Version('${current_pod5}') >= Version('${POD5_MIN_VERSION}') else 1)" 2>/dev/null; then
-    echo "Pod5 ${current_pod5} already installed (>= ${POD5_MIN_VERSION})"
+    echo "pod5 ${current_pod5} already installed (>= ${POD5_MIN_VERSION})"
 else
     echo "Installing pod5 >= ${POD5_MIN_VERSION}..."
     uv pip install --no-deps "pod5>=${POD5_MIN_VERSION}"
     # pod5 needs 'deprecated' but --no-deps skips it
     uv pip install deprecated
-    echo "Pod5 installed successfully"
+    echo "pod5 installed successfully"
+fi
+
+# ============================================================================
+# escpod demux models
+#
+# Best-effort: these come from the private rnabioco/escapepod-models repo, so a
+# fresh clone without access cannot fetch them. Only needed when demultiplexing
+# with the default `escpod` backend, so a failure here is a warning.
+# ============================================================================
+if [ -f "${REPO_ROOT}/resources/models/demux/barcode_wdx4_rna004.gbm.json" ]; then
+    echo "=== escpod demux models already installed ==="
+elif ! bash "${SCRIPT_DIR}/install-demux-models.sh"; then
+    echo "Warning: could not install escpod demux models." >&2
+    echo "Only required for demultiplexing with warpdemux.backend=escpod." >&2
+    echo "Re-run 'pixi run install-demux-models' once you have access to" >&2
+    echo "rnabioco/escapepod-models, or set warpdemux.backend to 'warpdemux'." >&2
 fi
 
 # ============================================================================
 # WarpDemuX Setup (via uv)
+#
+# Only needed for warpdemux.backend=warpdemux. The default escpod backend
+# reimplements this in Rust and needs no python WarpDemuX install.
 # ============================================================================
 echo "=== Checking WarpDemuX ==="
 if python -c "import warpdemux" 2>/dev/null; then
@@ -176,31 +229,73 @@ else
 fi
 
 # ============================================================================
-# Leech Setup (via uv, from submodule)
+# Leech Setup — from GitHub release wheels
+#
+# leech is not on PyPI (private repo), so the prebuilt wheels are pulled from
+# the release. leech-core is a separate Rust extension published as a
+# per-interpreter wheel in the same release; it is optional (leech falls back to
+# a numpy path) but gives the accelerated `--backend rust` extraction.
+# Requires `gh` auth with read access to rnabioco/leech.
 # ============================================================================
+install_leech() {
+    local py_tag arch dl_dir leech_whl core_whl
+    py_tag=$(python -c "import sys; print(f'cp{sys.version_info.major}{sys.version_info.minor}')")
+    arch=$(uname -m)
+    dl_dir="${TOOLS_DIR}/leech/${LEECH_VERSION}"
+
+    if ! command -v gh >/dev/null 2>&1; then
+        echo "Error: gh not found. leech lives in a private repo and its wheels" >&2
+        echo "are fetched from the GitHub release. Install the GitHub CLI and run" >&2
+        echo "'gh auth login', or set LEECH_WHEEL_DIR to a directory holding the" >&2
+        echo "leech and leech_core wheels." >&2
+        return 1
+    fi
+
+    mkdir -p "${dl_dir}"
+    echo "Downloading leech ${LEECH_VERSION} wheels (${py_tag}, ${arch})..."
+    gh release download "${LEECH_VERSION}" \
+        --repo rnabioco/leech \
+        --dir "${dl_dir}" \
+        --clobber \
+        --pattern "leech-*-py3-none-any.whl" \
+        --pattern "leech_core-${LEECH_CORE_VERSION}-${py_tag}-${py_tag}-*manylinux*_${arch}.whl"
+
+    leech_whl=$(find "${dl_dir}" -name 'leech-*-py3-none-any.whl' | head -1)
+    core_whl=$(find "${dl_dir}" -name "leech_core-*-${py_tag}-*.whl" | head -1)
+
+    if [ -z "${leech_whl}" ]; then
+        echo "Error: no leech wheel found in ${dl_dir}" >&2
+        return 1
+    fi
+
+    # --no-deps throughout: numpy/pysam/scikit-learn/rich-click come from conda
+    # and torch was installed above against the CUDA index. Only leech deps that
+    # conda does not provide are added explicitly.
+    if [ -n "${core_whl}" ]; then
+        echo "Installing leech-core from ${core_whl##*/}..."
+        uv pip install --no-deps "${core_whl}"
+    else
+        echo "Warning: no leech_core wheel for ${py_tag}/${arch}; leech will use" >&2
+        echo "the slower pure-python backend (--backend rust will be unavailable)." >&2
+    fi
+
+    echo "Installing leech from ${leech_whl##*/}..."
+    uv pip install --no-deps "${leech_whl}"
+    uv pip install polars
+    echo "Leech installed successfully"
+    echo "NOTE: pyarrow will be reconciled with conda in the next step"
+}
+
 echo "=== Checking leech ==="
 if python -c "import leech" 2>/dev/null; then
     echo "Leech already installed"
+elif [ -n "${LEECH_WHEEL_DIR:-}" ]; then
+    echo "Installing leech from ${LEECH_WHEEL_DIR}..."
+    uv pip install --no-deps "${LEECH_WHEEL_DIR}"/leech_core-*.whl 2>/dev/null || true
+    uv pip install --no-deps "${LEECH_WHEEL_DIR}"/leech-*-py3-none-any.whl
+    uv pip install polars
 else
-    # Ensure the submodule is checked out. The directory exists as a mount
-    # point even when uninitialized, so test for actual contents and init if
-    # needed (requires access to the private rnabioco/leech repo).
-    if [ ! -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
-        echo "Initializing leech submodule..."
-        git -C "${REPO_ROOT}" submodule update --init --recursive resources/leech
-    fi
-    if [ -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
-        echo "Installing leech-core (Rust, release build)..."
-        uv pip install "${REPO_ROOT}/resources/leech/rust"
-        echo "Installing leech (Python, editable)..."
-        uv pip install --no-deps -e "${REPO_ROOT}/resources/leech"
-        echo "Leech installed successfully"
-        echo "NOTE: pyarrow will be reconciled with conda in the next step"
-    else
-        echo "Leech submodule not found at resources/leech"
-        echo "Run 'git submodule update --init --recursive resources/leech' to clone it"
-        echo "(requires access to the private rnabioco/leech repository)"
-    fi
+    install_leech
 fi
 
 # ============================================================================

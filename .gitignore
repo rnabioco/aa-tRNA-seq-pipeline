@@ -19,5 +19,8 @@ __pycache__/
 model_best/
 resources/models/.mod_models_ready
 
+# escpod demux models, installed by scripts/install-demux-models.sh
+resources/models/demux/
+
 # generated at render time by Snakemake rule
 workflow/report/_custom.qmd

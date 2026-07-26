@@ -39,7 +39,7 @@ CLEAN_TARGETS = [
     "bam/charging",  # classify_charging output
     "bam/classified",  # transfer_bam_tags output
     "bam/adapter_tagged",  # add_adapter_tags output (hardlinked into bam/final)
-    "demux",  # warpdemux_output, split/edx POD5+FASTQ, read_ids
+    "demux",  # warpdemux_output/escpod_output, split/edx POD5+FASTQ, read_ids
 ]
 
 # Directories intentionally preserved (listed for documentation / safety review):

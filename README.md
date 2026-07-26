@@ -16,6 +16,16 @@ curl -fsSL https://pixi.sh/install.sh | sh
 
 See the [Pixi installation guide](https://pixi.prefix.dev/latest/installation/) for alternative methods (Homebrew, Windows, etc.).
 
+`pixi run setup` additionally needs:
+
+- **A Rust toolchain (>= 1.95)** — the `escpod` CLI (POD5 merge/filter and signal-level
+  demultiplexing) is built from source. The published escapepod-rs release binaries are
+  compiled with default features only and do **not** contain a working `escpod demux`.
+- **An authenticated [`gh`](https://cli.github.com) CLI** — `leech` (the optional
+  GPU charging / amino-acid classifier) is installed from the release wheels of the
+  private `rnabioco/leech` repo. Set `LEECH_WHEEL_DIR` to a local directory of wheels
+  instead if you do not have `gh`.
+
 ## Usage
 
 The pipeline can be configured by editing the `config/config.yml` file. The config file specifications will
@@ -59,9 +69,9 @@ samples: config/samples.tsv
 output_directory: "results"
 ```
 
-### Multiplexed Runs (WarpDemuX Demultiplexing)
+### Multiplexed Runs (Barcode Demultiplexing)
 
-For pooled sequencing runs with WarpDemuX barcodes, use a YAML sample file:
+For pooled sequencing runs with WDX barcodes, use a YAML sample file:
 
 ```yaml
 runs:
@@ -80,8 +90,18 @@ output_directory: "results"
 
 warpdemux:
     enabled: true
-    barcode_kit: "WDX4_tRNA_rna004_v1_0"
+    backend: "escpod"                    # "escpod" (default) or "warpdemux"
+    barcode_kit: "WDX4_tRNA_rna004_v1_0" # used by the warpdemux backend
 ```
+
+Two backends are available and both produce the same downstream files. The default
+`escpod` backend classifies barcodes and writes the per-barcode POD5s in a single
+Rust pass; the `warpdemux` backend runs the original python implementation. The two
+do **not** produce identical barcode calls — `escpod` uses a GBM distilled from the
+WarpDemuX tRNA kit and assigns every read with a usable adapter boundary to a
+barcode, so the `unclassified` fraction is much smaller. See
+[Demultiplexing](https://rnabioco.github.io/aa-tRNA-seq-pipeline/workflow/demultiplexing/)
+before switching backends mid-project.
 
 Run with pixi: 
 
@@ -100,11 +120,11 @@ flowchart TD
     end
 
     subgraph Demux [Optional Demultiplexing]
-        W[warpdemux<br/>barcode classification]
+        W[escpod demux or warpdemux<br/>barcode classification]
     end
 
     subgraph Processing
-        A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
+        A[merge_pods<br/>escpod merge] --> B[rebasecall<br/>Dorado + move tables]
         B --> C[ubam_to_fastq]
         C --> D[bwa_align<br/>tRNA + adapter reference]
     end
@@ -135,8 +155,8 @@ flowchart TD
 
 Given a directory of POD5 files, this pipeline:
 
-1. **(Optional) Demultiplexes** pooled runs using WarpDemuX barcode classification
-2. **Merges** all POD5 files per sample into a single file
+1. **(Optional) Demultiplexes** pooled runs by barcode signal (`escpod demux` or WarpDemuX)
+2. **Merges** all POD5 files per sample into a single file (`escpod merge`)
 3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
 4. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
 5. **Filters** for full-length tRNA reads with proper adapter boundaries
@@ -151,7 +171,11 @@ The final steps of the pipeline calculate a number of outputs that may be useful
 A few notes about Remora classification for charged vs. uncharged tRNA reads
 
 1. this step retains only full length tRNA reads (with an allowance for signal loss at the 5´ end of nanopore direct RNA sequencing)
-2. Additionally, due to the iterative nature of sequencing method development, the present approach does not rely on differences in adapter sequences attached to charged vs. uncharged tRNA molecules (though these sequences are retained as separate entries in the alignment reference and downstream files). While we anticipate being able to leverage this information in the future, the current pipeline relies exclusively on signal data over a 6-nt modification kmer spanning the universal CCA 3′ end of tRNA and the first three nucleotides of the 3′ adapter (CCAGGC) to distinguish charged and uncharged reads.
+2. Setting `classifier: leech` in the config routes charging classification through
+   [leech](https://github.com/rnabioco/leech) instead, a GPU-accelerated
+   reimplementation over the same CCAGGC junction. leech writes the `ML` (score) and
+   `MP` (query position) tags, where Remora writes `ML`/`MM`.
+3. Additionally, due to the iterative nature of sequencing method development, the present approach does not rely on differences in adapter sequences attached to charged vs. uncharged tRNA molecules (though these sequences are retained as separate entries in the alignment reference and downstream files). While we anticipate being able to leverage this information in the future, the current pipeline relies exclusively on signal data over a 6-nt modification kmer spanning the universal CCA 3′ end of tRNA and the first three nucleotides of the 3′ adapter (CCAGGC) to distinguish charged and uncharged reads.
 
 ## Cluster execution
 

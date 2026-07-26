@@ -48,10 +48,30 @@ onstart:
         ("bwa", [conda_prefix]),
         ("modkit", [conda_prefix]),
         ("remora", [conda_prefix]),
-        ("pod5", [conda_prefix]),
+        ("escpod", [os.path.join(repo_root, "resources")]),
     ]
     if config.get("warpdemux", {}).get("enabled", False):
-        tools_to_check.append(("warpdemux", [conda_prefix]))
+        if config.get("warpdemux", {}).get("backend", "escpod") == "warpdemux":
+            tools_to_check.append(("warpdemux", [conda_prefix]))
+        else:
+            # The published escpod binaries are default-features only, so a
+            # working `escpod demux` implies a source build. Check it here
+            # rather than failing partway into a run.
+            escpod_bin = shutil.which("escpod")
+            if (
+                escpod_bin
+                and subprocess.run(
+                    [escpod_bin, "demux", "--help"],
+                    capture_output=True,
+                ).returncode
+                != 0
+            ):
+                logger.warning(
+                    "'escpod demux' is unavailable — this escpod was built "
+                    "without the demux feature. Run "
+                    "'bash scripts/install-escpod.sh' to rebuild it, or set "
+                    "warpdemux.backend to 'warpdemux'."
+                )
     if config.get("classifier", "remora") == "leech":
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])

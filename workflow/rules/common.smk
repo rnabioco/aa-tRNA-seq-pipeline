@@ -16,8 +16,8 @@ _CLEANUP_TIERS = {
     "basecall",  # bam/rebasecall (GPU-hours to regenerate)
     "fastq",  # fq/, demux/edx/fq
     "merged_pod5",  # pod5/ (pre-demux merged per-sample)
-    "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
-    "split_pod5",  # demux/pod5 (split; pre-EDX-filter). Only enable for all-EDX runs.
+    "demux_scratch",  # demux/{warpdemux_output,read_ids}, escpod classifications, edx read_ids
+    "split_pod5",  # demux/pod5 + demux/escpod_output (split; pre-EDX-filter). Only enable for all-EDX runs.
 }
 
 
@@ -394,6 +394,17 @@ def pipeline_outputs():
     if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
 
+    # Per-read barcode assignments and per-barcode read counts. Kept as a
+    # first-class output so the demux call record survives regardless of which
+    # backend produced it (the escpod backend has no other consumer for it).
+    if is_demux_enabled():
+        outs += expand(
+            os.path.join(
+                outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
+            ),
+            run_id=get_run_ids(),
+        )
+
     # AA identity classification (one-vs-all bundle)
     if config.get("aa_identity", {}).get("enabled", False):
         outs += expand(
@@ -616,11 +627,11 @@ def get_all_merged_pod5s():
 
 rule generate_squiggy_session:
     """
-Generate squiggy session JSON file for loading samples in Positron.
+    Generate squiggy session JSON file for loading samples in Positron.
 
-Creates a session file with absolute paths to POD5, BAM, and FASTA files
-along with MD5 checksums for integrity verification.
-"""
+    Creates a session file with absolute paths to POD5, BAM, and FASTA files
+    along with MD5 checksums for integrity verification.
+    """
     input:
         bams=get_all_final_bams(),
         pod5s=get_all_merged_pod5s(),

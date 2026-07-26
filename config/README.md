@@ -93,8 +93,9 @@ See `config-demux-test.yml` for a complete example.
     - `basecall` — `bam/rebasecall` (GPU-hours to regenerate)
     - `fastq` — `fq/`, `demux/edx/fq`
     - `merged_pod5` — `pod5/` (pre-demux merged)
-    - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
-    - `split_pod5` — `demux/pod5` (split, pre-EDX-filter)
+    - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, the escpod
+      classifications CSV, EDX read-id lists
+    - `split_pod5` — `demux/pod5` and `demux/escpod_output` (split, pre-EDX-filter)
 
   Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
   EDX-filtered POD5 used as the classification input — keeping it lets

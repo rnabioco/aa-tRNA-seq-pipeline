@@ -47,7 +47,7 @@ bottleneck = "*"
 scripts = ["scripts/setup-env.sh"]
 
 [tasks]
-setup = { cmd = "bash scripts/setup-tools.sh", description = "One-time setup: install dorado, models, remora, leech, and WarpDemuX" }
+setup = { cmd = "bash scripts/setup-tools.sh", description = "One-time setup: install dorado, models, remora, escpod (with demux), escapepod, leech, and WarpDemuX" }
 dl-test-data = { cmd = "cd .tests && bash dl_test_data.sh", description = "Download test data" }
 # Pipeline execution
 dry-run = { cmd = "snakemake -n --configfile=config/config-test.yml", description = "Dry run with test config" }
@@ -65,7 +65,10 @@ lint-snakefmt = { cmd = "snakefmt --check workflow/", description = "Check Snake
 lint-python = { cmd = "ruff check workflow/scripts/ && ruff format --check workflow/scripts/", description = "Lint and check Python formatting" }
 lint-yaml = { cmd = "yamllint -d \"{extends: default, rules: {line-length: {max: 120}, document-start: disable}}\" config/ .github/", description = "Lint YAML files" }
 # Leech tasks
-install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install leech CCA classifier from submodule (release build)" }
+install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install leech CCA classifier from the GitHub release wheels" }
+# escapepod tasks
+install-escpod = { cmd = "bash scripts/install-escpod.sh", description = "Build and install the escpod CLI with the demux feature" }
+install-demux-models = { cmd = "bash scripts/install-demux-models.sh", description = "Install the escpod barcode + adapter-boundary demux models" }
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
