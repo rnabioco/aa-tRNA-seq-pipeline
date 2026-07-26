@@ -4,10 +4,10 @@
 
 rule render_combined_qc_report:
     """
-Render combined Quarto QC report with faceted plots for all samples.
-Run with: pixi run -e report snakemake render_combined_qc_report --configfile=config/config-test.yml
+    Render combined Quarto QC report with faceted plots for all samples.
+    Run with: pixi run -e report snakemake render_combined_qc_report --configfile=config/config-test.yml
 
-"""
+    """
     input:
         align_stats=expand(
             os.path.join(
