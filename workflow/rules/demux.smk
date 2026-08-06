@@ -253,6 +253,38 @@ def get_ldx_model():
     return model
 
 
+def get_ort_dylib():
+    """Absolute path to the CUDA-enabled libonnxruntime for `ldx.gpu`.
+
+    Pinned to 1.27.x rather than whatever is newest: `ort 2.0.0-rc.13` enables
+    `api-27`, so it refuses to load an older onnxruntime with a BadVersion
+    error. conda-forge's CUDA builds stop at 1.26 today, which is why this is a
+    vendored tarball from the onnxruntime GitHub release rather than a package.
+    """
+    root = os.path.join(PIPELINE_DIR, "resources", "tools", "onnxruntime")
+    hits = sorted(glob.glob(os.path.join(root, "*", "lib", "libonnxruntime.so.1.27.*")))
+    if not hits:
+        sys.exit(
+            "ldx.gpu is true but no CUDA libonnxruntime 1.27.x was found under "
+            f"{root}.\nInstall it with `pixi run install-ort-gpu` (or set "
+            "ldx.gpu: false to run demux on CPU)."
+        )
+    # cuDNN is a separate requirement: the onnxruntime tarball ships the CUDA
+    # provider but not libcudnn.so.9, and without it the provider fails to
+    # register and onnxruntime falls back to CPU with only a warning — the run
+    # succeeds, just without a GPU, which is the worst failure mode here.
+    cudnn = glob.glob(
+        os.path.join(PIPELINE_DIR, ".pixi", "envs", "gpu", "lib", "libcudnn.so.9*")
+    )
+    if not cudnn:
+        sys.exit(
+            "ldx.gpu is true but libcudnn.so.9 was not found in the `gpu` pixi "
+            "environment.\nInstall it with `pixi install -e gpu` — without it "
+            "the CUDA provider silently falls back to CPU."
+        )
+    return hits[0]
+
+
 rule escapepod_demux:
     """
 Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
@@ -289,16 +321,42 @@ near-tie when auditing demux quality.
     params:
         model=get_ldx_model(),
         min_margin=config.get("ldx", {}).get("min_margin", 0),
+        # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
+        # CUDA provider; the lattice decode stays on the CPU either way. It is
+        # opt-in because the *released* escpod has neither GPU feature compiled
+        # in and would reject the flag — see config-base.yml `ldx.gpu`.
+        # `--method cnn` is passed alongside --gpu on purpose. The bundle already
+        # pins cnn, but a pinned detector runs on the CPU and makes --gpu a
+        # no-op; only an explicit --method engages the CUDA detection path.
+        # Naming the same detector the bundle pins is not an override, so this
+        # cannot silently downgrade to LLR.
+        gpu=lambda wildcards: (
+            "--gpu --method cnn" if config.get("ldx", {}).get("gpu", False) else ""
+        ),
+        # ort dlopens onnxruntime at run time from ORT_DYLIB_PATH, and the CUDA
+        # execution provider sits beside it, so its directory must also be on
+        # LD_LIBRARY_PATH or the core library loads and the provider then fails
+        # to. Exported inside the rule rather than relying on the submitting
+        # shell's environment surviving into the batch job.
+        ort_env=lambda wildcards: (
+            f"export ORT_DYLIB_PATH={get_ort_dylib()}; "
+            f"export LD_LIBRARY_PATH={os.path.dirname(get_ort_dylib())}:"
+            f"{os.path.join(PIPELINE_DIR, '.pixi', 'envs', 'gpu', 'lib')}:"
+            f"$LD_LIBRARY_PATH; "
+            if config.get("ldx", {}).get("gpu", False)
+            else ""
+        ),
         pod5_dirs=lambda wildcards: " ".join(
             os.path.join(d, "*.pod5") for d in get_run_pod5_dirs(wildcards.run_id)
         ),
     shell:
         """
-        escpod demux {params.pod5_dirs} \
+        {params.ort_env}escpod demux {params.pod5_dirs} \
             --model {params.model} \
             --output-dir {output.outdir} \
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
+            {params.gpu} \
             --threads {threads} 2>&1 | tee {log}
 
         # escpod prints its per-barcode tally to the log only. Tabulate the

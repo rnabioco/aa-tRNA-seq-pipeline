@@ -193,6 +193,14 @@ warpdemux:
 ldx:
   enabled: false
   model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+  # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
+  # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
+  # --gpu outright — enabling this requires an escpod built from source with
+  # those features, plus a CUDA-enabled libonnxruntime on ORT_DYLIB_PATH
+  # (`pixi install -e gpu` provides one; see the `gpu` feature in pixi.toml).
+  # When true, escapepod_demux must also be given a GPU in the cluster profile.
+  # The lattice decode stays on the CPU regardless, so threads still matter.
+  gpu: false
   # Call a read unclassified when its edit-distance margin to the second-best
   # reference is below this. 0 keeps every call, including outright ties.
   # The model's published precision/recall were computed on this margin, so
