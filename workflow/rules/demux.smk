@@ -349,6 +349,7 @@ near-tie when auditing demux quality.
         pod5_dirs=lambda wildcards: " ".join(
             os.path.join(d, "*.pod5") for d in get_run_pod5_dirs(wildcards.run_id)
         ),
+        summarize_awk=os.path.join(SCRIPT_DIR, "summarize_demux.awk"),
     shell:
         """
         # escpod opens --classifications with a plain create(), so a missing
@@ -370,20 +371,10 @@ near-tie when auditing demux quality.
             {params.gpu} \
             --threads {threads} 2>&1 | tee {log}
 
-        # escpod prints its per-barcode tally to the log only. Tabulate the
-        # same counts here, in the same rule, so the QC report has the file it
-        # reads for both backends. Column names match parse_warpdemux's output.
-        #
-        # NOTE the doubled backslashes. Snakemake shell blocks are ordinary
-        # Python strings, so a single \n here becomes a REAL newline before awk
-        # is invoked — which lands inside an awk string literal and is a syntax
-        # error ("newline in string"). awk must receive the two characters \ and
-        # n, hence \\n. Same for \\t.
-        awk -F, 'NR > 1 {{ n[$2]++; total++ }}
-                 END {{
-                     printf "predicted_barcode\\tn_reads\\tpct\\n"
-                     for (bc in n) printf "%s\\t%d\\t%.2f\\n", bc, n[bc], 100 * n[bc] / total
-                 }}' {output.classifications} \
+        # escpod prints its per-barcode tally to the log only, so tabulate the
+        # same counts into a file the QC report can read. The awk program lives
+        # in workflow/scripts/ rather than inline; see the note at the top of it.
+        awk -F, -f {params.summarize_awk} {output.classifications} \
             | gzip > {output.summary}
         """
 
