@@ -18,6 +18,16 @@ CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
 
+ESCPOD_VERSION="${ESCPOD_VERSION:-$(awk '/^escpod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
+# Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
+# Pinned rather than fetched alongside the tarball so that re-tagging the
+# release upstream is caught here instead of being silently trusted.
+ESCPOD_SHA256_x86_64_linux="7d26a57ad456843e30e25149f39006c00559ef4cff4a73f549632de092938ca7"
+ESCPOD_SHA256_aarch64_linux="003ebac6136fe669bfa3396ee12c9adb9750e71cb0a9d2d59141680eb5d1c656"
+ESCPOD_SHA256_x86_64_darwin="6c28ff642a173309f36ac2375339161f2860a385073506f9f4c4808cd88b5c82"
+ESCPOD_SHA256_aarch64_darwin="2256056719476d0ef2305a6eb7441f6b7f3124bc42f46b30519e43570db51e2b"
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -70,6 +80,65 @@ download_dorado() {
     rm -f "${tmpfile}"
     chmod +x "${DORADO_DIR}/bin/dorado"
     echo "Dorado installed to ${DORADO_DIR}"
+}
+
+escpod_target() {
+    # Rust target triple for the escpod release artifacts. The Linux builds are
+    # static musl, so they run regardless of the host glibc.
+    local system machine
+    system=$(uname -s | tr '[:upper:]' '[:lower:]')
+    machine=$(uname -m | tr '[:upper:]' '[:lower:]')
+
+    case "${machine}" in
+        arm64|aarch64) machine="aarch64" ;;
+        x86_64|amd64|x64) machine="x86_64" ;;
+        *) echo "Error: Unsupported architecture: ${machine}" >&2; return 1 ;;
+    esac
+
+    case "${system}" in
+        linux) echo "${machine}-unknown-linux-musl" ;;
+        darwin) echo "${machine}-apple-darwin" ;;
+        *) echo "Error: Unsupported OS: ${system}" >&2; return 1 ;;
+    esac
+}
+
+download_escpod() {
+    local target url tmpfile expected actual
+    target=$(escpod_target) || return 1
+
+    case "${target}" in
+        x86_64-unknown-linux-musl)  expected="${ESCPOD_SHA256_x86_64_linux}" ;;
+        aarch64-unknown-linux-musl) expected="${ESCPOD_SHA256_aarch64_linux}" ;;
+        x86_64-apple-darwin)        expected="${ESCPOD_SHA256_x86_64_darwin}" ;;
+        aarch64-apple-darwin)       expected="${ESCPOD_SHA256_aarch64_darwin}" ;;
+        *) echo "Error: no pinned checksum for target ${target}" >&2; return 1 ;;
+    esac
+
+    url="https://github.com/rnabioco/escapepod-rs/releases/download/v${ESCPOD_VERSION}/escpod-v${ESCPOD_VERSION}-${target}.tar.gz"
+    tmpfile="$(mktemp -t escpod.XXXXXX.tar.gz)"
+
+    echo "Downloading escpod ${ESCPOD_VERSION} for ${target}..."
+    if ! curl -fL -o "${tmpfile}" "${url}"; then
+        echo "Error: Failed to download escpod from ${url}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    actual=$(sha256sum "${tmpfile}" | awk '{print $1}')
+    if [ "${actual}" != "${expected}" ]; then
+        echo "Error: escpod checksum mismatch for ${target}" >&2
+        echo "  expected ${expected}" >&2
+        echo "  actual   ${actual}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    mkdir -p "${ESCPOD_DIR}/bin"
+    # The tarball holds the bare `escpod` binary, so extract straight into bin/.
+    tar -xzf "${tmpfile}" -C "${ESCPOD_DIR}/bin"
+    rm -f "${tmpfile}"
+    chmod +x "${ESCPOD_DIR}/bin/escpod"
+    echo "escpod installed to ${ESCPOD_DIR}"
 }
 
 download_model() {
@@ -159,6 +228,19 @@ else
     # pod5 needs 'deprecated' but --no-deps skips it
     uv pip install deprecated
     echo "Pod5 installed successfully"
+fi
+
+# ============================================================================
+# escapepod (escpod) Setup
+# ============================================================================
+# Provides `escpod demux`, the CTC-CRF barcode demultiplexer used for LDX
+# (nbc) barcodes. The barcode models themselves are vendored in
+# resources/models/demux/ rather than fetched — see the README there.
+echo "=== Checking escpod ==="
+if [ -x "${ESCPOD_DIR}/bin/escpod" ]; then
+    echo "escpod already installed at ${ESCPOD_DIR}"
+else
+    download_escpod
 fi
 
 # ============================================================================

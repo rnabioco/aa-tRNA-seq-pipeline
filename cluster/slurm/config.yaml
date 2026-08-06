@@ -118,5 +118,25 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 1
 
+  # escapepod (LDX) demux rules
+  #
+  # The released escpod binary has no CUDA execution provider, so the CRF
+  # encoder runs on the CPU and this rule is compute-bound on cores rather
+  # than being a GPU job. Measured on 20k RNA004 reads: 59 ms of CPU per read
+  # for detect + encode + decode. A single 561k-read POD5 is therefore ~9
+  # CPU-hours, which is ~20 min at 32 cores and most of a day at 1.
+  #
+  # Memory scales with the number of barcodes, not the input: the router keeps
+  # a bounded pool of queued reads per barcode writer.
+  escapepod_demux:
+    runtime: "8h"
+    mem_mb: 48000
+    cpus_per_task: 32
+
+  link_ldx_pod5:
+    runtime: "10m"
+    mem_mb: 2000
+    cpus_per_task: 1
+
   compute_odds_ratios:
     mem_mb: 16000

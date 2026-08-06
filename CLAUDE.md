@@ -78,7 +78,7 @@ workflow/
 │   ├── aatrnaseq-charging.smk         # Charging classification outputs (2 rules)
 │   ├── aatrnaseq-qc.smk               # QC metrics: base calling errors, alignment stats (3 rules)
 │   ├── aatrnaseq-modifications.smk    # Modification calling: coverage, modkit outputs (4 rules)
-│   └── warpdemux.smk                  # WarpDemuX demultiplexing (conditionally loaded)
+│   └── demux.smk                      # Barcode demux (WDX or LDX) + EDX concordance (conditionally loaded)
 ├── scripts/                           # Python scripts called by rules
 │   ├── detect_3p_adapters.py           # Detect 3' adapter identity per read (for EDX splitting)
 │   └── generate_squiggy_session.py    # Generate Squiggy/Positron session JSON
@@ -163,9 +163,23 @@ After classification, generates (split across three rule files):
 - **ml-threshold**: Currently hardcoded in `get_cca_trna_cpm` rule (200-255 = charged, <200 = uncharged)
 - **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `fastq`, `merged_pod5`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`. `bam/final` and `demux/edx/pod5` (the classification-input POD5) are always kept. Only enable `split_pod5` for all-EDX runs (where `demux/edx/pod5` is the leaf classification input); for non-EDX/mixed runs `demux/pod5` must be kept. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
-## WarpDemuX Demultiplexing (Optional)
+## Demultiplexing (Optional)
 
-The pipeline supports optional barcode demultiplexing using WarpDemuX for pooled/multiplexed sequencing runs.
+The pipeline supports optional signal-level barcode demultiplexing for
+pooled/multiplexed runs, via one of two mutually exclusive backends:
+
+| Backend | Config key | Barcodes | Tool | Shape |
+|---|---|---|---|---|
+| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `pod5 filter` per sample |
+| escapepod | `ldx.enabled` | LDX (`nbc01`) | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
+
+Both converge on the same per-sample split POD5, and everything downstream is
+identical. Enabling both is rejected at parse time. LDX is the successor path;
+see `config/README.md` for the LDX sample-file format, the self-describing model
+bundle, and its CPU cost. The vendored model lives in `resources/models/demux/`
+(see the README there for why it is committed rather than fetched).
+
+The rest of this section describes the WarpDemuX backend.
 
 ### Enabling Demultiplexing
 

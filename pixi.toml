@@ -69,6 +69,8 @@ install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install 
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
+# escapepod (LDX) demux tasks
+escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info", description = "Describe the vendored LDX (nbc16) CRF demux bundle" }
 
 # Testing feature
 [feature.test]

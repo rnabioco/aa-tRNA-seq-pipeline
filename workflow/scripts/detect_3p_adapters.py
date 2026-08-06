@@ -3,10 +3,20 @@
 Detect 3' adapter identity per read on an unaligned BAM.
 
 Lightweight script that reuses adapter detection logic from add_adapter_tags.py
-to classify which 3' adapter each read matches. Outputs a gzipped two-column TSV
-(read_id, adapter_3p) for downstream EDX filtering.
+to classify which 3' adapter each read matches. Outputs a gzipped TSV of
+read_id, adapter_3p, score_best, score_second and margin for downstream EDX
+filtering and concordance.
 
 Reads with no adapter match get adapter_3p = "none".
+
+`margin` is the alignment-score gap between the best and second-best adapter.
+It exists because the best hit alone cannot distinguish a confident call from a
+near-tie between two similar adapters, and the two mean opposite things when the
+output is used to measure adapter crosstalk: a near-tie is a read the assay
+could not assign, not evidence that one adapter ended up in another's library.
+The upstream barcode training corpus gated on margin > 5 for the same reason.
+With a single adapter configured there is no second-best, and margin is left
+empty rather than being reported as an unbounded gap.
 """
 
 import argparse
@@ -14,7 +24,7 @@ import gzip
 import sys
 from collections import Counter
 
-from add_adapter_tags import create_scoring_matrix, find_best_3p_adapter
+from add_adapter_tags import create_scoring_matrix, find_3p_adapter
 
 import pysam
 
@@ -62,24 +72,41 @@ def main():
 
     with pysam.AlignmentFile(args.bam, "rb", check_sq=False) as bam_in:
         with gzip.open(args.output, "wt") as out:
-            out.write("read_id\tadapter_3p\n")
+            out.write("read_id\tadapter_3p\tscore_best\tscore_second\tmargin\n")
             for read in bam_in.fetch(until_eof=True):
                 total += 1
                 seq = read.query_sequence
                 if seq is None:
-                    out.write(f"{read.query_name}\tnone\n")
+                    out.write(f"{read.query_name}\tnone\t\t\t\n")
                     counts["none"] += 1
                     continue
 
-                result = find_best_3p_adapter(
-                    seq, adapters, matrix, gap_open, gap_extend, min_score
-                )
-                if result:
-                    adapter_name = result[3]  # (start, end, score, name)
-                else:
-                    adapter_name = "none"
+                # Score every adapter rather than short-circuiting on the best,
+                # so the runner-up is available for the margin.
+                scores = []
+                for name, adapter_seq in adapters:
+                    hit = find_3p_adapter(
+                        seq, adapter_seq, matrix, gap_open, gap_extend, min_score
+                    )
+                    if hit:
+                        scores.append((hit[2], name))  # (start, end, score)
+                # Stable sort on score alone: ties keep config order, which is
+                # what the previous first-wins comparison did. Sorting on the
+                # tuple would break ties by adapter name instead.
+                scores.sort(key=lambda s: -s[0])
 
-                out.write(f"{read.query_name}\t{adapter_name}\n")
+                if not scores:
+                    out.write(f"{read.query_name}\tnone\t\t\t\n")
+                    counts["none"] += 1
+                    continue
+
+                best_score, adapter_name = scores[0]
+                second = f"{scores[1][0]}" if len(scores) > 1 else ""
+                margin = f"{best_score - scores[1][0]}" if len(scores) > 1 else ""
+                out.write(
+                    f"{read.query_name}\t{adapter_name}\t{best_score}"
+                    f"\t{second}\t{margin}\n"
+                )
                 counts[adapter_name] += 1
 
     # Summary to stderr

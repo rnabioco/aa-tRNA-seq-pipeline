@@ -1,0 +1,138 @@
+{
+  "id": "barcode_crf_nbc16_rna004",
+  "version": "0.2.0",
+  "full_id": "barcode_crf_nbc16_rna004@v0.2.0",
+  "kind": "barcode",
+  "format": "onnx",
+  "chemistry": "rna004",
+  "created": "2026-08-01",
+  "file": "barcode_crf_nbc16_rna004.onnx",
+  "sha256": "5b626e5e59676e61ba95bcc910840301368996f99cb899a7ce7360e8c03134c6",
+  "license": "CC-BY-4.0",
+  "license_review": "REQUIRED BEFORE PUBLIC RELEASE. The weights are ours (trained on our data), but the architecture comes from bonito (ONT Public License v1.0) and the config.toml from SeqTagger \u2014 now vendored in-tree at scripts/nbc/crf_config.toml, which widens the exposure from \"a file on the cluster\" to \"a third-party file in the repo\". Neither is needed to RUN this ONNX, which is the reason to export the encoder at all, but the CC-BY-4.0 claim above has not been signed off. Do not tag a release until it is.",
+  "source": {
+    "escapepod_models_commit": "d25a4fe6313241557b7abb5cf313afbbdb295a20",
+    "escapepod_models_dirty": true,
+    "escapepod_rs_commit": "18cef70024b8c0befb78d6078c4b2b558396dec7",
+    "escapepod_rs_version": "escpod 0.5.1+6a7e29f",
+    "escapepod_rs_binary": "/beevol/home/jhessel/devel/rnabioco/escapepod-models/ext/escapepod-rs/target/release/escpod",
+    "training_script": "snakemake workflow (config: barcode_crf_nbc16_rna004)",
+    "trainable_source_pt": null
+  },
+  "training": {
+    "label_source": "EDX 3' adapter calls via parasail (add_adapter_tags.py), gated to CLEAN (edx_margin>5 & score_best>=66)",
+    "dataset": "20260728_LDX_Demux_Pilot (LDX1-8 + LDX9-16), dorado --no-trim re-basecall",
+    "barcodes": [
+      "nbc01",
+      "nbc02",
+      "nbc03",
+      "nbc04",
+      "nbc05",
+      "nbc06",
+      "nbc07",
+      "nbc08",
+      "nbc09",
+      "nbc10",
+      "nbc11",
+      "nbc12",
+      "nbc13",
+      "nbc14",
+      "nbc15",
+      "nbc16"
+    ],
+    "n_train": 295807,
+    "n_test": 107527,
+    "pipeline": "raw pA window [adapter_end - 3000, adapter_end] (adapter_end from adapter_rna004@v1.1.0 via `escpod demux detect --method cnn`) -> standardise with CORPUS mean/stdev -> CTC-CRF encoder -> transition scores -> Viterbi -> 44-nt sequence -> min edit distance to the EMITTED references"
+  },
+  "io_contract": "input `signal` [batch,1,3000] float32 batch-major, standardised raw pA; output `scores` [300,batch,1280] float32 TIME-major (T = chunk/stride 10; n_score = (n_base+1)*n_base**state_len = 5*4^4 = 1280). The CRF decode is NOT in the graph \u2014 standard ONNX ops cannot express it; the consumer runs a Viterbi over 256 states x 5 transitions.",
+  "runtime": "escpod demux <pod5> --model models/barcode_crf_nbc16_rna004@v0.2.0 -d out/",
+  "metrics": {
+    "source": "workflow/rules/barcode_crf.smk (eval_window_ab.py + decode_position_profile.py)",
+    "verified": true,
+    "split": "the corpus's recorded held-out split, carved per code BEFORE the cap by extract_chunks.py, so these reads were never trained on",
+    "n_train": 295807,
+    "n_test": 107527,
+    "n_scored": 60000,
+    "geometry": {
+      "chunk": 3000,
+      "target_len": 48,
+      "state_len": 4,
+      "emits": 44
+    },
+    "standardisation": {
+      "mean": 62.40078630547705,
+      "stdev": 9.983578831207613
+    },
+    "final_train_loss": 0.0022824494387386003,
+    "epochs": 32,
+    "exact_match_to_emitted_reference": 0.9735666666666667,
+    "median_decoded_len": 44.0,
+    "per_base_error": {
+      "all_emitted": 0.006380681818181818,
+      "shared_36nt": 0.006520833333333333,
+      "lead": 0.00075
+    },
+    "balanced_precision@0.97": 0.9858106193530245,
+    "balanced_recall@0.97": 0.9564619545230669,
+    "per_flowcell": {
+      "LDX1-8": {
+        "n": 27187,
+        "ref_min_pairwise": 13,
+        "median_edit_distance": 0.0,
+        "median_margin": 14.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.976510297998008,
+            "bal_precision": 0.9729447259406886,
+            "errors": 570
+          },
+          "0.99": {
+            "bal_recall": 0.9753079479434461,
+            "bal_precision": 0.9820269524214564,
+            "errors": 335
+          },
+          "0.97": {
+            "bal_recall": 0.9517094428766972,
+            "bal_precision": 0.9834886247310859,
+            "errors": 288
+          },
+          "0.95": {
+            "bal_recall": 0.9266966570199466,
+            "bal_precision": 0.9841499714209396,
+            "errors": 272
+          }
+        }
+      },
+      "LDX9-16": {
+        "n": 32813,
+        "ref_min_pairwise": 14,
+        "median_edit_distance": 0.0,
+        "median_margin": 15.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9776882036408885,
+            "bal_precision": 0.9739579397444286,
+            "errors": 671
+          },
+          "0.99": {
+            "bal_recall": 0.9763811902196651,
+            "bal_precision": 0.981571407921426,
+            "errors": 391
+          },
+          "0.97": {
+            "bal_recall": 0.9612144661694366,
+            "bal_precision": 0.9881326139749631,
+            "errors": 294
+          },
+          "0.95": {
+            "bal_recall": 0.9445559882966237,
+            "bal_precision": 0.9880839768879683,
+            "errors": 288
+          }
+        }
+      }
+    },
+    "note": "Per flowcell, never one 16x16: the pilot aliases nbc identity with flowcell (issue #26). Edit distances are against the reference the model EMITS (target[state_len:]); scoring against the full-length target inflates every distance and compresses the margin (issue #36)."
+  },
+  "notes": "Retrained at the corrected geometry (issue #36). state_len=4 means the CRF emits target[4:]; the 48-nt target puts those four sacrificial bases in the oligo's constant prefix so the full 27-nt code is emitted, where the previous 40-nt target discarded the code's first four bases and discriminated on 23 nt. Measured accuracy-neutral at 16-plex across 4 geometries x 3 seeds \u2014 the 16-plex is not discrimination-limited \u2014 but it restores the separability the 96-code pool was designed for, which an 80-plex needs. Match decodes against the EMITTED references shipped in the bundle, never the full-length targets. The pilot is CONFOUNDED (each nbc on exactly one flowcell): report two 8x8 matrices, never one 16x16."
+}
