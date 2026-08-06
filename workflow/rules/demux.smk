@@ -351,6 +351,17 @@ near-tie when auditing demux quality.
         ),
     shell:
         """
+        # escpod opens --classifications with a plain create(), so a missing
+        # parent directory is a bare ENOENT ("No such file or directory") with
+        # nothing naming the path. Snakemake does not reliably pre-create it
+        # here: when a previous attempt fails it removes this rule's outputs,
+        # taking demux/read_ids/<run_id>/ with them, and the retry then dies on
+        # the very first write. Creating them up front makes the rule
+        # re-runnable after any failure.
+        mkdir -p $(dirname {output.classifications}) \
+                 $(dirname {output.summary}) \
+                 {output.outdir}
+
         {params.ort_env}escpod demux {params.pod5_dirs} \
             --model {params.model} \
             --output-dir {output.outdir} \
