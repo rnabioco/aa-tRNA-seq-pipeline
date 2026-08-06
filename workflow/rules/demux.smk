@@ -362,10 +362,16 @@ near-tie when auditing demux quality.
         # escpod prints its per-barcode tally to the log only. Tabulate the
         # same counts here, in the same rule, so the QC report has the file it
         # reads for both backends. Column names match parse_warpdemux's output.
+        #
+        # NOTE the doubled backslashes. Snakemake shell blocks are ordinary
+        # Python strings, so a single \n here becomes a REAL newline before awk
+        # is invoked — which lands inside an awk string literal and is a syntax
+        # error ("newline in string"). awk must receive the two characters \ and
+        # n, hence \\n. Same for \\t.
         awk -F, 'NR > 1 {{ n[$2]++; total++ }}
                  END {{
-                     print "predicted_barcode\tn_reads\tpct"
-                     for (bc in n) printf "%s\t%d\t%.2f\n", bc, n[bc], 100 * n[bc] / total
+                     printf "predicted_barcode\\tn_reads\\tpct\\n"
+                     for (bc in n) printf "%s\\t%d\\t%.2f\\n", bc, n[bc], 100 * n[bc] / total
                  }}' {output.classifications} \
             | gzip > {output.summary}
         """
