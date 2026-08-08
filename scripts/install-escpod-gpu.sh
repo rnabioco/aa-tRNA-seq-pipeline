@@ -23,7 +23,12 @@ SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
 
 # The GPU features first exist in escapepod-rs 0.7.0; older checkouts build
 # fine and then silently lack --gpu, which is worse than failing here.
-ESCPOD_REF="${ESCPOD_REF:-v0.7.0}"
+#
+# 0.8.0 is the floor for *full* GPU support: 0.7.0 runs the boundary CNN and the
+# CRF encoder on the device but drops back to the CPU for the lattice decode,
+# which then dominates. 0.8.0 adds the batched GPU lattice (`crf::lattice_gpu`),
+# taking the CRF head end to end on the device (4.3x, escapepod-rs#186).
+ESCPOD_REF="${ESCPOD_REF:-v0.8.0}"
 
 if [ ! -f "${SRC}/Cargo.toml" ]; then
     echo "escapepod-rs source not found at ${SRC}" >&2
