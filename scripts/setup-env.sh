@@ -12,10 +12,12 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 DORADO_VERSION="${DORADO_VERSION:-$(awk '/^dorado_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
+ESCPOD_VERSION="${ESCPOD_VERSION:-$(awk '/^escpod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 
 # ============================================================================
 # Library and PATH Setup
 # ============================================================================
 # Use conda/pixi libstdc++ instead of system version (fixes GLIBCXX version errors)
 export LD_LIBRARY_PATH="${CONDA_PREFIX}/lib:${LD_LIBRARY_PATH}"
-export PATH="${DORADO_DIR}/bin:${PATH}"
+export PATH="${DORADO_DIR}/bin:${ESCPOD_DIR}/bin:${PATH}"

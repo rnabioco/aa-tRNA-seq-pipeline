@@ -69,6 +69,21 @@ install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install 
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
+# escapepod (LDX) demux tasks
+escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info", description = "Describe the vendored LDX (nbc16) CRF demux bundle" }
+# GPU demux runtime.
+#
+# NOT a conda dependency, deliberately. `ort 2.0.0-rc.13` (what escapepod-rs
+# pins) enables `api-27`, so it refuses any onnxruntime older than 1.27.x with a
+# BadVersion error at dlopen. conda-forge's newest CUDA build is 1.26.0, so
+# there is no conda package that satisfies it — the library has to come from the
+# onnxruntime GitHub release. The cuda13 variant matches the CUDA 13 on the gpu
+# nodes and bundles its own CUDA deps.
+#
+# Only needed for `ldx.gpu: true`, which additionally needs an escpod built with
+# --features crf-gpu,cnn-gpu (see install-escpod-gpu).
+install-ort-gpu = { cmd = "bash scripts/install-ort-gpu.sh", description = "Download the CUDA onnxruntime that escpod --gpu needs" }
+install-escpod-gpu = { cmd = "bash scripts/install-escpod-gpu.sh", description = "Build escpod with GPU features from the escapepod-rs submodule" }
 
 # Testing feature
 [feature.test]
@@ -122,8 +137,35 @@ zensical = "*"
 docs-build = "zensical build"
 docs-serve = "zensical serve"
 
+# CUDA runtime libraries for `escpod demux --gpu`.
+#
+# onnxruntime itself is NOT here — `ort 2.0.0-rc.13` needs 1.27.x and
+# conda-forge stops at 1.26, so it comes from a release tarball via
+# `pixi run install-ort-gpu`. What that tarball does NOT bundle is cuDNN: its
+# libonnxruntime_providers_cuda.so links libcudnn.so.9, and without it the CUDA
+# provider fails to register and silently falls back to CPU ("No execution
+# providers ... registered successfully"). These packages supply it.
+[feature.gpu]
+platforms = ["linux-64"]
+
+# The CUDA packages depend on the `__cuda` virtual package, which conda only
+# reports on a machine that has a GPU — declaring it here keeps the environment
+# solvable from login and CPU nodes, where the install actually runs.
+[feature.gpu.system-requirements]
+cuda = "13"
+
+[feature.gpu.dependencies]
+cudnn = ">=9,<10"       # libcudnn.so.9 — what the CUDA provider fails without
+libcublas = "*"
+libcufft = "*"
+cuda-cudart = "*"
+
 [environments]
 default = []
 test = ["test"]
 report = ["report"]
 docs = { features = ["docs"], solve-group = "default" }
+# Standalone solve-group: the "default" group carries the docs feature's PyPI
+# dependency, which makes pixi fetch a conda-pypi mapping from a host the
+# compute nodes cannot reach.
+gpu = ["gpu"]

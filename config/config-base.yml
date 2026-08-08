@@ -76,6 +76,12 @@ aa_identity:
 dorado_version: 1.4.0
 dorado_model: rna004_130bps_sup@v5.3.0
 
+# escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
+# GitHub release. Provides `escpod demux` for LDX (nbc) barcode
+# demultiplexing. 0.7.0 is the floor: the fused `escpod demux --model <CRF
+# bundle>` pipeline that the LDX backend drives first appears there.
+escpod_version: 0.7.0
+
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
 # see https://github.com/comprna/modkitopt
@@ -167,6 +173,66 @@ warpdemux:
   barcode_kit: "WDX4_tRNA_rna004_v1_0"
   save_boundaries: true
   threads: 8
+
+# LDX demultiplexing via escapepod's CTC-CRF barcode basecaller (optional).
+#
+# LDX is our name for the barcodes escapepod-models calls `nbc01`..`nbc16`.
+# This is the successor to the WarpDemuX/WDX path: it reads the barcode out of
+# the raw adapter signal with a CRF and matches the decode to references by
+# edit distance, rather than classifying boundary-gated fingerprints.
+#
+# Enable exactly one of `warpdemux.enabled` and `ldx.enabled` — they both
+# populate the same per-sample `barcode` field and their rules write the same
+# outputs. Assign barcodes with the `ldx:` key in the samples YAML.
+#
+# The model is a bundle DIRECTORY, not a file, and is self-describing: it
+# carries its own barcode references and pins the boundary detector it was
+# calibrated against, so no --barcodes and no --method are passed. Do not
+# override the detector; LLR boundaries cost 17.2 points of balanced recall and
+# fail silently.
+ldx:
+  enabled: false
+  model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+  # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
+  # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
+  # --gpu outright — enabling this requires an escpod built from source with
+  # those features, plus a CUDA-enabled libonnxruntime on ORT_DYLIB_PATH
+  # (`pixi install -e gpu` provides one; see the `gpu` feature in pixi.toml).
+  # When true, escapepod_demux must also be given a GPU in the cluster profile.
+  # The lattice decode stays on the CPU regardless, so threads still matter.
+  gpu: false
+  # Call a read unclassified when its edit-distance margin to the second-best
+  # reference is below this. 0 keeps every call, including outright ties.
+  # The model's published precision/recall were computed on this margin, so
+  # raising it trades recovery for precision along that curve.
+  min_margin: 0
+  threads: 16
+
+# EDX (3' adapter barcode) handling.
+#
+# Two independent things live here, and they are deliberately separable:
+#
+#   1. FILTERING. Driven per-sample by the `edx:` key in the samples YAML. A
+#      sample with `edx: edx01` keeps only its own adapter's reads, so one
+#      library pooled across adapters becomes one sample per adapter.
+#
+#   2. CONCORDANCE. `enabled: true` emits summary/edx/edx_concordance.tsv.gz,
+#      the signal-barcode x 3'-adapter contingency table.
+#
+# `detect_all` decouples them: it runs adapter detection on every sample rather
+# than only those carrying an `edx:` assignment. That is what an adapter-ligation
+# QC run needs — each signal barcode legitimately holds a MIXTURE of 3' adapters,
+# so there is no single adapter to filter to, but the full cross-tabulation is
+# precisely the measurement.
+edx:
+  enabled: false
+  detect_all: false
+  # Minimum margin between the best and second-best 3' adapter alignment score
+  # for a read's adapter call to be counted as CLEAN in the concordance table.
+  # Reads below it are still reported, under `ambiguous`. 0 disables the gate.
+  # Crosstalk measured without a margin gate is inflated by near-ties, which is
+  # why the upstream barcode training corpus gated on margin > 5.
+  min_margin: 5
 
 # Amino acid identity classification (optional, disabled by default)
 # Uses leech multiclass models to predict which amino acid was charged

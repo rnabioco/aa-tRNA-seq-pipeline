@@ -42,9 +42,29 @@ def maybe_temp(path, tier="cascade"):
     return temp(path) if tier in _enabled_cleanup_tiers() else path
 
 
-def is_demux_enabled():
-    """Check if WarpDemuX demultiplexing is enabled in config."""
+def is_warpdemux_enabled():
+    """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)
+
+
+def is_ldx_enabled():
+    """Check if escapepod CRF (LDX/nbc) demultiplexing is enabled in config."""
+    return config.get("ldx", {}).get("enabled", False)
+
+
+def is_demux_enabled():
+    """Check if any signal-level barcode demultiplexing backend is enabled.
+
+    The two backends are mutually exclusive: they populate the same per-sample
+    `barcode` field and their rules write the same barcode_mapping output, so
+    enabling both would make the DAG ambiguous.
+    """
+    if is_warpdemux_enabled() and is_ldx_enabled():
+        sys.exit(
+            "Config enables both `warpdemux` and `ldx` demultiplexing. "
+            "These are alternative backends for the same step — enable exactly one."
+        )
+    return is_warpdemux_enabled() or is_ldx_enabled()
 
 
 def parse_samples_tsv(fl):
@@ -115,12 +135,22 @@ def parse_samples_yaml(fl):
             if sample_name in samples:
                 sys.exit(f"Duplicate sample name '{sample_name}' in samples file: {fl}")
 
-            # Backward compat: plain string or null = wdx barcode only
+            # Backward compat: plain string or null = signal barcode only
             if isinstance(sample_val, str) or sample_val is None:
                 barcode = sample_val
                 edx = None
             elif isinstance(sample_val, dict):
-                barcode = sample_val.get("wdx")
+                # `wdx` (WarpDemuX) and `ldx` (escapepod CRF) both name the
+                # signal-level barcode; which one is meaningful depends on the
+                # enabled backend, so only one may be given per sample.
+                wdx_bc, ldx_bc = sample_val.get("wdx"), sample_val.get("ldx")
+                if wdx_bc is not None and ldx_bc is not None:
+                    sys.exit(
+                        f"Sample '{sample_name}' sets both 'wdx' and 'ldx'. "
+                        "These name the same field for different demux backends — "
+                        "give exactly one."
+                    )
+                barcode = wdx_bc if wdx_bc is not None else ldx_bc
                 edx = sample_val.get("edx")
             else:
                 sys.exit(f"Invalid sample value for '{sample_name}': {sample_val}")

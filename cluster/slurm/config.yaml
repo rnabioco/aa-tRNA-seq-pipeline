@@ -118,5 +118,41 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 1
 
+  # escapepod (LDX) demux rules
+  #
+  # The released escpod binary has no CUDA execution provider, so the CRF
+  # encoder runs on the CPU and this rule is compute-bound on cores rather
+  # than being a GPU job. Measured on 20k RNA004 reads: 59 ms of CPU per read
+  # for detect + encode + decode. A single 561k-read POD5 is therefore ~9
+  # CPU-hours, which is ~20 min at 32 cores and most of a day at 1.
+  #
+  # Memory scales with the number of barcodes, not the input: the router keeps
+  # a bounded pool of queued reads per barcode writer.
+  # GPU: the fused pipeline runs boundary detection through onnxruntime's CUDA
+  # provider when given `--method cnn --gpu`. The method has to be passed
+  # EXPLICITLY — a detector merely pinned by the model bundle leaves detection
+  # on the CPU and makes --gpu inert (escpod warns "--gpu has no effect here").
+  #
+  # The CRF encoder itself stays on the CPU in the fused path regardless, so
+  # cpus_per_task stays high to feed it: POD5 decode, signal prep, the encoder
+  # and the lattice decode all run CPU-side while the GPU does detection.
+  #
+  # Needs an escpod built with crf-gpu/cnn-gpu (`pixi run install-escpod-gpu`)
+  # plus the CUDA onnxruntime (`pixi run install-ort-gpu`); the stock release
+  # binary rejects --gpu. With the stock binary, drop the gpu lines and set
+  # ldx.gpu false.
+  escapepod_demux:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "8h"
+    mem_mb: 48000
+    cpus_per_task: 16
+
+  link_ldx_pod5:
+    runtime: "10m"
+    mem_mb: 2000
+    cpus_per_task: 1
+
   compute_odds_ratios:
     mem_mb: 16000

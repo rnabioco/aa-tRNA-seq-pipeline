@@ -1,10 +1,24 @@
 """
-Rules for WarpDemuX barcode demultiplexing and EDX (3' adapter barcode) concordance.
-Only loaded when warpdemux.enabled is true in config.
+Rules for signal-level barcode demultiplexing and EDX (3' adapter barcode)
+concordance. Loaded when either demux backend is enabled in config.
+
+Two backends converge on the same per-sample split POD5, by different routes:
+
+  warpdemux : WarpDemuX DTW/fingerprint classifier, WDX barcodes ("barcode04").
+              Classifies into a table, which is then parsed into a read->barcode
+              mapping and applied with `pod5 filter` to cut the POD5 per sample.
+  ldx       : escapepod CTC-CRF barcode basecaller, LDX barcodes ("nbc01").
+              A single fused pass detects, basecalls, matches and routes each
+              read into its barcode's POD5, so the split already exists when the
+              command returns and only needs renaming barcode -> sample.
+
+Only one may be enabled (see is_demux_enabled); a ruleorder picks which rule
+supplies the split POD5.
 """
 
 import pandas as pd
 from pathlib import Path
+from snakemake.exceptions import WorkflowError
 import gzip
 
 # WarpDemuX helper functions
@@ -211,6 +225,228 @@ Parse WarpDemuX predictions and create a barcode mapping file per run.
         )
 
 
+# --- escapepod CTC-CRF (LDX / nbc) demultiplexing ---
+
+
+def get_ldx_model():
+    """Path to the CRF bundle directory, resolved against the pipeline dir.
+
+    Config carries a repo-relative path so it stays portable, but Snakemake runs
+    with the working directory set by the caller, so relative paths cannot be
+    handed to the shell as-is.
+    """
+    model = config.get("ldx", {}).get("model")
+    if not model:
+        sys.exit(
+            "ldx.enabled is true but ldx.model is unset. Point it at a CRF "
+            "bundle directory, e.g. "
+            "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+        )
+    if not os.path.isabs(model):
+        model = os.path.join(PIPELINE_DIR, model)
+    if not os.path.isdir(model):
+        sys.exit(
+            f"ldx.model is not a directory: {model}\n"
+            "escapepod CRF models are self-describing BUNDLES (metadata.json "
+            "plus the ONNX graphs it names), not a single file."
+        )
+    return model
+
+
+def get_ort_dylib():
+    """Absolute path to the CUDA-enabled libonnxruntime for `ldx.gpu`.
+
+    Pinned to 1.27.x rather than whatever is newest: `ort 2.0.0-rc.13` enables
+    `api-27`, so it refuses to load an older onnxruntime with a BadVersion
+    error. conda-forge's CUDA builds stop at 1.26 today, which is why this is a
+    vendored tarball from the onnxruntime GitHub release rather than a package.
+    """
+    root = os.path.join(PIPELINE_DIR, "resources", "tools", "onnxruntime")
+    hits = sorted(glob.glob(os.path.join(root, "*", "lib", "libonnxruntime.so.1.27.*")))
+    if not hits:
+        sys.exit(
+            "ldx.gpu is true but no CUDA libonnxruntime 1.27.x was found under "
+            f"{root}.\nInstall it with `pixi run install-ort-gpu` (or set "
+            "ldx.gpu: false to run demux on CPU)."
+        )
+    # cuDNN is a separate requirement: the onnxruntime tarball ships the CUDA
+    # provider but not libcudnn.so.9, and without it the provider fails to
+    # register and onnxruntime falls back to CPU with only a warning — the run
+    # succeeds, just without a GPU, which is the worst failure mode here.
+    cudnn = glob.glob(
+        os.path.join(PIPELINE_DIR, ".pixi", "envs", "gpu", "lib", "libcudnn.so.9*")
+    )
+    if not cudnn:
+        sys.exit(
+            "ldx.gpu is true but libcudnn.so.9 was not found in the `gpu` pixi "
+            "environment.\nInstall it with `pixi install -e gpu` — without it "
+            "the CUDA provider silently falls back to CPU."
+        )
+    return hits[0]
+
+
+rule escapepod_demux:
+    """
+Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
+
+One pass over the raw POD5 does detect -> prep -> basecall -> match -> route,
+writing the per-barcode POD5 files directly. There is deliberately no follow-up
+rule to derive the split or a read->barcode mapping: the WarpDemuX path needs
+those because its classifier only emits a table, whereas here the routed POD5
+*is* the product and re-deriving it would be a second full pass for an
+identical result.
+
+No --barcodes or --method is passed: the bundle carries its own references and
+pins the boundary detector it was calibrated against, and overriding either
+silently degrades the calls.
+
+The classifications CSV is kept because it is the only per-read record of the
+call and its confidence margin — the POD5 routing preserves which barcode won,
+but not by how much, and that margin is what separates a confident call from a
+near-tie when auditing demux quality.
+"""
+    input:
+        get_run_raw_inputs,
+    output:
+        outdir=directory(os.path.join(outdir, "demux", "escapepod", "{run_id}")),
+        classifications=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "classifications.csv"
+        ),
+        summary=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "escapepod_demux", "{run_id}"),
+    threads: config.get("ldx", {}).get("threads", 16)
+    params:
+        model=get_ldx_model(),
+        min_margin=config.get("ldx", {}).get("min_margin", 0),
+        # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
+        # CUDA provider; the lattice decode stays on the CPU either way. It is
+        # opt-in because the *released* escpod has neither GPU feature compiled
+        # in and would reject the flag — see config-base.yml `ldx.gpu`.
+        # `--method cnn` is passed alongside --gpu on purpose. The bundle already
+        # pins cnn, but a pinned detector runs on the CPU and makes --gpu a
+        # no-op; only an explicit --method engages the CUDA detection path.
+        # Naming the same detector the bundle pins is not an override, so this
+        # cannot silently downgrade to LLR.
+        gpu=lambda wildcards: (
+            "--gpu --method cnn" if config.get("ldx", {}).get("gpu", False) else ""
+        ),
+        # ort dlopens onnxruntime at run time from ORT_DYLIB_PATH, and the CUDA
+        # execution provider sits beside it, so its directory must also be on
+        # LD_LIBRARY_PATH or the core library loads and the provider then fails
+        # to. Exported inside the rule rather than relying on the submitting
+        # shell's environment surviving into the batch job.
+        ort_env=lambda wildcards: (
+            f"export ORT_DYLIB_PATH={get_ort_dylib()}; "
+            f"export LD_LIBRARY_PATH={os.path.dirname(get_ort_dylib())}:"
+            f"{os.path.join(PIPELINE_DIR, '.pixi', 'envs', 'gpu', 'lib')}:"
+            f"$LD_LIBRARY_PATH; "
+            if config.get("ldx", {}).get("gpu", False)
+            else ""
+        ),
+        pod5_dirs=lambda wildcards: " ".join(
+            os.path.join(d, "*.pod5") for d in get_run_pod5_dirs(wildcards.run_id)
+        ),
+        summarize_awk=os.path.join(SCRIPT_DIR, "summarize_demux.awk"),
+    shell:
+        """
+        # escpod opens --classifications with a plain create(), so a missing
+        # parent directory is a bare ENOENT ("No such file or directory") with
+        # nothing naming the path. Snakemake does not reliably pre-create it
+        # here: when a previous attempt fails it removes this rule's outputs,
+        # taking demux/read_ids/<run_id>/ with them, and the retry then dies on
+        # the very first write. Creating them up front makes the rule
+        # re-runnable after any failure.
+        mkdir -p $(dirname {output.classifications}) \
+                 $(dirname {output.summary}) \
+                 {output.outdir}
+
+        {params.ort_env}escpod demux {params.pod5_dirs} \
+            --model {params.model} \
+            --output-dir {output.outdir} \
+            --classifications {output.classifications} \
+            --min-margin {params.min_margin} \
+            {params.gpu} \
+            --threads {threads} 2>&1 | tee {log}
+
+        # escpod prints its per-barcode tally to the log only, so tabulate the
+        # same counts into a file the QC report can read. The awk program lives
+        # in workflow/scripts/ rather than inline; see the note at the top of it.
+        awk -F, -f {params.summarize_awk} {output.classifications} \
+            | gzip > {output.summary}
+        """
+
+
+def get_sample_escapepod_dir(wildcards):
+    """Locate the escapepod demux output directory for a sample's run."""
+    run_id = samples[wildcards.sample]["run_id"]
+    return os.path.join(outdir, "demux", "escapepod", run_id)
+
+
+rule link_ldx_pod5:
+    """
+Adopt escapepod's per-barcode POD5 as the sample's split POD5.
+
+escapepod already routed every read into its barcode's file with a block-level
+copy during the demux pass, so re-deriving the same split with `pod5 filter`
+would be a second full pass for an identical result. This rule only renames
+barcode -> sample.
+"""
+    input:
+        demux_dir=get_sample_escapepod_dir,
+    output:
+        pod5=maybe_temp(
+            os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
+            tier="split_pod5",
+        ),
+    log:
+        os.path.join(outdir, "logs", "link_ldx_pod5", "{sample}"),
+    params:
+        barcode=lambda wildcards: samples[wildcards.sample]["barcode"],
+    run:
+        # escapepod names outputs <prefix>_<barcode>.pod5 and skips barcodes
+        # with no reads, so a missing file means this barcode got nothing.
+        src = Path(input.demux_dir) / f"barcode_{params.barcode}.pod5"
+        if not src.exists():
+            raise WorkflowError(
+                f"No reads were assigned to barcode '{params.barcode}' "
+                f"(sample '{wildcards.sample}'): {src} was not written.\n"
+                f"Check the per-barcode counts in "
+                f"{Path(input.demux_dir).parent.parent}/read_ids/"
+                f"{samples[wildcards.sample]['run_id']}/demux_summary.tsv.gz"
+            )
+        dest = Path(output.pod5)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists() or dest.is_symlink():
+            dest.unlink()
+        # Hardlink rather than symlink: both are free, but a hardlink keeps the
+        # POD5 reachable if demux/escapepod is cleaned out from under it, which
+        # a symlink would turn into a dangling path that only fails much later
+        # at classify time. Falls back to a symlink across filesystems.
+        try:
+            os.link(src, dest)
+        except OSError:
+            os.symlink(os.path.relpath(src.resolve(), dest.parent), dest)
+        with open(log[0], "w") as f:
+            f.write(f"{src} -> {dest}\n")
+
+
+# Route the two backends. They overlap on exactly two outputs — the per-sample
+# split POD5 and the per-run demux summary — so each needs an explicit winner.
+# is_demux_enabled() has already rejected a config that turns on both backends.
+if is_ldx_enabled():
+
+    ruleorder: link_ldx_pod5 > split_pod5
+    ruleorder: escapepod_demux > parse_warpdemux
+
+else:
+
+    ruleorder: split_pod5 > link_ldx_pod5
+    ruleorder: parse_warpdemux > escapepod_demux
+
+
 def get_sample_barcode_mapping(wildcards):
     """Get the barcode mapping file for a sample's run."""
     run_id = samples[wildcards.sample]["run_id"]
@@ -282,7 +518,16 @@ Filter raw POD5 files by sample using read IDs from demultiplexing.
 
 
 def get_edx_samples():
-    """Get sample names that have EDX adapter assignments."""
+    """Sample names to run 3' adapter detection on.
+
+    Normally that is the samples carrying an explicit `edx:` assignment, since
+    detection exists to serve the EDX filter. With `edx.detect_all`, it is every
+    sample instead: an adapter-ligation QC run pools several 3' adapters behind
+    one signal barcode, so no sample has a single `edx:` to filter to, yet the
+    adapter composition of each barcode is the whole measurement.
+    """
+    if config.get("edx", {}).get("detect_all", False):
+        return list(samples.keys())
     return [s for s, info in samples.items() if info.get("edx")]
 
 
@@ -346,7 +591,9 @@ Extract read IDs matching this sample's EDX adapter assignment.
         ):
             header = f_in.readline()  # skip header
             for line in f_in:
-                read_id, adapter = line.rstrip("\n").split("\t", 1)
+                # read_id, adapter_3p, score_best, score_second, margin
+                fields = line.rstrip("\n").split("\t")
+                read_id, adapter = fields[0], fields[1]
                 if adapter == params.edx_adapter_name:
                     f_out.write(f"{read_id}\n")
 
@@ -404,9 +651,12 @@ Filter POD5 to keep only reads matching this sample's EDX adapter.
 
 rule edx_concordance:
     """
-Build concordance table of WDX sample assignment vs EDX adapter identity.
-Uses pre-alignment adapter detection TSVs (which contain ALL reads with their
-detected adapter) rather than final BAMs (which only contain matching reads).
+Build the signal-barcode x EDX (3' adapter) contingency table.
+
+Uses pre-alignment adapter detection TSVs, which contain ALL reads with their
+detected adapter, rather than final BAMs, which only contain matching reads —
+the reads that ended up under the wrong adapter are exactly what this measures,
+so a filtered input would hide the signal.
 """
     input:
         tsvs=lambda wildcards: expand(
@@ -422,11 +672,13 @@ detected adapter) rather than final BAMs (which only contain matching reads).
     params:
         src=SCRIPT_DIR,
         sample_names=lambda wildcards: " ".join(get_edx_samples()),
+        min_margin=config.get("edx", {}).get("min_margin", 5),
     shell:
         """
         python {params.src}/edx_concordance.py \
             --tsvs {input.tsvs} \
             --samples {params.sample_names} \
+            --min-margin {params.min_margin} \
             --output {output.concordance} \
             2>&1 | tee {log}
         """

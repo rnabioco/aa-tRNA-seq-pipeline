@@ -74,6 +74,69 @@ pixi run snakemake --configfile=config/config-demux.yml --cores 8
 
 See `config-demux-test.yml` for a complete example.
 
+### YAML Format (With LDX Demultiplexing)
+
+LDX is the successor barcode set, and `escpod demux` is the successor demux
+backend. Upstream (escapepod-models) names these barcodes `nbc01`..`nbc16`;
+**LDX is what we call them.** Rather than classifying boundary-gated
+fingerprints, escapepod basecalls the barcode out of the raw adapter signal
+with a CTC-CRF model and matches the decode to references by edit distance.
+
+Assign barcodes with the `ldx:` key instead of `wdx:`:
+
+```yaml
+runs:
+  - path: /path/to/pooled/sequencing/run
+    samples:
+      sample_a: { ldx: "nbc01" }
+      sample_b: { ldx: "nbc02" }
+      # `edx:` may still be combined with `ldx:` to filter a library down to a
+      # single 3' adapter, exactly as with `wdx:`.
+      sample_c: { ldx: "nbc03", edx: "edx01" }
+```
+
+and enable the backend:
+
+```yaml
+ldx:
+    enabled: true
+    model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+    min_margin: 0   # unclassify calls whose edit-distance margin is below this
+    threads: 32
+```
+
+`warpdemux.enabled` and `ldx.enabled` are mutually exclusive — they populate
+the same per-sample barcode field and their rules write the same outputs, so
+turning on both is rejected at parse time rather than producing an ambiguous
+DAG.
+
+**No barcode kit is configured.** The model is a self-describing bundle
+*directory* that carries its own barcode references and pins the boundary
+detector it was calibrated against, so neither `--barcodes` nor `--method` is
+passed. Inspect one with:
+
+```bash
+escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info
+```
+
+Do not override the boundary detector. LLR boundaries cost 17.2 points of
+balanced recall against the same classifier and the failure is silent — it runs
+and produces plausible output.
+
+**This backend is fused.** A single pass detects, basecalls, matches and routes
+each read straight into its barcode's POD5, so unlike the WarpDemuX path there
+is no separate read-ID extraction or `pod5 filter` split; the per-sample POD5
+already exists when the command returns. The per-read classifications CSV
+(`demux/read_ids/<run>/classifications.csv`) is kept because it is the only
+record of each call's confidence margin.
+
+**Performance.** The released `escpod` binary has no CUDA execution provider, so
+the CRF encoder runs on CPU. Measured on 20k RNA004 reads: **59 ms of CPU per
+read** for detect + encode + decode. A single 561k-read POD5 is therefore ~9
+CPU-hours — about 20 minutes at 32 cores, and most of a day at 1. Size
+`cpus_per_task` for `escapepod_demux` accordingly, and keep `ldx.threads` in
+step with it, since that is the value `escpod` is actually launched with.
+
 ## Other Configuration Parameters
 
 - `base_calling_model`: Path to the dorado basecalling model to use for rebasecalling. We use `rna004_130bps_sup@v5.0.0` for now, will evaluate newer model soon.
