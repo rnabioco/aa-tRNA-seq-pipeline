@@ -28,7 +28,12 @@ SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
 # CRF encoder on the device but drops back to the CPU for the lattice decode,
 # which then dominates. 0.8.0 adds the batched GPU lattice (`crf::lattice_gpu`),
 # taking the CRF head end to end on the device (4.3x, escapepod-rs#186).
-ESCPOD_REF="${ESCPOD_REF:-v0.8.0}"
+#
+# Pinned past v0.8.0 to a commit, not a tag: e1c116a (escapepod-rs#193) adds
+# `--boundary-margin`, which `ldx.boundary_margin` drives. Without it that
+# config key silently does nothing — escpod rejects the unknown flag. Move this
+# back to a tag once #193 ships in a release.
+ESCPOD_REF="${ESCPOD_REF:-e1c116a2b1819cd2d169b5d94dd8df392b3c7038}"
 
 if [ ! -f "${SRC}/Cargo.toml" ]; then
     echo "escapepod-rs source not found at ${SRC}" >&2

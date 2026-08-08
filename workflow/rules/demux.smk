@@ -321,6 +321,16 @@ near-tie when auditing demux quality.
     params:
         model=get_ldx_model(),
         min_margin=config.get("ldx", {}).get("min_margin", 0),
+        # Overrules the model bundle's declared `boundary.margin` — the samples
+        # of adapter_end a read needs beyond the model's chunk before the CRF
+        # will decode it. Unset (the default) leaves the bundle in charge, which
+        # is where this belongs; set it only to evaluate a change the bundle has
+        # not adopted yet. Needs escpod with the flag (escapepod-rs#193).
+        boundary_margin=lambda wildcards: (
+            f"--boundary-margin {config['ldx']['boundary_margin']}"
+            if config.get("ldx", {}).get("boundary_margin") is not None
+            else ""
+        ),
         # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
         # CUDA provider; the lattice decode stays on the CPU either way. It is
         # opt-in because the *released* escpod has neither GPU feature compiled
@@ -368,6 +378,7 @@ near-tie when auditing demux quality.
             --output-dir {output.outdir} \
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
+            {params.boundary_margin} \
             {params.gpu} \
             --threads {threads} 2>&1 | tee {log}
 

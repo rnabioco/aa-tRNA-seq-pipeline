@@ -193,6 +193,19 @@ warpdemux:
 ldx:
   enabled: false
   model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+  # Samples of adapter_end a read needs beyond the model's chunk (3000) before
+  # the CRF will decode it; below that the read routes to `unclassified` with
+  # confidence 0, undecoded. `null` leaves the bundle's own declaration in
+  # charge, which is where this belongs — set it only to evaluate a margin the
+  # bundle has not adopted yet.
+  #
+  # The shipped v0.2.0 bundle declares nothing, so it falls back to 200 (the
+  # filter `extract_chunks.py` applied when building the corpus). On the
+  # 2026-08-06 nbc16 run that dropped 145,775 reads (14.56%), every one of which
+  # HAD a detected adapter; 0 recovers 36,921 of them at median edit distance 0
+  # (yield 85.44% -> 89.13%). The rest have adapter_end < 3000 and need a
+  # shorter-chunk model, not a margin change.
+  boundary_margin: null
   # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
   # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
   # --gpu outright — enabling this requires an escpod built from source with
