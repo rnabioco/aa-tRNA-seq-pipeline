@@ -55,6 +55,37 @@ detector costs 17.2 points of balanced recall, and the failure is silent — it
 runs and produces plausible output. `escpod` refuses `--method llr` against a
 bundle pinned to `cnn`, so do not pass `--method` at all.
 
+### Local amendment: `boundary.margin: 0`
+
+**`metadata.json` in this copy differs from the released v0.2.0 by one key.** The
+`boundary` block gains `"margin": 0`. Nothing else is touched — the ONNX graphs,
+references, standardisation and geometry are byte-identical to upstream, and the
+sidecar is not covered by any checksum (the pinned adapter is, via
+`boundary.sha256`, which v0.2.0 does not declare).
+
+`margin` is the samples of `adapter_end` a read needs *beyond* `signal.chunk`
+before the CRF will decode it. Absent, escpod falls back to 200 — the filter
+`extract_chunks.py` applied when building the training corpus, so reads below it
+were never represented. But that describes how the corpus was *selected*, not
+what the encoder requires, which is a full `chunk` of history and no more. Reads
+in `[chunk, chunk + 200)` were being routed to `unclassified` undecoded, with
+confidence 0.
+
+Measured on the 2026-08-06 nbc16 run (1,001,307 reads, 145,775 unclassified):
+every unclassified read had a detected adapter, and 98.2% failed only this gate.
+Decoding the affected band at margin 0 returns **36,921 reads, 100% of the band,
+at median edit distance 0 with 98.3% within 2 edits** — against references whose
+minimum pairwise distance is 12, and cleaner than the reads that already passed
+(96.4%). Calls spread across all 16 barcodes, and 84.5% align to tRNA. Demux
+yield 85.44% -> 89.13%. Reads below `chunk` still decode 0%, confirming the
+window genuinely does not exist there.
+
+Declaring it here rather than in the run config keeps the value with the model,
+which is what `escpod demux --boundary-margin` documents as the intended home
+(rnabioco/escapepod-rs#193). **Drop this amendment** when escapepod-models
+re-exports the bundle with the key set upstream; until then, re-fetching the
+released v0.2.0 silently reverts to 200.
+
 ### Published accuracy
 
 Exact match to the emitted reference is 0.9736; balanced precision/recall at a
