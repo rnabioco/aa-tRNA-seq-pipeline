@@ -19,7 +19,7 @@ merge pod5s into a single pod5
     threads: 12
     shell:
         """
-        pod5 merge -t {threads} -f -o {output} {input}
+        escpod merge -t {threads} --force -o {output} {input}
         """
 
 

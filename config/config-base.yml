@@ -78,9 +78,17 @@ dorado_model: rna004_130bps_sup@v5.3.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
 # GitHub release. Provides `escpod demux` for LDX (nbc) barcode
-# demultiplexing. 0.7.0 is the floor: the fused `escpod demux --model <CRF
-# bundle>` pipeline that the LDX backend drives first appears there.
-escpod_version: 0.7.0
+# demultiplexing, and `escpod merge`/`escpod filter` for the POD5 handling that
+# used to shell out to the `pod5` CLI.
+#
+# 0.8.1 is the floor, and the reason is a correctness one rather than a feature:
+# escpod before 0.8.1 could emit a POD5 whose signal batches break stride, which
+# dorado then reads SHORT — silently, no error, no non-zero exit. On the
+# 2026-08-06 run that cost 97,790 reads (10.6%) and looked like biology.
+# 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and the
+# `boundary.margin` / `boundary.clamp_max_shift` bundle keys the vendored nbc16
+# model declares.
+escpod_version: 0.8.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
