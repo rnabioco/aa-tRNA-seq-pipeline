@@ -55,10 +55,10 @@ detector costs 17.2 points of balanced recall, and the failure is silent — it
 runs and produces plausible output. `escpod` refuses `--method llr` against a
 bundle pinned to `cnn`, so do not pass `--method` at all.
 
-### Local amendment: `boundary.margin: 0`
+### Local amendment: `boundary.margin: 0` and `boundary.clamp_max_shift: 300`
 
-**`metadata.json` in this copy differs from the released v0.2.0 by one key.** The
-`boundary` block gains `"margin": 0`. Nothing else is touched — the ONNX graphs,
+**`metadata.json` in this copy differs from the released v0.2.0 by two keys**, both
+in the `boundary` block. Nothing else is touched — the ONNX graphs,
 references, standardisation and geometry are byte-identical to upstream, and the
 sidecar is not covered by any checksum (the pinned adapter is, via
 `boundary.sha256`, which v0.2.0 does not declare).
@@ -85,6 +85,35 @@ which is what `escpod demux --boundary-margin` documents as the intended home
 (rnabioco/escapepod-rs#193). **Drop this amendment** when escapepod-models
 re-exports the bundle with the key set upstream; until then, re-fetching the
 released v0.2.0 silently reverts to 200.
+
+#### `clamp_max_shift: 300`
+
+`margin` cannot reach a read whose adapter ends before `chunk` (3000): its window
+would start before sample 0, so there is nothing to relax. `clamp_max_shift`
+instead keeps the window width and anchors it at the read start — `[0, chunk]` —
+sliding `chunk - adapter_end` samples of downstream signal into the tail, for
+reads within the bound.
+
+The model tolerates that slide well. Known-good reads deliberately slid forward
+still call the same barcode 98.6% of the time at shift 0 and **93.5% at shift
+500**, so the ceiling is set by the data, not the decoder. Applied to the real
+`adapter_end` 2,500-2,999 band, every read decodes at median edit distance 0, but
+two things decay together across it:
+
+| shift | within 2 edits | still aligns to a tRNA |
+|---|---|---|
+| 0-99 | 97.4% | 78.5% |
+| 100-199 | 96.3% | 72.6% |
+| 200-299 | 95.6% | 66.0% |
+| 300-399 | 94.9% | 60.4% |
+| 400-499 | 92.9% | 50.0% |
+
+**300 is a judgement, not a measurement**: it keeps agreement above ~95% and the
+aligning fraction near two thirds, and gives up the ~5,800 reads past it where
+half no longer align. The alignment decay is a property of these reads — a bigger
+shift means more of the adapter was truncated to begin with — not of the model,
+so raise the bound per run (`ldx.boundary_margin`'s sibling, or
+`--clamp-max-shift`) if an analysis wants the tail.
 
 ### Published accuracy
 
