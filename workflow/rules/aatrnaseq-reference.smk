@@ -113,6 +113,9 @@ Pipeline fails if validation fails.
         fasta=config["fasta"],
     output:
         validated=os.path.join(outdir, "reference", "validated.fa"),
+        # See build_reference: the index has to be an output, or it outlives a
+        # reference change and pysam reads byte offsets into the wrong file.
+        fai=os.path.join(outdir, "reference", "validated.fa.fai"),
         report=os.path.join(outdir, "reference", "validation_report.txt"),
     log:
         os.path.join(outdir, "logs", "reference", "validate.log"),
@@ -132,6 +135,8 @@ Pipeline fails if validation fails.
             --adapter-5p "{params.adapter_5p}" \
             {params.adapter_3p_args} \
             2>&1 | tee {log}
+
+        samtools faidx {output.validated} 2>&1 | tee -a {log}
         """
 
 
@@ -153,6 +158,17 @@ Steps:
         raw_fasta=lambda wildcards: config["reference"]["raw_fasta"],
     output:
         adapted=os.path.join(outdir, "reference", "adapted.fa"),
+        # Declared so it is rebuilt with the FASTA, and deleted with it on a
+        # forced rerun. Before this, nothing built the index: it was whatever
+        # pysam happened to create the first time something read the FASTA, and
+        # it OUTLIVED a reference change. A `.fai` is byte offsets: a
+        # stale one against a rewritten FASTA does not have to fail loudly, it
+        # can hand back the wrong sequence for the right name. (Observed
+        # 2026-08-08: rebuilding the reference from a 49- to a 47-sequence
+        # collapsed.fa left a 49-contig index behind, and every
+        # base_calling_error job died on `invalid contig tRNA-Sup-Ma` — loud
+        # only because the names changed too.)
+        fai=os.path.join(outdir, "reference", "adapted.fa.fai"),
         report=os.path.join(outdir, "reference", "build_report.txt"),
     log:
         os.path.join(outdir, "logs", "reference", "build.log"),
@@ -170,6 +186,8 @@ Steps:
             --adapter-5p "{params.adapter_5p}" \
             --adapter-3p "{params.adapter_3p}" \
             2>&1 | tee {log}
+
+        samtools faidx {output.adapted} 2>&1 | tee -a {log}
         """
 
 
@@ -188,6 +206,8 @@ does not have the expected CCAGGC junction structure.
         fasta=config["fasta"],
     output:
         reference=os.path.join(outdir, "reference", "reference.fa"),
+        # See build_reference.
+        fai=os.path.join(outdir, "reference", "reference.fa.fai"),
         report=os.path.join(outdir, "reference", "skip_report.txt"),
     log:
         os.path.join(outdir, "logs", "reference", "skip.log"),
@@ -199,6 +219,7 @@ does not have the expected CCAGGC junction structure.
         echo "Output: {output.reference}" >>{output.report}
         echo "WARNING: No adapter structure validation performed." >>{output.report}
         echo "Reference copied without validation." | tee {log}
+        samtools faidx {output.reference} 2>&1 | tee -a {log}
         """
 
 

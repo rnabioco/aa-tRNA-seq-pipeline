@@ -23,10 +23,10 @@ ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 # Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
 # Pinned rather than fetched alongside the tarball so that re-tagging the
 # release upstream is caught here instead of being silently trusted.
-ESCPOD_SHA256_x86_64_linux="7d26a57ad456843e30e25149f39006c00559ef4cff4a73f549632de092938ca7"
-ESCPOD_SHA256_aarch64_linux="003ebac6136fe669bfa3396ee12c9adb9750e71cb0a9d2d59141680eb5d1c656"
-ESCPOD_SHA256_x86_64_darwin="6c28ff642a173309f36ac2375339161f2860a385073506f9f4c4808cd88b5c82"
-ESCPOD_SHA256_aarch64_darwin="2256056719476d0ef2305a6eb7441f6b7f3124bc42f46b30519e43570db51e2b"
+ESCPOD_SHA256_x86_64_linux="c7e36d2c0dfd807cfefd9a73ef565dbfa0e296f1bd559b9891830ee892bcea63"
+ESCPOD_SHA256_aarch64_linux="93c3f8c7377450598fb897019ab82378ecf3733cb5fc6157d2b12926c0fee4de"
+ESCPOD_SHA256_x86_64_darwin="ac292be92c5cfeeef3d222b02c0559e2432b3f41057912b0221efec9b486a892"
+ESCPOD_SHA256_aarch64_darwin="a1369851cd2895bec2afea827354b4b5ce8fd685fca49673d860e24e471fc6ad"
 
 # ============================================================================
 # Helper Functions

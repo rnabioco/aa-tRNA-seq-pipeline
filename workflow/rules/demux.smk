@@ -521,7 +521,12 @@ Filter raw POD5 files by sample using read IDs from demultiplexing.
         pod5_dirs=get_sample_pod5_dirs,
     shell:
         """
-        pod5 filter {params.pod5_dirs} --ids {input.read_ids} --missing-ok --output {output} 2>&1 | tee {log}
+        # Several run directories in one call: multi-input filter landed in
+        # escapepod-rs 0.8.1 (#196), which config-base.yml now pins. Before that
+        # escpod took a single <INPUT> and would have filtered against only the
+        # first directory — quietly, which is why this call site waited for a
+        # release rather than an unreleased commit.
+        escpod filter {params.pod5_dirs} -i {input.read_ids} -o {output} 2>&1 | tee {log}
         """
 
 
@@ -653,7 +658,7 @@ Filter POD5 to keep only reads matching this sample's EDX adapter.
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:
         """
-        pod5 filter {input.pod5} --ids {input.read_ids} --missing-ok --output {output.pod5} 2>&1 | tee {log}
+        escpod filter {input.pod5} -i {input.read_ids} -o {output.pod5} 2>&1 | tee {log}
         """
 
 
