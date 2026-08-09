@@ -29,11 +29,16 @@ SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
 # which then dominates. 0.8.0 adds the batched GPU lattice (`crf::lattice_gpu`),
 # taking the CRF head end to end on the device (4.3x, escapepod-rs#186).
 #
-# Pinned past v0.8.0 to a commit, not a tag: e1c116a (escapepod-rs#193) adds
-# `--boundary-margin`, which `ldx.boundary_margin` drives. Without it that
-# config key silently does nothing — escpod rejects the unknown flag. Move this
-# back to a tag once #193 ships in a release.
-ESCPOD_REF="${ESCPOD_REF:-e1c116a2b1819cd2d169b5d94dd8df392b3c7038}"
+# Pinned past v0.8.0 to a commit, not a tag, for two bundle-contract features
+# the vendored nbc16 model now declares:
+#   #193 (e1c116a) `boundary.margin`      — decode reads the 200-sample training
+#                                            filter was dropping undecoded.
+#   #194 (59048ac) `boundary.clamp_max_shift` — decode reads whose adapter ends
+#                                            before `chunk`, from [0, chunk].
+# An older escpod ignores both keys silently (unknown JSON fields are skipped),
+# so the bundle would load and simply lose ~7% of the flowcell with nothing to
+# say so. Move back to a tag once #194 ships in a release.
+ESCPOD_REF="${ESCPOD_REF:-59048ac13d8d2f97fb3e0fbc9ef63917e464319a}"
 
 if [ ! -f "${SRC}/Cargo.toml" ]; then
     echo "escapepod-rs source not found at ${SRC}" >&2
