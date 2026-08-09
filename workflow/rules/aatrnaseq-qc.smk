@@ -102,6 +102,78 @@ extract alignment stats
         """
 
 
+rule anchor_coverage:
+    """
+Does each aligned read span the CCA anchor the charging model reads?
+
+Runs on the ALIGNED bam, which is temp() under cleanup_intermediates — after a
+run finishes this cannot be recomputed without re-basecalling from POD5, which
+is exactly what recovering it for the 2026-08-06 LDX run required.
+"""
+    input:
+        aligned=rules.bwa_align.output.bam,
+        reference=get_validated_reference(),
+    output:
+        tsv=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.anchor_coverage.tsv.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "stats", "{sample}.anchor_coverage"),
+    params:
+        src=SCRIPT_DIR,
+        adapter_prefix=lambda wildcards: get_adapter_3p()[:25],
+    shell:
+        """
+        python {params.src}/anchor_coverage.py \
+            --bam {input.aligned} \
+            --reference {input.reference} \
+            --sample {wildcards.sample} \
+            --adapter-prefix {params.adapter_prefix} \
+            --output {output.tsv} 2>&1 | tee {log}
+        """
+
+
+rule read_attrition:
+    """
+Where this run's reads were lost, as one table.
+
+Always produced. Each gate's loss was already derivable, but only by differencing
+rows across files, so nobody did — a 12.37% drop at charge-calling survived every
+run until it was reconstructed by hand (issue #110).
+"""
+    input:
+        align_stats=expand(
+            os.path.join(
+                outdir, "summary", "tables", "{sample}", "{sample}.align_stats.tsv.gz"
+            ),
+            sample=samples.keys(),
+        ),
+        anchor=expand(
+            os.path.join(
+                outdir, "summary", "tables", "{sample}", "{sample}.anchor_coverage.tsv.gz"
+            ),
+            sample=samples.keys(),
+        ),
+        demux=get_demux_summaries,
+    output:
+        tsv=os.path.join(outdir, "summary", "read_attrition.tsv.gz"),
+    log:
+        os.path.join(outdir, "logs", "stats", "read_attrition.log"),
+    params:
+        src=SCRIPT_DIR,
+        demux_arg=lambda wildcards, input: (
+            f"--demux-summary {' '.join(input.demux)}" if input.demux else ""
+        ),
+    shell:
+        """
+        python {params.src}/read_attrition.py \
+            --align-stats {input.align_stats} \
+            --anchor-coverage {input.anchor} \
+            {params.demux_arg} \
+            --output {output.tsv} 2>&1 | tee {log}
+        """
+
+
 rule remora_signal_stats:
     """
 run remora to get signal stats
