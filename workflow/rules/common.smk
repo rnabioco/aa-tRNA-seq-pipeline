@@ -304,6 +304,29 @@ samples = find_raw_inputs(samples)
 
 
 # Define target files for rule all
+def get_demux_summaries(wildcards=None):
+    """Per-run demux summaries, or nothing when no backend is enabled.
+
+    Defined here rather than in demux.smk because `read_attrition` lives in the
+    QC rules and must work either way: demux.smk is only included when a backend
+    is on, so referencing its helpers unconditionally breaks every non-demux run.
+    """
+    if not (
+        config.get("warpdemux", {}).get("enabled", False)
+        or config.get("ldx", {}).get("enabled", False)
+    ):
+        return []
+    run_ids = {
+        info["run_id"]
+        for info in samples.values()
+        if info.get("barcode") and info.get("run_id")
+    }
+    return [
+        os.path.join(outdir, "demux", "read_ids", rid, "demux_summary.tsv.gz")
+        for rid in sorted(run_ids)
+    ]
+
+
 def pipeline_outputs():
     outs = expand(
         os.path.join(
@@ -332,6 +355,19 @@ def pipeline_outputs():
         ),
         sample=samples.keys(),
     )
+
+    outs += expand(
+        os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.anchor_coverage.tsv.gz"
+        ),
+        sample=samples.keys(),
+    )
+
+    # One table per run saying where the reads went. Always on: every gate's
+    # loss is already implicit in some artifact, but only as a difference
+    # between rows in different files, which is why a 12% drop at charge-calling
+    # went unnoticed for every run before 2026-08-09 (issue #110).
+    outs.append(os.path.join(outdir, "summary", "read_attrition.tsv.gz"))
 
     outs += expand(
         os.path.join(
