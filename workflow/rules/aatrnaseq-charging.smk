@@ -4,8 +4,8 @@
 
 rule get_cca_trna:
     """
-extract and report charing probability (ML tag) per read
-"""
+    extract and report charing probability (ML tag) per read
+    """
     input:
         bam=rules.finalize_bam.output.bam,
     output:
@@ -27,8 +27,8 @@ extract and report charing probability (ML tag) per read
 
 rule get_cca_trna_cpm:
     """
-calculate cpm for cca classified trnas
-"""
+    calculate cpm for cca classified trnas
+    """
     input:
         charging_tab=rules.get_cca_trna.output.charging_tab,
     output:

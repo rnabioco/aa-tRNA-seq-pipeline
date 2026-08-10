@@ -5,8 +5,8 @@ Rules for processing raw data from aa-tRNA-seq experiments
 
 rule merge_pods:
     """
-merge pod5s into a single pod5
-"""
+    merge pod5s into a single pod5
+    """
     input:
         get_raw_inputs,
     output:
@@ -25,10 +25,10 @@ merge pod5s into a single pod5
 
 rule download_mod_models:
     """
-Download dorado modified bases models if not already present.
-Runs once on the submission node before basecalling to avoid
-race conditions from parallel GPU jobs downloading simultaneously.
-"""
+    Download dorado modified bases models if not already present.
+    Runs once on the submission node before basecalling to avoid
+    race conditions from parallel GPU jobs downloading simultaneously.
+    """
     output:
         sentinel=os.path.join(PIPELINE_DIR, "resources", "models", ".mod_models_ready"),
     params:
@@ -55,10 +55,10 @@ race conditions from parallel GPU jobs downloading simultaneously.
 
 rule rebasecall:
     """
-rebasecall using different accuracy model
+    rebasecall using different accuracy model
 
-TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
-"""
+    TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
+    """
     input:
         pod5=get_sample_pod5,
         mod_models=rules.download_mod_models.output.sentinel,
@@ -88,8 +88,8 @@ TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
 
 rule ubam_to_fastq:
     """
-extract reads from bam into FASTQ format for alignment
-"""
+    extract reads from bam into FASTQ format for alignment
+    """
     input:
         rules.rebasecall.output,
     output:
@@ -107,9 +107,9 @@ extract reads from bam into FASTQ format for alignment
 
 rule bwa_idx:
     """
-Build BWA index for the validated/built reference.
-Depends on reference validation/building completing first.
-"""
+    Build BWA index for the validated/built reference.
+    Depends on reference validation/building completing first.
+    """
     input:
         get_validated_reference(),
     output:
@@ -124,11 +124,11 @@ Depends on reference validation/building completing first.
 
 rule bwa_align:
     """
-Align reads to tRNA references with bwa mem.
-Uses the validated/built reference.
+    Align reads to tRNA references with bwa mem.
+    Uses the validated/built reference.
 
-For EDX samples, input FASTQ is pre-filtered to matching reads only.
-"""
+    For EDX samples, input FASTQ is pre-filtered to matching reads only.
+    """
     input:
         reads=get_alignment_fastq,
         idx=rules.bwa_idx.output,
@@ -194,11 +194,11 @@ rule inject_ubam_tags:
 
 rule classify_charging:
     """
-run remora trained model to classify charged and uncharged reads
-runs on CPU by default (no --device flag)
+    run remora trained model to classify charged and uncharged reads
+    runs on CPU by default (no --device flag)
 
-For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
-"""
+    For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+    """
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -247,11 +247,11 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
 
 rule classify_charging_leech:
     """
-run leech trained model to classify charged and uncharged reads
-GPU-accelerated alternative to remora (requires leech installed from resources/leech)
+    run leech trained model to classify charged and uncharged reads
+    GPU-accelerated alternative to remora (requires leech installed from resources/leech)
 
-For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
-"""
+    For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+    """
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -308,9 +308,9 @@ For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
 
 rule classify_aa_identity:
     """
-Run leech one-vs-all bundle to predict amino acid identity per read.
-Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
-"""
+    Run leech one-vs-all bundle to predict amino acid identity per read.
+    Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
+    """
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
@@ -354,11 +354,11 @@ Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
 
 rule transfer_bam_tags:
     """
-creates classified bam with MM and ML tags transferred to cm/cl
+    creates classified bam with MM and ML tags transferred to cm/cl
 
-MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
-base modifications.
-"""
+    MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
+    base modifications.
+    """
     input:
         source_bam=rules.classify_charging.output.charging_bam,
         target_bam=rules.inject_ubam_tags.output.bam,
@@ -392,14 +392,14 @@ base modifications.
 
 rule add_adapter_tags:
     """
-Detect adapter positions in reads using parasail alignment
-and add pt tags (SAM-spec read annotation format) to BAM file.
+    Detect adapter positions in reads using parasail alignment
+    and add pt tags (SAM-spec read annotation format) to BAM file.
 
-pt tag format: start;end;strand;type|start;end;strand;type
-Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
+    pt tag format: start;end;strand;type|start;end;strand;type
+    Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
-This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
-"""
+    This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
+    """
     input:
         bam=rules.transfer_bam_tags.output.classified_bam,
         bai=rules.transfer_bam_tags.output.classified_bam_bai,
@@ -449,13 +449,13 @@ This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
 
 rule finalize_bam:
     """
-Produce the final BAM for downstream analysis.
+    Produce the final BAM for downstream analysis.
 
-EDX filtering now happens early in the pipeline (before alignment) via
-the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
-This rule hardlinks the adapter-tagged BAM as the final output so that
-temp() cleanup of upstream BAMs doesn't break downstream consumers.
-"""
+    EDX filtering now happens early in the pipeline (before alignment) via
+    the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
+    This rule hardlinks the adapter-tagged BAM as the final output so that
+    temp() cleanup of upstream BAMs doesn't break downstream consumers.
+    """
     input:
         bam=rules.add_adapter_tags.output.bam,
         bai=rules.add_adapter_tags.output.bai,

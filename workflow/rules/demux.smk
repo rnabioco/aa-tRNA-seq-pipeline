@@ -122,8 +122,8 @@ def get_sample_run_raw_inputs(wildcards):
 
 rule warpdemux:
     """
-Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
-"""
+    Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
+    """
     input:
         get_run_raw_inputs,
     output:
@@ -160,8 +160,8 @@ Run WarpDemuX barcode demultiplexing directly on raw POD5 files.
 
 rule parse_warpdemux:
     """
-Parse WarpDemuX predictions and create a barcode mapping file per run.
-"""
+    Parse WarpDemuX predictions and create a barcode mapping file per run.
+    """
     input:
         demux_done=os.path.join(
             outdir, "demux", "warpdemux_output", "{run_id}", ".done"
@@ -287,24 +287,24 @@ def get_ort_dylib():
 
 rule escapepod_demux:
     """
-Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
+    Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
 
-One pass over the raw POD5 does detect -> prep -> basecall -> match -> route,
-writing the per-barcode POD5 files directly. There is deliberately no follow-up
-rule to derive the split or a read->barcode mapping: the WarpDemuX path needs
-those because its classifier only emits a table, whereas here the routed POD5
-*is* the product and re-deriving it would be a second full pass for an
-identical result.
+    One pass over the raw POD5 does detect -> prep -> basecall -> match -> route,
+    writing the per-barcode POD5 files directly. There is deliberately no follow-up
+    rule to derive the split or a read->barcode mapping: the WarpDemuX path needs
+    those because its classifier only emits a table, whereas here the routed POD5
+    *is* the product and re-deriving it would be a second full pass for an
+    identical result.
 
-No --barcodes or --method is passed: the bundle carries its own references and
-pins the boundary detector it was calibrated against, and overriding either
-silently degrades the calls.
+    No --barcodes or --method is passed: the bundle carries its own references and
+    pins the boundary detector it was calibrated against, and overriding either
+    silently degrades the calls.
 
-The classifications CSV is kept because it is the only per-read record of the
-call and its confidence margin — the POD5 routing preserves which barcode won,
-but not by how much, and that margin is what separates a confident call from a
-near-tie when auditing demux quality.
-"""
+    The classifications CSV is kept because it is the only per-read record of the
+    call and its confidence margin — the POD5 routing preserves which barcode won,
+    but not by how much, and that margin is what separates a confident call from a
+    near-tie when auditing demux quality.
+    """
     input:
         get_run_raw_inputs,
     output:
@@ -370,8 +370,8 @@ near-tie when auditing demux quality.
         # the very first write. Creating them up front makes the rule
         # re-runnable after any failure.
         mkdir -p $(dirname {output.classifications}) \
-                 $(dirname {output.summary}) \
-                 {output.outdir}
+            $(dirname {output.summary}) \
+            {output.outdir}
 
         {params.ort_env}escpod demux {params.pod5_dirs} \
             --model {params.model} \
@@ -386,7 +386,7 @@ near-tie when auditing demux quality.
         # same counts into a file the QC report can read. The awk program lives
         # in workflow/scripts/ rather than inline; see the note at the top of it.
         awk -F, -f {params.summarize_awk} {output.classifications} \
-            | gzip > {output.summary}
+            | gzip >{output.summary}
         """
 
 
@@ -398,13 +398,13 @@ def get_sample_escapepod_dir(wildcards):
 
 rule link_ldx_pod5:
     """
-Adopt escapepod's per-barcode POD5 as the sample's split POD5.
+    Adopt escapepod's per-barcode POD5 as the sample's split POD5.
 
-escapepod already routed every read into its barcode's file with a block-level
-copy during the demux pass, so re-deriving the same split with `pod5 filter`
-would be a second full pass for an identical result. This rule only renames
-barcode -> sample.
-"""
+    escapepod already routed every read into its barcode's file with a block-level
+    copy during the demux pass, so re-deriving the same split with `pod5 filter`
+    would be a second full pass for an identical result. This rule only renames
+    barcode -> sample.
+    """
     input:
         demux_dir=get_sample_escapepod_dir,
     output:
@@ -466,8 +466,8 @@ def get_sample_barcode_mapping(wildcards):
 
 rule extract_sample_reads:
     """
-Extract read IDs for a specific sample based on its barcode assignment.
-"""
+    Extract read IDs for a specific sample based on its barcode assignment.
+    """
     input:
         mapping=get_sample_barcode_mapping,
     output:
@@ -505,8 +505,8 @@ def get_sample_pod5_dirs(wildcards):
 
 rule split_pod5:
     """
-Filter raw POD5 files by sample using read IDs from demultiplexing.
-"""
+    Filter raw POD5 files by sample using read IDs from demultiplexing.
+    """
     input:
         pod5=get_sample_run_raw_inputs,
         read_ids=get_sample_read_ids,
@@ -549,9 +549,9 @@ def get_edx_samples():
 
 rule detect_edx_adapters:
     """
-Detect 3' adapter identity per read on the unaligned BAM (before alignment).
-Produces a TSV mapping each read_id to its best-matching 3' adapter name.
-"""
+    Detect 3' adapter identity per read on the unaligned BAM (before alignment).
+    Produces a TSV mapping each read_id to its best-matching 3' adapter name.
+    """
     input:
         bam=lambda wildcards: os.path.join(
             outdir,
@@ -585,8 +585,8 @@ Produces a TSV mapping each read_id to its best-matching 3' adapter name.
 
 rule extract_edx_read_ids:
     """
-Extract read IDs matching this sample's EDX adapter assignment.
-"""
+    Extract read IDs matching this sample's EDX adapter assignment.
+    """
     input:
         tsv=rules.detect_edx_adapters.output.tsv,
     output:
@@ -616,8 +616,8 @@ Extract read IDs matching this sample's EDX adapter assignment.
 
 rule filter_fastq_by_edx:
     """
-Extract FASTQ for reads matching this sample's EDX adapter.
-"""
+    Extract FASTQ for reads matching this sample's EDX adapter.
+    """
     input:
         bam=lambda wildcards: os.path.join(
             outdir,
@@ -645,15 +645,13 @@ Extract FASTQ for reads matching this sample's EDX adapter.
 
 rule filter_pod5_by_edx:
     """
-Filter POD5 to keep only reads matching this sample's EDX adapter.
-"""
+    Filter POD5 to keep only reads matching this sample's EDX adapter.
+    """
     input:
         pod5=get_sample_pod5,
         read_ids=rules.extract_edx_read_ids.output.read_ids,
     output:
-        pod5=os.path.join(
-            outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"
-        ),
+        pod5=os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"),
     log:
         os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
     shell:
@@ -667,13 +665,13 @@ Filter POD5 to keep only reads matching this sample's EDX adapter.
 
 rule edx_concordance:
     """
-Build the signal-barcode x EDX (3' adapter) contingency table.
+    Build the signal-barcode x EDX (3' adapter) contingency table.
 
-Uses pre-alignment adapter detection TSVs, which contain ALL reads with their
-detected adapter, rather than final BAMs, which only contain matching reads —
-the reads that ended up under the wrong adapter are exactly what this measures,
-so a filtered input would hide the signal.
-"""
+    Uses pre-alignment adapter detection TSVs, which contain ALL reads with their
+    detected adapter, rather than final BAMs, which only contain matching reads —
+    the reads that ended up under the wrong adapter are exactly what this measures,
+    so a filtered input would hide the signal.
+    """
     input:
         tsvs=lambda wildcards: expand(
             os.path.join(

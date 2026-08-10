@@ -682,11 +682,11 @@ def get_all_merged_pod5s():
 
 rule generate_squiggy_session:
     """
-Generate squiggy session JSON file for loading samples in Positron.
+    Generate squiggy session JSON file for loading samples in Positron.
 
-Creates a session file with absolute paths to POD5, BAM, and FASTA files
-along with MD5 checksums for integrity verification.
-"""
+    Creates a session file with absolute paths to POD5, BAM, and FASTA files
+    along with MD5 checksums for integrity verification.
+    """
     input:
         bams=get_all_final_bams(),
         pod5s=get_all_merged_pod5s(),

@@ -4,16 +4,16 @@
 
 rule compute_reference_similarity:
     """
-Compute pairwise sequence similarity matrix for reference FASTA.
+    Compute pairwise sequence similarity matrix for reference FASTA.
 
-This QC step identifies potential cross-mapping issues by calculating
-all-vs-all sequence similarities using global alignment.
+    This QC step identifies potential cross-mapping issues by calculating
+    all-vs-all sequence similarities using global alignment.
 
-Alignment count is quadratic in the number of reference sequences, so the
-script collapses identical sequences before aligning (lossless) and, when
-`qc.reference_similarity_max_mismatch` is set, additionally collapses
-near-identical ones by Hamming distance. See `config/config-base.yml`.
-"""
+    Alignment count is quadratic in the number of reference sequences, so the
+    script collapses identical sequences before aligning (lossless) and, when
+    `qc.reference_similarity_max_mismatch` is set, additionally collapses
+    near-identical ones by Hamming distance. See `config/config-base.yml`.
+    """
     input:
         fasta=get_raw_reference(),
     output:
@@ -47,8 +47,8 @@ near-identical ones by Hamming distance. See `config/config-base.yml`.
 
 rule base_calling_error:
     """
-extract base calling error metrics to tsv file
-"""
+    extract base calling error metrics to tsv file
+    """
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
@@ -76,8 +76,8 @@ extract base calling error metrics to tsv file
 
 rule align_stats:
     """
-extract alignment stats
-"""
+    extract alignment stats
+    """
     input:
         unmapped=rules.rebasecall.output,
         aligned=rules.bwa_align.output.bam,
@@ -104,12 +104,12 @@ extract alignment stats
 
 rule anchor_coverage:
     """
-Does each aligned read span the CCA anchor the charging model reads?
+    Does each aligned read span the CCA anchor the charging model reads?
 
-Runs on the ALIGNED bam, which is temp() under cleanup_intermediates — after a
-run finishes this cannot be recomputed without re-basecalling from POD5, which
-is exactly what recovering it for the 2026-08-06 LDX run required.
-"""
+    Runs on the ALIGNED bam, which is temp() under cleanup_intermediates — after a
+    run finishes this cannot be recomputed without re-basecalling from POD5, which
+    is exactly what recovering it for the 2026-08-06 LDX run required.
+    """
     input:
         aligned=rules.bwa_align.output.bam,
         reference=get_validated_reference(),
@@ -135,12 +135,12 @@ is exactly what recovering it for the 2026-08-06 LDX run required.
 
 rule read_attrition:
     """
-Where this run's reads were lost, as one table.
+    Where this run's reads were lost, as one table.
 
-Always produced. Each gate's loss was already derivable, but only by differencing
-rows across files, so nobody did — a 12.37% drop at charge-calling survived every
-run until it was reconstructed by hand (issue #110).
-"""
+    Always produced. Each gate's loss was already derivable, but only by differencing
+    rows across files, so nobody did — a 12.37% drop at charge-calling survived every
+    run until it was reconstructed by hand (issue #110).
+    """
     input:
         align_stats=expand(
             os.path.join(
@@ -150,7 +150,11 @@ run until it was reconstructed by hand (issue #110).
         ),
         anchor=expand(
             os.path.join(
-                outdir, "summary", "tables", "{sample}", "{sample}.anchor_coverage.tsv.gz"
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.anchor_coverage.tsv.gz",
             ),
             sample=samples.keys(),
         ),
@@ -176,8 +180,8 @@ run until it was reconstructed by hand (issue #110).
 
 rule remora_signal_stats:
     """
-run remora to get signal stats
-"""
+    run remora to get signal stats
+    """
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
