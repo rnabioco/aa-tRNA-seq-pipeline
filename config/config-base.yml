@@ -73,7 +73,7 @@ aa_identity:
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
-dorado_version: 1.4.0
+dorado_version: 2.1.1
 dorado_model: rna004_130bps_sup@v5.3.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned

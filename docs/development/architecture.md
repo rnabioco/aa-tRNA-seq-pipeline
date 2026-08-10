@@ -200,7 +200,7 @@ flowchart TB
 ```yaml
 # Tool paths and versions
 base_calling_model: "resources/models/..."
-dorado_version: 1.4.0
+dorado_version: 2.1.1
 
 # Reference files
 fasta: "resources/ref/..."
