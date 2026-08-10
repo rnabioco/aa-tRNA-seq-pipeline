@@ -1,0 +1,19 @@
+# Dependabot keeps GitHub Actions versions current (e.g. the Node 20
+# deprecation warnings from actions/checkout@v4 in recent CI runs).
+#
+# Note: pixi (pixi.toml / pixi.lock) is not a Dependabot-supported ecosystem,
+# so conda/PyPI tool versions there are not covered. Pipeline tools pinned in
+# config/config-base.yml (dorado, escpod, leech) are managed manually.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
