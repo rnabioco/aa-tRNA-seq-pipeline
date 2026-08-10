@@ -107,13 +107,22 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # margin a designed panel pins to three values (escapepod-rs#241). See
 # `ldx.ref_scores` below for what that buys and what it still does not.
 #
-# Two earlier floors still hold and are the reason not to go below 0.8.1 even
-# for a demux-only run: escpod before 0.8.1 could emit a POD5 whose signal
-# batches break stride, which dorado then reads SHORT — silently, no error, no
-# non-zero exit (on the 2026-08-06 run that cost 97,790 reads, 10.6%, and
-# looked like biology); and 0.8.1 carries the multi-input `filter` that
-# `split_pod5` needs plus the `boundary.margin` / `boundary.clamp_max_shift`
-# bundle keys the vendored nbc16 model declares.
+# 0.12.0 is ALSO the floor for scoring on the sidecar path: it made `.p5s`
+# columns numeric. Before it a sidecar held dictionary-encoded labels only, so
+# a sidecar-only run computed crf_logp and then had nowhere to put it.
+#
+# Three earlier floors still hold, and are why this must not be moved backwards
+# even for a run that does no charging classification:
+#   - 0.9.0 added the `.p5s` sidecar and `demux --annotate`, which is what lets
+#     the LDX path record barcode assignments beside the raw POD5 instead of
+#     routing reads into per-barcode copies of it.
+#   - 0.8.1 fixed a correctness bug, not a feature gap: escpod before it could
+#     emit a POD5 whose signal batches break stride, which dorado then reads
+#     SHORT — silently, no error, no non-zero exit. On the 2026-08-06 run that
+#     cost 97,790 reads (10.6%) and looked like biology.
+#   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
+#     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
+#     vendored nbc16 model declares.
 escpod_version: 0.12.0
 
 # modkit threshold parameters for modification calling

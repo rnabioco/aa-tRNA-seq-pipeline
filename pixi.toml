@@ -91,7 +91,7 @@ verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_
 # nodes and bundles its own CUDA deps.
 #
 # Only needed for `ldx.gpu: true`, which additionally needs an escpod built with
-# --features crf-gpu,cnn-gpu (see install-escpod-gpu).
+# --features gpu (see install-escpod-gpu).
 install-ort-gpu = { cmd = "bash scripts/install-ort-gpu.sh", description = "Download the CUDA onnxruntime that escpod --gpu needs" }
 install-escpod-gpu = { cmd = "bash scripts/install-escpod-gpu.sh", description = "Build escpod with GPU features from the escapepod-rs submodule" }
 

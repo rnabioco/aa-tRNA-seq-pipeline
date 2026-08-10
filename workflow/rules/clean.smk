@@ -26,6 +26,11 @@ or a partial tier list), or for reclaiming space on an older output directory.
 Unlike the tiered auto-cleanup, this rule also removes `demux/pod5` and (via the
 `demux` target) the split/EDX POD5 that the tiers may intentionally keep — so run
 it only when you no longer need to re-run classification from the EDX POD5.
+
+Nothing here touches the `.p5s` demux sidecars: those live beside the raw POD5,
+outside `output_directory` entirely, and they are the record of which reads
+belong to which sample on an LDX run. Deleting one costs a full re-demux, and
+this rule is for things that are cheap to rebuild.
 """
 
 # Directories under `output_directory` that are large and cheaply regenerable.
@@ -34,6 +39,7 @@ CLEAN_TARGETS = [
     "pod5",  # merged per-sample POD5 (merge_pods)
     "fq",  # per-sample FASTQ (ubam_to_fastq)
     "bam/rebasecall",  # rebasecalled uBAM (dorado) — very large
+    "bam/rebasecall_run",  # LDX run-level uBAM (dorado), split into the above
     "bam/aln",  # bwa_align output
     "bam/tagged",  # inject_ubam_tags output
     "bam/charging",  # classify_charging output

@@ -282,12 +282,15 @@ rule classify_charging:
     params:
         model=get_charging_model(),
         min_mapq=config["charging"]["min_mapq"],
+        # LDX samples have no POD5 of their own: input.pod5 is the raw run's
+        # files (for dependency tracking) but the tool takes one path.
+        pod5_src=get_classification_pod5_arg,
         # escpod writes plain text regardless of extension, so hand it the
         # uncompressed path and gzip afterwards.
         tsv=lambda wildcards, output: output.calls[: -len(".gz")],
     shell:
         """
-        escpod signal classify {input.pod5} \
+        escpod signal classify {params.pod5_src} \
             --bam {input.bam} \
             --reference {input.reference} \
             --model {params.model} \

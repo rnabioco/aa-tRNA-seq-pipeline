@@ -2,8 +2,8 @@
 # Build escpod with the GPU features and install it as a distinct version.
 #
 # The published escpod release is built with the default `cli` feature set,
-# which includes the CPU paths (cnn-detect, crf-decode via tract) but NOT
-# `crf-gpu` / `cnn-gpu`. Those need onnxruntime's CUDA execution provider, which
+# which includes the CPU paths (cnn-detect, crf-decode via tract) but NOT the
+# `gpu` feature. That needs onnxruntime's CUDA execution provider, which
 # a portable static musl binary cannot assume, so the release binary has no GPU
 # code at all and rejects `--gpu` outright. Running demux on a GPU therefore
 # requires building from source.
@@ -34,13 +34,19 @@ ESCPOD_URL="${ESCPOD_URL:-https://github.com/rnabioco/escapepod-rs}"
 # which then dominates. 0.8.0 adds the batched GPU lattice (`crf::lattice_gpu`),
 # taking the CRF head end to end on the device (4.3x, escapepod-rs#186).
 #
-# v0.8.1 is the floor. It carries the two bundle-contract features the vendored
-# nbc16 model declares — `boundary.margin` (#193) and `boundary.clamp_max_shift`
-# (#194) — plus the POD5 writer fix (#195). An older escpod ignores both keys
-# silently (unknown JSON fields are skipped), so the bundle would load and lose
-# ~7% of the flowcell with nothing to say so; and one older than #195 writes
-# POD5s that dorado reads short, also silently.
-ESCPOD_REF="${ESCPOD_REF:-v0.8.1}"
+# The ref to build is DERIVED from `escpod_version` in config/config-base.yml,
+# not hardcoded. The two have to match: the pipeline resolves the GPU binary as
+# `<escpod_version>-gpu`, so a default that drifts from the config silently
+# builds a version nothing will ever look for. Override ESCPOD_REF to build
+# something else deliberately.
+#
+# Floors that still apply, in case someone points this backwards:
+#   - 0.9.0: `demux --annotate`, which the LDX rule passes; absent before it.
+#   - 0.8.1: the `boundary.margin` (#193) / `boundary.clamp_max_shift` (#194)
+#     bundle keys the vendored model declares, plus the POD5 writer fix (#195).
+#     An older escpod skips those keys silently and loses ~7% of a flowcell with
+#     nothing to say so; one older than #195 writes POD5s dorado reads short.
+ESCPOD_REF="${ESCPOD_REF:-v$(awk '/^escpod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 
 # Clone on demand rather than requiring a manual init step. Only the login node
 # needs this; compute nodes build from the checkout it leaves behind.
@@ -69,14 +75,17 @@ if [ "${current}" != "${ESCPOD_REF}" ]; then
     git -C "${SRC}" checkout --quiet "${ESCPOD_REF}"
 fi
 
-if ! grep -qE '^crf-gpu =' "${SRC}/crates/escapepod-cli/Cargo.toml"; then
-    echo "Error: ${ESCPOD_REF} has no crf-gpu feature — too old for GPU demux." >&2
+if ! grep -qE '^gpu =' "${SRC}/crates/escapepod-cli/Cargo.toml"; then
+    echo "Error: ${ESCPOD_REF} has no gpu feature — too old for GPU demux." >&2
     exit 1
 fi
 
-echo "Building escpod with crf-gpu,cnn-gpu (this takes ~10 min)..."
+# `gpu` is the meta-feature: demux + crf-gpu + cnn-gpu. The granular flags still
+# exist, but naming them individually is how you end up with the encoder on the
+# device and the detector left behind on the CPU.
+echo "Building escpod with the gpu feature (this takes ~10 min)..."
 cargo build --release --manifest-path "${SRC}/Cargo.toml" \
-    -p escapepod-cli --bin escpod --features crf-gpu,cnn-gpu
+    -p escapepod-cli --bin escpod --features gpu
 
 version="$("${SRC}/target/release/escpod" --version | awk '{print $2}')"
 dest="${REPO_ROOT}/resources/tools/escpod/${version}-gpu/bin"
