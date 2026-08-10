@@ -100,9 +100,9 @@ rule modkit_pileup:
 
 rule modkit_extract_calls:
     """
-Extract per-read modification calls with optimized thresholds.
-Positions are converted to 1-indexed tRNA-only coordinates.
-"""
+    Extract per-read modification calls with optimized thresholds.
+    Positions are converted to 1-indexed tRNA-only coordinates.
+    """
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,
@@ -139,9 +139,9 @@ Positions are converted to 1-indexed tRNA-only coordinates.
 
 rule modkit_extract_full:
     """
-Extract full modification information.
-Positions are converted to 1-indexed tRNA-only coordinates.
-"""
+    Extract full modification information.
+    Positions are converted to 1-indexed tRNA-only coordinates.
+    """
     input:
         bam=rules.finalize_bam.output.bam,
         bai=rules.finalize_bam.output.bai,

@@ -136,7 +136,7 @@ remora_cca_classifier: "resources/models/cca_classifier.pt"
 
 ```yaml
 # Dorado basecaller version
-dorado_version: 1.4.0
+dorado_version: 2.1.1
 dorado_model: rna004_130bps_sup@v5.3.0
 ```
 
