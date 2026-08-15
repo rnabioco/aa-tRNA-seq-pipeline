@@ -224,7 +224,7 @@ rule classify_charging:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
     threads: 8
     params:
-        model=config["remora_cca_classifier"],
+        model=get_cca_classifier(),
     shell:
         """
         remora infer from_pod5_and_bam {input.pod5} {input.bam} \
@@ -251,6 +251,15 @@ rule classify_charging_leech:
     GPU-accelerated alternative to remora (requires leech installed from resources/leech)
 
     For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+
+    Loads the SAME Remora-format model as `classify_charging`, via leech's
+    Remora compatibility wrapper — an engine swap, not a different model.
+
+    Chunk-extraction parameters are deliberately NOT passed here. leech reads
+    the motif, motif offset, chunk context and signal-refinement settings out
+    of the model's embedded meta.txt, and raises InferenceConfigError if a CLI
+    value contradicts them. Passing `--motif-offset 2` against a model that
+    declares 3 is exactly that error, and made this rule unrunnable.
     """
     input:
         pod5=get_classification_pod5,
@@ -277,7 +286,7 @@ rule classify_charging_leech:
         os.path.join(outdir, "logs", "classify_charging_leech", "{sample}"),
     threads: 4
     params:
-        model=config["remora_cca_classifier"],
+        model=get_cca_classifier(),
     shell:
         """
         if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -292,8 +301,7 @@ rule classify_charging_leech:
             --output {output.charging_bam} \
             --device cuda \
             --motif CCAGGC \
-            --motif-offset 2 \
-            --reference-anchored \
+            --anchor reference \
             --workers 4 \
             --batch-size 512 \
             2>&1 | tee {log}

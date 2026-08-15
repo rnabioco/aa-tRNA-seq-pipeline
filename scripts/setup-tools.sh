@@ -15,6 +15,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DORADO_VERSION="${DORADO_VERSION:-$(awk '/^dorado_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 DORADO_MODEL="${DORADO_MODEL:-$(awk '/^dorado_model:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 CUDA_VERSION="${CUDA_VERSION:-cu124}"
+REMORA_VERSION="${REMORA_VERSION:-v3.3.0}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
 
@@ -208,11 +209,23 @@ else
     echo "Installing remora dependencies (excluding pyarrow/numpy to preserve conda versions)..."
     uv pip install plotnine statsmodels thop
 
-    echo "Installing ont-remora from GitHub..."
-    uv pip install --no-deps "git+https://github.com/nanoporetech/remora.git"
+    # Pinned to a tag rather than tracking the default branch: an unpinned
+    # `git+...` resolves to whatever HEAD happens to be on the day of install,
+    # so two people running `pixi run setup` a week apart got different
+    # classifiers with no record of it.
+    echo "Installing ont-remora ${REMORA_VERSION} from GitHub..."
+    uv pip install --no-deps \
+        "git+https://github.com/nanoporetech/remora.git@${REMORA_VERSION}"
 
     echo "Remora installed successfully"
 fi
+
+# NOTE: this is UPSTREAM remora, which is what `remora infer` (the charging
+# classifier) needs. It is NOT what `remora_signal_stats` needs —
+# extract_signal_metrics.py requires the rnabioco fork
+# (github.com/rnabioco/remora, branch `metrics_missing_ok`, based on remora
+# 3.1.0 and 50 commits behind upstream). The two cannot be installed at once,
+# which is why that opt-in QC rule does not work off a stock setup.
 
 # ============================================================================
 # Pod5 Setup (via uv — bioconda version is outdated)

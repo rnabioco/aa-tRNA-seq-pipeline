@@ -158,6 +158,13 @@ def get_tool_versions(pipeline_dir, config):
     if remora_version:
         versions["remora"] = remora_version
 
+    # Leech - Python package. Recorded whenever present: which engine produced
+    # the charging calls is only reconstructable from the manifest if both
+    # candidate engines' versions are in it.
+    leech_version = get_python_package_version("leech")
+    if leech_version:
+        versions["leech"] = leech_version
+
     return versions
 
 
@@ -180,8 +187,13 @@ def extract_config_params(config):
         params["dorado_model"] = config["dorado_model"]
     if "dorado_version" in config:
         params["dorado_version"] = config["dorado_version"]
-    if "remora_cca_classifier" in config:
-        params["remora_cca_classifier"] = config["remora_cca_classifier"]
+    # Accepts the deprecated `remora_cca_classifier` alias; recorded under the
+    # current name either way so manifests stay comparable across the rename.
+    cca_classifier = config.get("cca_classifier", config.get("remora_cca_classifier"))
+    if cca_classifier is not None:
+        params["cca_classifier"] = cca_classifier
+    if "classifier" in config:
+        params["classifier"] = config["classifier"]
 
     # Reference building/validation mode
     if "reference" in config:

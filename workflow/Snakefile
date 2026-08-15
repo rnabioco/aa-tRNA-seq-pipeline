@@ -54,13 +54,22 @@ onstart:
         ("samtools", [conda_prefix]),
         ("bwa", [conda_prefix]),
         ("modkit", [conda_prefix]),
-        ("remora", [conda_prefix]),
-        ("pod5", [conda_prefix]),
+        ("escpod", [os.path.join(repo_root, "resources")]),
     ]
+    # remora is only invoked by the remora charging backend and by the opt-in
+    # `remora_signal_stats` QC rule. Warning about it on a leech run with the
+    # QC rule off is noise about a tool nothing in the DAG calls.
+    wants_remora = config.get("classifier", "remora") == "remora" or config.get(
+        "remora_kmer_table"
+    )
+    if wants_remora:
+        tools_to_check.append(("remora", [conda_prefix]))
+    if config.get("remora_kmer_table"):
+        # extract_signal_metrics.py hands pod5 objects to remora's io API, so
+        # this rule — and only this rule — still needs the pod5 package.
+        tools_to_check.append(("pod5", [conda_prefix]))
     if config.get("warpdemux", {}).get("enabled", False):
         tools_to_check.append(("warpdemux", [conda_prefix]))
-    if config.get("ldx", {}).get("enabled", False):
-        tools_to_check.append(("escpod", [os.path.join(repo_root, "resources")]))
     if config.get("classifier", "remora") == "leech":
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])

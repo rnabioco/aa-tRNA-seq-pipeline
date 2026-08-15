@@ -42,6 +42,32 @@ def maybe_temp(path, tier="cascade"):
     return temp(path) if tier in _enabled_cleanup_tiers() else path
 
 
+def get_charging_classifier():
+    """Return the configured CCA charging backend: "remora" or "leech"."""
+    return config.get("classifier", "remora")
+
+
+def get_cca_classifier():
+    """Path to the CCA charging model, honoring the deprecated key name.
+
+    The model is Remora-format but is loaded by both backends, so the key was
+    renamed off `remora_cca_classifier`. Old run configs that set the previous
+    name keep working.
+    """
+    path = config.get("cca_classifier")
+    legacy = config.get("remora_cca_classifier")
+    if path is None and legacy is not None:
+        logger.warning(
+            "Config key `remora_cca_classifier` is deprecated; rename it to "
+            "`cca_classifier`. The model is read by both the remora and leech "
+            "backends, so the key is no longer specific to remora."
+        )
+        return legacy
+    if path is None:
+        sys.exit("Config is missing `cca_classifier` (path to the CCA charging model).")
+    return path
+
+
 def is_warpdemux_enabled():
     """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)

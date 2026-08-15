@@ -122,15 +122,39 @@ reference:
     1. Use `mode: "validate"` with a pre-adapted FASTA
     2. Use `mode: "build"` with raw tRNA sequences (CCA endings required or will be added)
 
-### Remora Models
+### Charging Classification Model
+
+```yaml
+# Trained ML model for charging classification
+cca_classifier: "resources/models/cca_classifier.pt"
+
+# Which backend runs it: "remora" (default) or "leech"
+classifier: "remora"
+```
+
+The model is Remora-format, but both backends load it — leech reads it through
+its Remora compatibility wrapper — so selecting `leech` is an engine swap, not
+a different model. `remora_cca_classifier` is still accepted as a deprecated
+alias for `cca_classifier`.
+
+The model is self-describing: its embedded metadata declares the motif
+(`CCAGGC`), the motif offset, the chunk context, and the signal-refinement
+parameters. Do not re-declare those on the command line — leech rejects CLI
+values that contradict what the model was trained with.
+
+### Remora Signal Metrics (opt-in)
 
 ```yaml
 # Kmer level table for signal extraction (from ONT kmer_models repo)
 remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
-
-# Trained ML model for charging classification
-remora_cca_classifier: "resources/models/cca_classifier.pt"
 ```
+
+!!! warning
+
+    Setting this enables `remora_signal_stats`, which requires the
+    [rnabioco remora fork](https://github.com/rnabioco/remora/tree/metrics_missing_ok),
+    not the upstream remora that `pixi run setup` installs. On a stock setup
+    this rule fails.
 
 ## Tool Versions
 
@@ -257,7 +281,7 @@ output_directory: "results/analysis"
 samples: config/samples.tsv
 output_directory: "results/analysis"
 fasta: "path/to/my/reference.fa"
-remora_cca_classifier: "path/to/my/model.pt"
+cca_classifier: "path/to/my/model.pt"
 ```
 
 ### With Demultiplexing

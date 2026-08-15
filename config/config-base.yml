@@ -55,10 +55,25 @@ reference:
 # Optional: provide a kmer table to extract signal metrics using remora
 # Set to a path (e.g. "resources/kmers/9mer_levels_v1.txt") to enable
 # from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
+#
+# NOTE: the rule this enables (`remora_signal_stats`) needs the rnabioco
+# remora FORK (branch `metrics_missing_ok`), not the upstream remora that
+# `pixi run setup` installs — see `extract_signal_metrics.py`. On a stock
+# setup this rule does not work. Left opt-in and off pending removal.
 remora_kmer_table: null
 
-# read classification model - remora trained model to classify charged vs uncharged reads
-remora_cca_classifier: "resources/models/cca_classifier.pt"
+# CCA charging classification model.
+#
+# This is a Remora-format TorchScript model and is read by BOTH backends below
+# — leech loads it through its Remora compatibility wrapper — so the key is not
+# named for either one. `remora_cca_classifier` is still accepted as a
+# deprecated alias.
+#
+# The model is self-describing: its embedded meta.txt declares the motif
+# (CCAGGC), the motif offset (3), the chunk context, and the signal-refinement
+# parameters. Do not re-declare those at the call site; both backends read them
+# off the model, and leech errors out if a CLI value contradicts them.
+cca_classifier: "resources/models/cca_classifier.pt"
 
 # CCA charging classifier to use: "remora" (default) or "leech"
 # Leech is a GPU-accelerated alternative (requires resources/leech submodule)
