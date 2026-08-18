@@ -7,7 +7,7 @@ A Snakemake pipeline for analyzing Oxford Nanopore direct RNA sequencing of amin
 
 ## Overview
 
-This pipeline processes Oxford Nanopore Technologies (ONT) aa-tRNA-seq data to distinguish between **charged (aminoacylated)** and **uncharged** tRNA molecules. It uses Remora machine learning models trained on nanopore signal data over the CCA 3' end of tRNA molecules.
+This pipeline processes Oxford Nanopore Technologies (ONT) aa-tRNA-seq data to distinguish between **charged (aminoacylated)** and **uncharged** tRNA molecules. It uses a machine learning model, run by `escpod signal classify`, trained on nanopore signal data over the CCA 3' end of tRNA molecules.
 
 ```mermaid
 flowchart TD
@@ -26,10 +26,9 @@ flowchart TD
     end
 
     subgraph Classification
-        D --> F[classify_charging<br/>Remora ML model]
+        D --> F[classify_charging<br/>escpod signal classify]
         B -.-> F
         A -.-> F
-        F --> G[transfer_bam_tags]
     end
 
     subgraph Outputs
@@ -54,15 +53,15 @@ flowchart TD
 Given a directory of POD5 files, this pipeline:
 
 1. **Merges** all POD5 files per sample into a single file
-2. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
+2. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required by the charging model)
 3. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
-4. **Classifies** charged vs. uncharged reads using a Remora model trained on nanopore signal over the CCA 3' end
+4. **Classifies** charged vs. uncharged reads with `escpod signal classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
 
-The classification generates ML tag values (0-255) indicating the likelihood of aminoacylation. By default, ML values ≥200 are treated as charged, and values <200 as uncharged.
+The classification writes a `cl` tag (0-255) onto each scored read, `round(P(charged) * 255)`. By default `cl` ≥ 200 is charged and < 200 uncharged. Reads the model abstains on get no `cl` tag; their rate is charging-correlated and is reported in `read_attrition.tsv.gz`.
 
 ## Key Features
 
-- **Charging Classification**: ML-based classification of charged vs uncharged tRNAs using Remora
+- **Charging Classification**: ML-based classification of charged vs uncharged tRNAs via `escpod signal classify`
 - **Modification Calling**: Detection of RNA modifications (pseU, m5C, m6A, inosine) via Dorado and Modkit
 - **Full-Length Filtering**: Only full-length tRNA reads with proper adapters are analyzed
 - **Barcode Demultiplexing**: Optional WarpDemuX support for pooled/multiplexed samples
@@ -134,7 +133,7 @@ The pipeline produces several key output files per sample:
 
 | Output | Description |
 |--------|-------------|
-| `bam/final/{sample}/{sample}.bam` | Final BAM with charging tags (CL/CM/PT) |
+| `bam/final/{sample}/{sample}.bam` | Final BAM with charging (`cl`) and adapter (`pt`) tags |
 | `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` | CPM-normalized charging counts per tRNA |
 | `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` | Per-read charging probabilities |
 | `summary/modkit/{sample}/{sample}.pileup.bed.gz` | Modification pileup consensus |

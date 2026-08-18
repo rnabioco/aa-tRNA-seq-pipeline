@@ -67,11 +67,6 @@ set-resources:
     mem_mb: 24000
     cpus_per_task: 8
 
-  remora_signal_stats:
-    runtime: 180
-    mem_mb: 24000
-    cpus_per_task: 4
-
   modkit_extract_calls:
     runtime: 360
     mem_mb: 96000
@@ -132,7 +127,6 @@ These rules are automatically submitted to the GPU partition:
 |------|--------|---------|
 | `modkit_extract_calls` | 96 GB | 6 hours |
 | `warpdemux` | 32 GB | 6 hours |
-| `remora_signal_stats` | 24 GB | 3 hours |
 | `bwa_align` | 24 GB | 4 hours |
 
 ## Customization

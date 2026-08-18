@@ -1,5 +1,5 @@
 # Rules for quality control metrics and statistics
-# Base calling errors, alignment stats, and signal metrics
+# Base calling errors, alignment stats, and read attrition
 
 
 rule compute_reference_similarity:
@@ -77,6 +77,11 @@ rule base_calling_error:
 rule align_stats:
     """
     extract alignment stats
+
+    The `classified` row counts reads carrying a `cl` tag, not every read in
+    the final BAM: `escpod signal classify` passes unscored records through
+    untouched, so without --require-tag that row would equal `aligned` and the
+    charge-calling gate in read_attrition would report zero loss.
     """
     input:
         unmapped=rules.rebasecall.output,
@@ -95,6 +100,7 @@ rule align_stats:
         python {params.src}/get_align_stats.py \
             -o {output.tsv} \
             -a unmapped aligned classified \
+            --require-tag - - cl \
             -i {wildcards.sample} \
             -b {input.unmapped} \
             {input.aligned} \
@@ -140,6 +146,10 @@ rule read_attrition:
     Always produced. Each gate's loss was already derivable, but only by differencing
     rows across files, so nobody did — a 12.37% drop at charge-calling survived every
     run until it was reconstructed by hand (issue #110).
+
+    The charge-calling gate no longer has to be inferred: `escpod signal classify`
+    emits a row per unscored read with a `reason`, so that loss is now broken out
+    by cause rather than reported as one unexplained difference.
     """
     input:
         align_stats=expand(
@@ -158,6 +168,16 @@ rule read_attrition:
             ),
             sample=samples.keys(),
         ),
+        charging_calls=expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.charging_calls.tsv.gz",
+            ),
+            sample=samples.keys(),
+        ),
         demux=get_demux_summaries,
     output:
         tsv=os.path.join(outdir, "summary", "read_attrition.tsv.gz"),
@@ -173,37 +193,7 @@ rule read_attrition:
         python {params.src}/read_attrition.py \
             --align-stats {input.align_stats} \
             --anchor-coverage {input.anchor} \
+            --charging-calls {input.charging_calls} \
             {params.demux_arg} \
             --output {output.tsv} 2>&1 | tee {log}
-        """
-
-
-rule remora_signal_stats:
-    """
-    run remora to get signal stats
-    """
-    input:
-        bam=rules.finalize_bam.output.bam,
-        bai=rules.finalize_bam.output.bai,
-        pod5=get_classification_pod5,
-    output:
-        tsv=os.path.join(
-            outdir, "summary", "tables", "{sample}", "{sample}.remora.tsv.gz"
-        ),
-    log:
-        os.path.join(outdir, "logs", "remora", "{sample}"),
-    params:
-        src=SCRIPT_DIR,
-        kmer=config["remora_kmer_table"],
-        opts=config["opts"]["remora"],
-    shell:
-        """
-        python {params.src}/extract_signal_metrics.py \
-            --pod5_dir {input.pod5} \
-            --bam {input.bam} \
-            --kmer {params.kmer} \
-            --sample_name {wildcards.sample} \
-            {params.opts} \
-            | gzip -c \
-                >{output.tsv}
         """

@@ -209,43 +209,79 @@ Warning: 0 reads aligned
 
 ---
 
-## Remora Errors
+## Charging Classifier Errors
 
-### Model Not Found
+### Model Bundle Not Found
 
 **Error:**
 ```
-FileNotFoundError: remora model not found
+No such file or directory ... charging_feature_nn_rna004@v0.1.0
 ```
 
 **Solution:**
 
-Verify the model path in config:
+`charging.model` is a **directory**, not a file. Verify it in config:
 
 ```yaml
-remora_cca_classifier: "resources/models/cca_classifier.pt"
+charging:
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
 ```
 
-Ensure the file exists:
+The bundle is vendored in the repository, so it should already be present:
 
 ```bash
-ls -la resources/models/cca_classifier.pt
+pixi run verify-charging-model
 ```
 
-### Kmer Table Error
+### `missing field \`gbm\``
 
 **Error:**
 ```
-Error loading kmer table
+Error: missing field `gbm`
 ```
 
 **Solution:**
 
-Verify kmer table path:
+The `escpod` on your PATH predates the per-base-feature bundle format. The
+runtime and the model are pinned together — `escpod_version` must be >= 0.10.0.
 
-```yaml
-remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
+```bash
+pixi run setup
+which escpod   # should be under resources/tools/escpod/<version>/bin
 ```
+
+### Kmer Table Checksum Mismatch
+
+**Error:**
+```
+kmer table sha256 does not match the bundle
+```
+
+**Solution:**
+
+The bundle's `9mer_levels_v1.txt` is a symlink into `resources/kmers/`. If that
+file was replaced, the residual feature is no longer the one the model was
+trained against. Restore it, or give the bundle its own copy:
+
+```bash
+pixi run verify-charging-model
+```
+
+### Most Reads Get No `cl` Tag
+
+This is usually not an error. The model **abstains** on reads whose common arm
+did not align, and those reads carry no `cl` tag rather than a default class.
+Check the rate and the reason:
+
+```bash
+zcat results/summary/tables/sample1/sample1.charging_calls.tsv.gz \
+  | awk -F'\t' 'NR>1 {print ($5=="" ? "called" : $5)}' | sort | uniq -c
+```
+
+A high `no_aligned_arm` rate is a real signal, not a bug — but it also biases
+the charging fraction low, so report it alongside. If instead nearly every read
+is missing, check that the reference records carry `...CCA` followed by the
+common arm `GGCTTCTTCTTGCTCTT`, and that `charging.min_mapq` is 0.
 
 ---
 

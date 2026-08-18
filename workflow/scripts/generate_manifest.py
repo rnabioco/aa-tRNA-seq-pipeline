@@ -95,22 +95,6 @@ def get_command_version(cmd, version_flag="--version"):
         return None
 
 
-def get_python_package_version(package_name):
-    """Get version of an installed Python package."""
-    try:
-        result = subprocess.run(
-            ["python", "-c", f"import {package_name}; print({package_name}.__version__)"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except (subprocess.SubprocessError, FileNotFoundError, OSError):
-        pass
-    return None
-
-
 def get_tool_versions(pipeline_dir, config):
     """
     Collect versions of all tools used in the pipeline.
@@ -153,10 +137,11 @@ def get_tool_versions(pipeline_dir, config):
         if os.path.exists(dorado_bin):
             versions["dorado"] = get_command_version(dorado_bin)
 
-    # Remora - Python package
-    remora_version = get_python_package_version("remora")
-    if remora_version:
-        versions["remora"] = remora_version
+    # escapepod - pinned binary, used for POD5 handling, charging
+    # classification and (optionally) demultiplexing
+    escpod_version = config.get("escpod_version")
+    if escpod_version:
+        versions["escpod"] = str(escpod_version)
 
     return versions
 
@@ -180,8 +165,12 @@ def extract_config_params(config):
         params["dorado_model"] = config["dorado_model"]
     if "dorado_version" in config:
         params["dorado_version"] = config["dorado_version"]
-    if "remora_cca_classifier" in config:
-        params["remora_cca_classifier"] = config["remora_cca_classifier"]
+    # Charging classifier: the model bundle path AND the operating point, both
+    # of which change the numbers downstream
+    if "charging" in config:
+        params["charging"] = config["charging"]
+    if "escpod_version" in config:
+        params["escpod_version"] = config["escpod_version"]
 
     # Reference building/validation mode
     if "reference" in config:

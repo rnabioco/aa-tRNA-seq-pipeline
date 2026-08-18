@@ -34,7 +34,6 @@ get_cca_trna                 2
 get_cca_trna_cpm             2
 merge_pods                   2
 rebasecall                   2
-transfer_bam_tags            2
 ...
 total                       XX
 ```
@@ -67,9 +66,9 @@ After completion, outputs are in `.tests/outputs/`:
 │   ├── aln/sample1/
 │   │   └── sample1.aln.bam           # Aligned BAM
 │   ├── charging/sample1/
-│   │   └── sample1.charging.bam      # Remora classification
+│   │   └── sample1.charging.bam      # Charging classification (cl tag)
 │   └── final/sample1/
-│       └── sample1.bam               # Final BAM with CL/CM/PT tags
+│       └── sample1.bam               # Final BAM with cl/pt tags
 ├── fq/
 │   └── sample1/
 │       └── sample1.fq.gz             # Extracted FASTQ

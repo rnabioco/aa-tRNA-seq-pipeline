@@ -75,8 +75,11 @@ The final BAM file with charging classification and adapter position tags.
 samtools view results/bam/final/sample1/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM|PT):"
 ```
 
-!!! note "Tag Renaming"
-    The original Remora tags ML/MM are renamed to CL/CM to avoid conflicts with standard SAM modification tags.
+!!! note "`cl` and the modbase tags"
+    The charging call lands in its own `cl` tag (uint8, `round(P(charged) * 255)`), written directly by `escpod signal classify`. Dorado's `MM`/`ML` modbase tags are left untouched, which is what modkit reads — there is no tag round-trip and no `cm` tag any more.
+
+!!! warning "A missing `cl` tag is not an uncharged call"
+    Reads the model abstains on carry no `cl` tag. See the charging calls table below.
 
 ### Charging Probability Table
 
@@ -349,7 +352,7 @@ BWA MEM alignment output.
 
 `bam/charging/{sample}/{sample}.charging.bam`
 
-Remora classification output with ML/MM tags (before renaming).
+The aligned BAM with the `cl` charging tag added, before adapter tagging.
 
 ### FASTQ
 
@@ -379,13 +382,35 @@ Read IDs belonging to each sample.
 
 Per-sample POD5 files after demultiplexing.
 
-## Signal Metrics (Optional)
+## Charging Calls
 
-If `remora_kmer_table` is configured:
+`summary/tables/{sample}/{sample}.charging_calls.tsv.gz`
 
-`summary/tables/{sample}/{sample}.remora.tsv.gz`
+One row per read the charging model saw, written by `escpod signal classify --tsv`.
 
-Remora signal metrics per read per position.
+| Column | Description |
+|--------|-------------|
+| `read_id` | Read identifier |
+| `reference` | Reference the read aligned to |
+| `p_charged` | P(charged) from the model |
+| `cl` | `round(p_charged * 255)`, the value written to the BAM tag |
+| `reason` | Empty for a call; otherwise why the read was **not** scored |
+
+`reason` values:
+
+| Value | Meaning |
+|-------|---------|
+| *(empty)* | The read was scored; `p_charged` and `cl` are populated |
+| `no_aligned_arm` | The aligner placed no base of the common arm, so the model abstained. It is not that the read is uncharged — on this population the model scores balanced accuracy 0.4993 |
+| `no_signal` | No signal for the read in the POD5 |
+| `ns_mismatch` | The move table did not agree with the signal length |
+
+!!! warning "Report the no-call rate beside any charging fraction"
+
+    Abstention is charging-correlated — the aminoacyl adduct is part of why the
+    aligner stops short — so a charging fraction computed over called reads
+    alone is an **underestimate**. `summary/read_attrition.tsv.gz` carries the
+    run-level breakdown.
 
 ## Log Files
 

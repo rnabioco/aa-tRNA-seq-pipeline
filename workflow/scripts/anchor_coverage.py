@@ -1,11 +1,17 @@
 #!/usr/bin/env python
 """Does each aligned read actually span the CCA anchor the charging model reads?
 
-`classify_charging` (Remora, `--reference-anchored`) can only call a read whose
-alignment covers the CCA at the tRNA 3' end. A read that aligns but stops short
-of it is uncallable for a structural reason, and today that is indistinguishable
-in the outputs from a read Remora simply did not emit — the only visible trace is
-that `align_stats`'s `classified` row is smaller than its `aligned` row.
+`classify_charging` anchors on the CCA-adapter junction, which only exists in
+reference coordinates, so it can only call a read whose alignment reaches it. A
+read that aligns but stops short is uncallable for a structural reason — it is
+not that the model looked and declined.
+
+That distinction used to be invisible: under Remora the two were indis-
+tinguishable in the outputs, and the only trace of either was that
+`align_stats`'s `classified` row came out smaller than its `aligned` row.
+`escpod signal classify --tsv` now names the reads it saw and did not score, so
+this script covers the other half — the reads that never reached the model at
+all — and the two are read together in `read_attrition.tsv.gz`.
 
 This runs against the ALIGNED bam, which is `temp()` under
 `cleanup_intermediates`, so it has to happen inside the pipeline: after a run

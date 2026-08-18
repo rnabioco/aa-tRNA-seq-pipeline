@@ -28,7 +28,7 @@ pod5 merge -t {threads} -f -o {output} {input}
 
 ### rebasecall
 
-Re-basecall POD5 files with Dorado, emitting move tables for Remora.
+Re-basecall POD5 files with Dorado, emitting move tables for the charging model.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -126,29 +126,28 @@ samtools index {output}
 
 ### classify_charging
 
-Run Remora ML model to classify charged vs uncharged reads.
+Classify charged vs uncharged reads with `escpod signal classify`.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
 | Property | Value |
 |----------|-------|
-| Input | POD5, aligned BAM |
-| Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai` |
+| Input | POD5, tagged aligned BAM, reference FASTA |
+| Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai`, `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` |
 | Threads | 8 |
 | GPU | No (CPU) |
-| Parameters | `remora_cca_classifier` |
+| Parameters | `charging.model`, `charging.min_mapq` |
 
 **Command:**
 ```bash
-remora infer from_pod5_and_bam {pod5} {bam} \
+escpod signal classify {pod5} \
+    --bam {bam} \
+    --reference {reference} \
     --model {model} \
-    --out-bam {output} \
-    --reference-anchored \
-    --num-extract-alignment-workers 2 \
-    --num-prepare-read-workers 2 \
-    --num-prepare-nn-input-workers 2 \
-    --num-post-process-workers 2
-samtools sort -@ {threads} {output} > {temp}
+    --output {output} \
+    --tsv {calls} \
+    --min-mapq {min_mapq} \
+    --threads {threads}
 samtools index {output}
 ```
 
@@ -158,17 +157,6 @@ samtools index {output}
 - `MM`: Modification metadata
 
 ---
-
-### transfer_bam_tags
-
-Transfer and rename charging tags from Remora output to classified BAM.
-
-**File:** `workflow/rules/aatrnaseq-process.smk`
-
-| Property | Value |
-|----------|-------|
-| Input | Charging BAM, aligned BAM |
-| Output | `bam/classified/{sample}/{sample}.bam`, `.bai` |
 
 **Command:**
 ```bash
@@ -242,7 +230,7 @@ Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM a
 **Notes:**
 
 - Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
-- This is the final BAM with all tags: CL/CM (charging) and PT (adapters)
+- This is the final BAM with all tags: `cl` (charging) and `pt` (adapters), plus dorado's MM/ML modbase tags
 
 ---
 
@@ -411,32 +399,31 @@ python get_align_stats.py \
 
 ---
 
-### remora_signal_stats
+### read_attrition
 
-Extract raw signal metrics using Remora API.
+Report where the run's reads were lost, as one table.
 
 **File:** `workflow/rules/aatrnaseq-qc.smk`
 
 | Property | Value |
 |----------|-------|
-| Input | Final BAM, POD5 |
-| Output | `summary/tables/{sample}/{sample}.remora.tsv.gz` |
-| Parameters | `remora_kmer_table`, `opts.remora` |
+| Input | Per-sample align stats, anchor coverage, charging calls, demux summaries |
+| Output | `summary/read_attrition.tsv.gz` |
 
 **Command:**
 ```bash
-python extract_signal_metrics.py \
-    --pod5_dir {pod5} \
-    --bam {bam} \
-    --kmer {kmer_table} \
-    --sample_name {sample} \
-    | gzip > {output}
+python read_attrition.py \
+    --align-stats {align_stats} \
+    --anchor-coverage {anchor} \
+    --charging-calls {charging_calls} \
+    --output {output}
 ```
 
 **Notes:**
 
-- Only runs if `remora_kmer_table` is configured
-- Uses custom Remora fork for metrics extraction
+- Always produced
+- The `aligned -> charge-called` gate is broken out by the model's own
+  `reason` column, so the loss is named rather than inferred
 
 ---
 
@@ -722,8 +709,7 @@ flowchart LR
     bwa_align --> inject_ubam_tags
     inject_ubam_tags --> classify_charging
     filter_pod5_by_edx -.-> classify_charging
-    classify_charging --> transfer_bam_tags
-    transfer_bam_tags --> add_adapter_tags
+    classify_charging --> add_adapter_tags
     add_adapter_tags --> finalize_bam
     finalize_bam --> get_cca_trna
     finalize_bam --> base_calling_error

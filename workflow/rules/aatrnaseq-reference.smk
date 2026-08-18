@@ -3,7 +3,7 @@ Rules for tRNA reference validation and building.
 
 Ensures reference FASTA has correct adapter structure before alignment.
 The CCAGGC junction (CCA from tRNA + GGC from 3' adapter) is required
-for the Remora charging classification model.
+for the charging classification model.
 
 Modes:
   validate: Check existing adapted reference (default)

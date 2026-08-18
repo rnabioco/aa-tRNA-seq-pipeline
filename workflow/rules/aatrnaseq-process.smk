@@ -194,14 +194,34 @@ rule inject_ubam_tags:
 
 rule classify_charging:
     """
-    run remora trained model to classify charged and uncharged reads
-    runs on CPU by default (no --device flag)
+    Classify charged vs uncharged reads with `escpod signal classify`.
+
+    Runs on CPU. The model bundle is self-describing — it carries the anchor
+    definition, the feature recipe, the k-mer table it is defined against
+    (pinned by sha256) and the recommended operating point — so no motif,
+    offsets or threshold are passed here. A caller computing the features
+    differently gets a wrong answer rather than an error, which is why they are
+    not flags. See resources/models/charging/README.md.
+
+    The output BAM is the INPUT records with `cl` (uint8, round(P(charged)*255))
+    added, in the same order: dorado's MM/ML modbase tags survive untouched, and
+    the file stays coordinate-sorted, so there is no tag round-trip and no
+    re-sort. This is what retired the old transfer_bam_tags step, which existed
+    only because Remora emitted its score into MM/ML and clobbered the modbase
+    calls modkit needs.
+
+    Reads the bundle abstains on (`aligner_arm_depth == 0`) get NO `cl` tag
+    rather than a default class, and abstention is charging-correlated — so the
+    per-read TSV, which carries a `reason` for every unscored read, is a real
+    output and not a debug aid. `read_attrition` folds it in.
 
     For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
     """
     input:
         pod5=get_classification_pod5,
         bam=rules.inject_ubam_tags.output.bam,
+        bai=rules.inject_ubam_tags.output.bai,
+        reference=get_validated_reference(),
     output:
         charging_bam=maybe_temp(
             os.path.join(
@@ -215,94 +235,33 @@ rule classify_charging:
             ),
             tier="cascade",
         ),
-        temp_sorted_bam=temp(
-            os.path.join(
-                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.tmp"
-            )
+        calls=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.charging_calls.tsv.gz"
         ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
     threads: 8
     params:
-        model=config["remora_cca_classifier"],
+        model=get_charging_model(),
+        min_mapq=config["charging"]["min_mapq"],
+        # escpod writes plain text regardless of extension, so hand it the
+        # uncompressed path and gzip afterwards.
+        tsv=lambda wildcards, output: output.calls[: -len(".gz")],
     shell:
         """
-        remora infer from_pod5_and_bam {input.pod5} {input.bam} \
-            --model {params.model} \
-            --out-bam {output.charging_bam} \
-            --log-filename {log} \
-            --reference-anchored \
-            --num-extract-alignment-workers 2 \
-            --num-prepare-read-workers 2 \
-            --num-prepare-nn-input-workers 2 \
-            --num-post-process-workers 2
-
-        # sort the result
-        samtools sort -@ {threads} {output.charging_bam} >{output.temp_sorted_bam}
-        cp {output.temp_sorted_bam} {output.charging_bam}
-
-        samtools index {output.charging_bam}
-        """
-
-
-rule classify_charging_leech:
-    """
-    run leech trained model to classify charged and uncharged reads
-    GPU-accelerated alternative to remora (requires leech installed from resources/leech)
-
-    For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
-    """
-    input:
-        pod5=get_classification_pod5,
-        bam=rules.inject_ubam_tags.output.bam,
-    output:
-        charging_bam=maybe_temp(
-            os.path.join(
-                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam"
-            ),
-            tier="cascade",
-        ),
-        charging_bam_bai=maybe_temp(
-            os.path.join(
-                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.bai"
-            ),
-            tier="cascade",
-        ),
-        temp_sorted_bam=temp(
-            os.path.join(
-                outdir, "bam", "charging", "{sample}", "{sample}.charging.bam.tmp"
-            )
-        ),
-    log:
-        os.path.join(outdir, "logs", "classify_charging_leech", "{sample}"),
-    threads: 4
-    params:
-        model=config["remora_cca_classifier"],
-    shell:
-        """
-        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-            export CUDA_VISIBLE_DEVICES
-        fi
-
-        leech predict \
-            --model {params.model} \
-            --pod5 {input.pod5} \
+        escpod signal classify {input.pod5} \
             --bam {input.bam} \
+            --reference {input.reference} \
+            --model {params.model} \
             --output {output.charging_bam} \
-            --device cuda \
-            --motif CCAGGC \
-            --motif-offset 2 \
-            --reference-anchored \
-            --workers 4 \
-            --batch-size 512 \
-            2>&1 | tee {log}
+            --tsv {params.tsv} \
+            --min-mapq {params.min_mapq} \
+            --threads {threads} \
+            >{log} 2>&1
 
-        # sort the result
-        samtools sort -@ {threads} {output.charging_bam} >{output.temp_sorted_bam}
-        cp {output.temp_sorted_bam} {output.charging_bam}
+        gzip -f {params.tsv}
 
-        samtools index {output.charging_bam}
+        samtools index -@ {threads} {output.charging_bam}
         """
 
 
@@ -352,44 +311,6 @@ rule classify_aa_identity:
         """
 
 
-rule transfer_bam_tags:
-    """
-    creates classified bam with MM and ML tags transferred to cm/cl
-
-    MM/ML tags from the charging classification are transferred to cm/cl so as not to interfere with
-    base modifications.
-    """
-    input:
-        source_bam=rules.classify_charging.output.charging_bam,
-        target_bam=rules.inject_ubam_tags.output.bam,
-    output:
-        classified_bam=maybe_temp(
-            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam"),
-            tier="cascade",
-        ),
-        classified_bam_bai=maybe_temp(
-            os.path.join(outdir, "bam", "classified", "{sample}", "{sample}.bam.bai"),
-            tier="cascade",
-        ),
-    log:
-        os.path.join(outdir, "logs", "transfer_bam_tags", "{sample}"),
-    threads: 4
-    params:
-        src=SCRIPT_DIR,
-    shell:
-        """
-        python {params.src}/transfer_tags.py \
-            --tags ML MM \
-            --rename ML=cl MM=cm \
-            --threads {threads} \
-            --source {input.source_bam} \
-            --target {input.target_bam} \
-            --output {output.classified_bam}
-
-        samtools index -@ {threads} {output.classified_bam}
-        """
-
-
 rule add_adapter_tags:
     """
     Detect adapter positions in reads using parasail alignment
@@ -398,11 +319,11 @@ rule add_adapter_tags:
     pt tag format: start;end;strand;type|start;end;strand;type
     Example: pt:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
-    This produces the final BAM with all tags: cm/cl (charging) and pt (adapters).
+    This produces the final BAM with all tags: cl (charging) and pt (adapters).
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
-        bai=rules.transfer_bam_tags.output.classified_bam_bai,
+        bam=rules.classify_charging.output.charging_bam,
+        bai=rules.classify_charging.output.charging_bam_bai,
     output:
         bam=maybe_temp(
             os.path.join(outdir, "bam", "adapter_tagged", "{sample}", "{sample}.bam"),

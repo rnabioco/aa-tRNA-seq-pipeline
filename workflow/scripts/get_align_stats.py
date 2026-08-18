@@ -3,8 +3,6 @@ import pysam
 import sys
 import gzip
 
-from collections import OrderedDict
-
 MAX_ARRAY_LENGTH = 100000
 
 
@@ -128,7 +126,16 @@ class ReadStats:
         return d
 
 
-def get_read_stats(fn, flag=None, sample_id=None, sample_info=None):
+def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=None):
+    """Summarize a BAM.
+
+    `require_tag` counts only reads carrying that tag. It exists because
+    `escpod signal classify` writes its `cl` call onto the records it scored
+    and passes every other record through UNCHANGED, so a plain read count of
+    the charging BAM equals the read count of its input and the charge-calling
+    gate silently reports zero loss. Remora only emitted the reads it called,
+    so the same row used to mean "reads the model called" for free.
+    """
     n_uniq_reads = 0
     seen_qnames = set()
 
@@ -137,6 +144,8 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None):
     fo = pysam.AlignmentFile(fn, check_sq=False)
 
     for read in fo:
+        if require_tag is not None and not read.has_tag(require_tag):
+            continue
         if flag is not None:
             if read.flag & flag != flag:
                 continue
@@ -224,6 +233,18 @@ if __name__ == "__main__":
         nargs="+",
     )
 
+    parser.add_argument(
+        "--require-tag",
+        help=(
+            "Per-BAM tag requirement, matched positionally to --bam. Reads "
+            "without the tag are not counted. Use '-' for no requirement. "
+            "Needed for the charging BAM, which carries every input record "
+            "and marks only the ones the model actually scored."
+        ),
+        nargs="+",
+        default=None,
+    )
+
     args = parser.parse_args()
 
     bam_fls = args.bam
@@ -239,6 +260,9 @@ if __name__ == "__main__":
     if args.info and len(args.info) != len(bam_fls):
         sys.exit("Number of info fields must match number of BAM files")
 
+    if args.require_tag and len(args.require_tag) != len(bam_fls):
+        sys.exit("Number of --require-tag values must match number of BAM files")
+
     total_reads = 0
 
     for i, bam in enumerate(bam_fls):
@@ -246,7 +270,11 @@ if __name__ == "__main__":
         if args.info:
             sample_info = args.info[i]
 
-        read_summaries = get_read_stats(bam, flag, args.id, sample_info)
+        require_tag = None
+        if args.require_tag and args.require_tag[i] != "-":
+            require_tag = args.require_tag[i]
+
+        read_summaries = get_read_stats(bam, flag, args.id, sample_info, require_tag)
 
         if i == 0:
             total_reads = read_summaries["n_reads"]

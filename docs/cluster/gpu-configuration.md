@@ -9,16 +9,21 @@ Two rules require GPU access:
 | Rule | Purpose | GPU Usage |
 |------|---------|-----------|
 | `rebasecall` | Dorado basecalling | CUDA neural network inference |
-| `classify_charging` | Remora classification | PyTorch model inference |
 
-Both rules benefit significantly from GPU acceleration. CPU-only execution is possible but substantially slower.
+`rebasecall` benefits significantly from GPU acceleration. CPU-only execution is possible but substantially slower.
+
+!!! note "`classify_charging` is CPU-only"
+
+    `escpod signal classify` has no GPU path — it runs a small ONNX network on
+    the CPU and scales with `--threads`. Do not give it a GPU slot; it will sit
+    on an idle device.
 
 ## GPU Resource Flow
 
 ```mermaid
 flowchart LR
     subgraph GPU Rules
-        A[rebasecall<br/>Dorado] --> B[classify_charging<br/>Remora]
+        A[rebasecall<br/>Dorado]
     end
 
     subgraph Resources
@@ -185,11 +190,11 @@ GPU rules also require significant system memory:
 - Throughput: ~100-500 reads/second depending on GPU
 - Benefits from newer GPU architectures (Ampere, Ada Lovelace)
 
-### Remora (classify_charging)
+### classify_charging (CPU)
 
-- Analyzes signal at CCA 3' end
-- Lower throughput than Dorado
-- Memory usage depends on batch size
+- Analyzes signal at the CCA 3' end, anchored in reference coordinates
+- Runs on the CPU under `escpod signal classify`; scales with `--threads`
+- No GPU slot required
 
 ## Troubleshooting
 

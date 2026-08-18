@@ -37,7 +37,7 @@ CLEAN_TARGETS = [
     "bam/aln",  # bwa_align output
     "bam/tagged",  # inject_ubam_tags output
     "bam/charging",  # classify_charging output
-    "bam/classified",  # transfer_bam_tags output
+    "bam/classified",  # retired transfer_bam_tags output (pre-v0.4.0 runs)
     "bam/adapter_tagged",  # add_adapter_tags output (hardlinked into bam/final)
     "demux",  # warpdemux_output, split/edx POD5+FASTQ, read_ids
 ]

@@ -52,7 +52,7 @@ cp -r sample1 sample2_1
 
 rm ex1*.txt ex2*.txt
 
-# get kmer levels for remora  
+# get kmer levels (the charging model's residual feature is defined against these)  
 wget https://raw.githubusercontent.com/nanoporetech/kmer_models/master/rna004/9mer_levels_v1.txt
 
 # tarball the test data

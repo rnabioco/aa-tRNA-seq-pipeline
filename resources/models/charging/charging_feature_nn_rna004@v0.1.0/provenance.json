@@ -1,0 +1,114 @@
+{
+  "id": "charging_feature_nn_rna004",
+  "version": "0.1.0",
+  "full_id": "charging_feature_nn_rna004@v0.1.0",
+  "kind": "charging",
+  "format": "onnx",
+  "chemistry": "rna004",
+  "created": "2026-08-17",
+  "file": "charging_feature_nn_rna004.onnx",
+  "sha256": "6cfebc2d436f4d565e27c20094c1e49c176a79ebb401c4a8e85a8f663a820637",
+  "license": "CC-BY-4.0",
+  "source": {
+    "escapepod_models_commit": "f521a8fe017681f76b1e12ab9af1ad5ae683cc53",
+    "escapepod_models_dirty": true,
+    "escapepod_rs_commit": "8ca1080087b0154c7db80b13946c06bcf83ad3f7",
+    "escapepod_rs_version": "escpod 0.10.0+8ca1080",
+    "escapepod_rs_binary": "/beevol/home/jhessel/devel/rnabioco/escapepod-models/.claude/worktrees/charging-cca/ext/escapepod-rs/target/release/escpod",
+    "training_script": "snakemake workflow (config: charging_feature_nn_rna004)",
+    "trainable_source_pt": null
+  },
+  "training": {
+    "label_source": "Library chemistry, not a model. ldx01-05 chemical ligation only, which joins the adapter to the amino acid's alpha-amine and so cannot happen on a deacylated molecule; ldx11-16 enzymatic ligation only, which needs a free 3'-OH a charged tRNA lacks. Reads are assigned to blocks by an LDX barcode call (barcode_crf_nbc16_rna004@v0.3.0), and that caller's error is the only label noise: ~9.3% of the ldx01-05 label is foreign by the 5' marker, against ~0.2% for ldx11-16.",
+    "dataset": "20260814_charged_vs_uncharged: E. coli K-12 MG1655 tRNA, 16 LDX codes on a single shared edx07 3' adapter, the same pool on two flowcells (Rep_1 PBK76952 train, Rep_2 PBK76980 test).",
+    "barcodes": null,
+    "n_train": 1228904,
+    "n_test": 1396924,
+    "pipeline": "dorado 1.4.0 rna004_130bps_sup@v5.3.0 --emit-moves; escpod demux detect --method cnn -> demux basecall --barcodes for the block; bwa mem vs eschColi_K_12_MG1655-edx07.fa; junction windows via move-table mapping; per-base features (mean + z-scored k-mer residual) over offsets -8..+24; matched split; recurrent net over the offset axis; ONNX."
+  },
+  "io_contract": "input float32 [B,4,33]: channels (mean, resid, mean_observed, resid_observed) over offsets -8..+24, per-channel standardised with the mu/sd fitted on the train split; output [B,2] logits (uncharged, charged).",
+  "runtime": "",
+  "metrics": {
+    "source": "workflow/rules/charging.smk (charging-eval via escapepod_models.charging)",
+    "verified": true,
+    "labels": [
+      "uncharged",
+      "charged"
+    ],
+    "label_source": "Library chemistry, not a model. ldx01-05 chemical ligation only, which joins the adapter to the amino acid's alpha-amine and so cannot happen on a deacylated molecule; ldx11-16 enzymatic ligation only, which needs a free 3'-OH a charged tRNA lacks. Reads are assigned to blocks by an LDX barcode call (barcode_crf_nbc16_rna004@v0.3.0), and that caller's error is the only label noise: ~9.3% of the ldx01-05 label is foreign by the 5' marker, against ~0.2% for ldx11-16.",
+    "split": "held-out flowcell; training draw matched within (run x isotype x speed bin) across the two chemically pure blocks",
+    "n_train": 1228904,
+    "n_test": 1396924,
+    "geometry": {
+      "feature_set": "level_resid@arm_le24",
+      "channels": [
+        "mean",
+        "resid",
+        "mean_observed",
+        "resid_observed"
+      ],
+      "n_offsets": 33,
+      "standardisation": {
+        "method": "per-channel affine over the TRAIN split's observed values",
+        "mu": [
+          -0.31300222873687744,
+          -0.13608723878860474
+        ],
+        "sd": [
+          0.7481064200401306,
+          1.244238257408142
+        ]
+      },
+      "anchor": "alignment junction (adapter-G base start), per-base features"
+    },
+    "best_val_auroc": 0.9896853904780372,
+    "val": {
+      "n": 136603,
+      "auroc": 0.9896853904780372,
+      "balanced_accuracy": 0.9615598884363961,
+      "flowcells": null
+    },
+    "test_cross_experiment": {
+      "n": 1396924,
+      "auroc": 0.9905629737044706,
+      "balanced_accuracy": 0.9624548271118039,
+      "confusion": [
+        [
+          703302,
+          26445
+        ],
+        [
+          25921,
+          641256
+        ]
+      ],
+      "flowcells": null
+    },
+    "balanced_accuracy": 0.9624548271118039,
+    "corpus_counts": {
+      "charged": {
+        "test": 1101621,
+        "train": 972997,
+        "val": 108412
+      },
+      "uncharged": {
+        "test": 6831257,
+        "train": 6172667,
+        "val": 685923
+      }
+    },
+    "excluded_unreadable": {
+      "charged": {
+        "n_excluded": 91637,
+        "frac_of_class": 0.040285896792805274
+      },
+      "uncharged": {
+        "n_excluded": 30888,
+        "frac_of_class": 0.002251191353815958
+      }
+    },
+    "coverage_note": "Reads whose common arm did not align (cs_source == junction_fallback) are excluded here and abstained on at inference: their whole left window is masked and every arm feature is NaN, and a model scored on them answers ~100% charged whatever the library. The exclusion rate is far higher for charged reads, so any charging fraction derived from called reads alone is an UNDERESTIMATE. Report the no-call rate beside it.",
+    "note": "Labels are library chemistry: chemical ligation attaches the adapter to the amino acid's alpha-amine and cannot happen on a deacylated molecule, enzymatic ligation needs a free 3'-OH a charged tRNA lacks. The training draw is matched on isotype and translocation speed because the two blocks also differ in 5' adapter and run ~53% apart. Test is a held-out flowcell."
+  },
+  "notes": ""
+}

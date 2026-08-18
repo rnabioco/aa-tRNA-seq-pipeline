@@ -1,0 +1,329 @@
+{
+  "format": "escapepod-charging-classifier/1",
+  "model": {
+    "id": "charging_feature_nn_rna004",
+    "version": "0.1.0",
+    "chemistry": "rna004",
+    "task": "tRNA aminoacylation state (charged vs uncharged)"
+  },
+  "classes": [
+    "uncharged",
+    "charged"
+  ],
+  "anchor": {
+    "method": "reference-junction",
+    "motif": "CCAGGC",
+    "motif_offset": 3,
+    "common_arm": "GGCTTCTTCTTGCTCTT",
+    "description": "sample `left` of the window is the FIRST raw sample of the base at reference position (index of CCAGGC) + 3 \u2014 the adapter G that follows CCA. Mapped via the move table (Remora convention: move_position * stride + ts).",
+    "requires": "aligned BAM with mv/ns/ts tags (dorado --emit-moves)",
+    "reference_note": "any reference whose records carry ...CCA + GGCTTCTTCTTGCTCTT; the 13 nt after the common arm may differ (library adapters vary) and are never read \u2014 see masking below."
+  },
+  "abstain": {
+    "rule": "aligner_arm_depth == 0",
+    "aligner_arm_depth_definition": "the deepest common-arm offset (>= +1 from the junction) that the ALIGNER placed exactly -- i.e. `q(junction+o) == o` in the reference->query map, before any slop backfill. 0 means bwa placed no arm base at all. Note this is NOT the same as the window being short: with count_arm_bases the features are computed by walking the query, so a read with aligner_arm_depth 0 still HAS arm features -- they simply do not discriminate (balanced accuracy 0.4993 on that population, 100% of the uncharged library called charged). Abstention keys on the aligner's reach for exactly that reason.",
+    "emit": "no-call (absent cl tag / null score), NOT a default class",
+    "why": "the read is untrustworthy, not merely incomplete. Giving it real arm features (by counting) does not help: on that population the model scores balanced accuracy 0.4993 and calls 100% of the uncharged library charged. The population is also physically distinct -- at MATCHED translocation speed it is 14-45x enriched in the charged library, across every isodecoder, every channel and every quarter of the run -- which is consistent with these reads being charged, but is not established as such while label and flowcell are confounded",
+    "reporting": "report the no-call RATE beside any charging fraction. Arm resolvability is charging-correlated, so a fraction computed over called reads only is an UNDERESTIMATE -- the same bias the remora cca_classifier has, differing only in being declared"
+  },
+  "features": {
+    "resolution": {
+      "arm_offsets": "count",
+      "count_arm_bases": 24,
+      "how": "for arm offsets 1..N, the query position is q(junction) + o -- walked along the query, NOT looked up in the alignment. Soft-clipped bases still carry move-table spans, so this works past the end of the alignment. Offsets above N are unresolved for every read (NaN).",
+      "body_offsets": "exact alignment only (no slop backfill)",
+      "why": "with the aligner-derived rule, feature availability in the arm depended on how far bwa got, and bwa stops at the adduct: 20.9-25.3% of charged-library reads lost the entire arm against 0.9% of uncharged. The model read that missing pattern as a class."
+    },
+    "order": [
+      "b-8_mean",
+      "b-8_resid",
+      "b-7_mean",
+      "b-7_resid",
+      "b-6_mean",
+      "b-6_resid",
+      "b-5_mean",
+      "b-5_resid",
+      "b-4_mean",
+      "b-4_resid",
+      "b-3_mean",
+      "b-3_resid",
+      "b-2_mean",
+      "b-2_resid",
+      "b-1_mean",
+      "b-1_resid",
+      "b+0_mean",
+      "b+0_resid",
+      "b+1_mean",
+      "b+1_resid",
+      "b+2_mean",
+      "b+2_resid",
+      "b+3_mean",
+      "b+3_resid",
+      "b+4_mean",
+      "b+4_resid",
+      "b+5_mean",
+      "b+5_resid",
+      "b+6_mean",
+      "b+6_resid",
+      "b+7_mean",
+      "b+7_resid",
+      "b+8_mean",
+      "b+8_resid",
+      "b+9_mean",
+      "b+9_resid",
+      "b+10_mean",
+      "b+10_resid",
+      "b+11_mean",
+      "b+11_resid",
+      "b+12_mean",
+      "b+12_resid",
+      "b+13_mean",
+      "b+13_resid",
+      "b+14_mean",
+      "b+14_resid",
+      "b+15_mean",
+      "b+15_resid",
+      "b+16_mean",
+      "b+16_resid",
+      "b+17_mean",
+      "b+17_resid",
+      "b+18_mean",
+      "b+18_resid",
+      "b+19_mean",
+      "b+19_resid",
+      "b+20_mean",
+      "b+20_resid",
+      "b+21_mean",
+      "b+21_resid",
+      "b+22_mean",
+      "b+22_resid",
+      "b+23_mean",
+      "b+23_resid",
+      "b+24_mean",
+      "b+24_resid"
+    ],
+    "offsets": [
+      -8,
+      -7,
+      -6,
+      -5,
+      -4,
+      -3,
+      -2,
+      -1,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "stats": [
+      "dwell",
+      "mean",
+      "std",
+      "resid"
+    ],
+    "layout": "per base, offsets outer and stats inner, matching `order`",
+    "anchor_offset": "b+0 is the adapter G at reference index(CCAGGC)+3; negative offsets run into the tRNA body, positive into the common arm",
+    "per_base": {
+      "dwell": "samples the move table assigns to the base",
+      "mean": "mean of the read-normalised signal over the base",
+      "std": "its standard deviation",
+      "resid": "mean minus the base's expected k-mer level, where the expectation is z-scored across the read's valid levels. This is the feature that carries the signal -- computing it against a different k-mer table gives a different feature space and an invalid model"
+    },
+    "normalisation": "per READ median/MAD (1.4826), not per window: a window-level gauge subtracts the level shift being measured",
+    "mask": "bases before the common arm are never read; the arm is GGCTTCTTCTTGCTCTT and the 13 nt after it differ between library adapters",
+    "missing": "NaN where a base did not align; the GBM handles NaN natively",
+    "feature_set": "level_resid@arm_le24"
+  },
+  "kmer_table": {
+    "file": "9mer_levels_v1.txt",
+    "sha256": "1d366c9e060f31be1d6489b88b415666fba42f1c4006e1e549666f4a50f13e63",
+    "center_idx": 4,
+    "k": 9,
+    "source_path": "/beevol/home/jhessel/devel/rnabioco/aa-tRNA-seq-pipeline/resources/kmers/9mer_levels_v1.txt",
+    "note": "versioned dependency: the residual is defined relative to it"
+  },
+  "refinement": {
+    "opts": {},
+    "meaning": "empty = rough-rescale only (gauge, no DP). Otherwise a banded DP refines the mapping; mask_before/after exclude that span from its cost so the arm is not fitted to levels that are wrong at the adduct. Masking WITHOUT an anchored flank collapses dwell to 0."
+  },
+  "provenance": {
+    "checkpoint": "charging_feature_nn_rna004.json",
+    "seed": 0,
+    "n_train": 1228904,
+    "class_counts_train": {
+      "uncharged": 642521,
+      "charged": 586383
+    },
+    "feature_set": "level_resid@arm_le24",
+    "arch": "lstm",
+    "hidden": 96,
+    "epochs_run": 40,
+    "best_val_auroc": 0.9896853904780372
+  },
+  "metrics": {
+    "source": "workflow/rules/charging.smk (charging-eval via escapepod_models.charging)",
+    "verified": true,
+    "labels": [
+      "uncharged",
+      "charged"
+    ],
+    "label_source": "Library chemistry, not a model. ldx01-05 chemical ligation only, which joins the adapter to the amino acid's alpha-amine and so cannot happen on a deacylated molecule; ldx11-16 enzymatic ligation only, which needs a free 3'-OH a charged tRNA lacks. Reads are assigned to blocks by an LDX barcode call (barcode_crf_nbc16_rna004@v0.3.0), and that caller's error is the only label noise: ~9.3% of the ldx01-05 label is foreign by the 5' marker, against ~0.2% for ldx11-16.",
+    "split": "held-out flowcell; training draw matched within (run x isotype x speed bin) across the two chemically pure blocks",
+    "n_train": 1228904,
+    "n_test": 1396924,
+    "geometry": {
+      "feature_set": "level_resid@arm_le24",
+      "channels": [
+        "mean",
+        "resid",
+        "mean_observed",
+        "resid_observed"
+      ],
+      "n_offsets": 33,
+      "standardisation": {
+        "method": "per-channel affine over the TRAIN split's observed values",
+        "mu": [
+          -0.31300222873687744,
+          -0.13608723878860474
+        ],
+        "sd": [
+          0.7481064200401306,
+          1.244238257408142
+        ]
+      },
+      "anchor": "alignment junction (adapter-G base start), per-base features"
+    },
+    "best_val_auroc": 0.9896853904780372,
+    "val": {
+      "n": 136603,
+      "auroc": 0.9896853904780372,
+      "balanced_accuracy": 0.9615598884363961,
+      "flowcells": null
+    },
+    "test_cross_experiment": {
+      "n": 1396924,
+      "auroc": 0.9905629737044706,
+      "balanced_accuracy": 0.9624548271118039,
+      "confusion": [
+        [
+          703302,
+          26445
+        ],
+        [
+          25921,
+          641256
+        ]
+      ],
+      "flowcells": null
+    },
+    "balanced_accuracy": 0.9624548271118039,
+    "corpus_counts": {
+      "charged": {
+        "test": 1101621,
+        "train": 972997,
+        "val": 108412
+      },
+      "uncharged": {
+        "test": 6831257,
+        "train": 6172667,
+        "val": 685923
+      }
+    },
+    "excluded_unreadable": {
+      "charged": {
+        "n_excluded": 91637,
+        "frac_of_class": 0.040285896792805274
+      },
+      "uncharged": {
+        "n_excluded": 30888,
+        "frac_of_class": 0.002251191353815958
+      }
+    },
+    "coverage_note": "Reads whose common arm did not align (cs_source == junction_fallback) are excluded here and abstained on at inference: their whole left window is masked and every arm feature is NaN, and a model scored on them answers ~100% charged whatever the library. The exclusion rate is far higher for charged reads, so any charging fraction derived from called reads alone is an UNDERESTIMATE. Report the no-call rate beside it.",
+    "note": "Labels are library chemistry: chemical ligation attaches the adapter to the amino acid's alpha-amine and cannot happen on a deacylated molecule, enzymatic ligation needs a free 3'-OH a charged tRNA lacks. The training draw is matched on isotype and translocation speed because the two blocks also differ in 5' adapter and run ~53% apart. Test is a held-out flowcell."
+  },
+  "operating_point": {
+    "probability": 0.7823529411764706,
+    "cl": 200,
+    "source": "Measured against CHEMISTRY rather than labels, on the full natural populations, using THE SHIPPED CHECKPOINT (trained with purified labels; an earlier hand-run checkpoint without --drop-reads calibrates slightly differently, 1.66% FPR, and is not what ships). FPR 1.74% on the enzymatic-only library (ldx11-16, n=13,689,847, 0% charged by ligation chemistry, ~99.8% pure) = 1 false call in 58. TPR 0.939 on the chemical-only library (ldx01-05, n=1,713,747, 100% charged, corrected for 9.3% demux contamination -- that correction assumes every foreign read is uncharged while the library is ~16% charged, so it over-corrects slightly; the FPR needs no correction and is the more trustworthy half). CAVEAT -- precision depends on the SAMPLE's charged fraction, not on the model. 95% precision needs cl>=205 at f=0.25, cl>=248 at f=0.10 and cl>=254 at f=0.05; 99% is unreachable below f~0.25. Full table in escapepod-models#63."
+  },
+  "caveats": [
+    "Headline accuracy is metrics.test_cross_experiment (20240928 runs). Within-experiment val is optimistic: in 20240729 each class is one whole flowcell, so val cannot separate charging from batch.",
+    "Trained on S. cerevisiae tRNA with the edx01/edx02 adapter family. Reads whose common arm differs from GGCTTCTTCTTGCTCTT are out of distribution.",
+    "The operating point is `cl >= 200` and is a RECOMMENDATION measured on held-out data, not a property of the model. Its precision and recall are in metrics; a caller wanting a different precision should move it and say so.",
+    "Metrics are computed over reads the model will actually score, i.e. after the `abstain` rule. Reads it abstains on are excluded from training and evaluation alike; their rate is label-correlated and is reported per class in the corpus summary (excluded_collapsed).",
+    "This is the per-base-feature ONNX variant. `escpod signal classify` reads it from escapepod-rs#231 onward, which added `feature_model` beside `gbm` and runs the graph over the flat vector the runtime already builds. An escpod predating that PR refuses the bundle with `missing field `gbm``, so pin the runtime version alongside it."
+  ],
+  "feature_model": {
+    "file": "charging_feature_nn_rna004.onnx",
+    "sha256": "6cfebc2d436f4d565e27c20094c1e49c176a79ebb401c4a8e85a8f663a820637",
+    "opset": 17,
+    "arch": "lstm",
+    "input": {
+      "name": "features",
+      "shape": [
+        null,
+        4,
+        33
+      ],
+      "dtype": "float32",
+      "layout": "batch, channel, offset",
+      "channels": [
+        "mean",
+        "resid",
+        "mean_observed",
+        "resid_observed"
+      ],
+      "n_offsets": 33,
+      "fold": "`features.order` is offsets-outer / channels-inner, so the k-th selected column is offset k // 2, value channel k % 2. Transpose to [channel, offset]."
+    },
+    "output": {
+      "name": "logits",
+      "shape": [
+        null,
+        2
+      ],
+      "classes": [
+        "uncharged",
+        "charged"
+      ],
+      "activation": "softmax over dim 1; P(charged) = softmax(logits)[:, 1]"
+    },
+    "standardisation": {
+      "method": "per-channel affine over the TRAIN split's observed values",
+      "mu": [
+        -0.31300222873687744,
+        -0.13608723878860474
+      ],
+      "sd": [
+        0.7481064200401306,
+        1.244238257408142
+      ],
+      "apply": "value channel c = observed ? (x - mu[c]) / sd[c] : 0.0; observed channel c = observed ? 1.0 : 0.0, where `observed` means the selected feature is finite",
+      "why": "constants fitted on the TRAIN split's observed values and shipped rather than recomputed: a per-batch gauge would make one read's answer depend on which reads it was run beside, and recomputing over unresolved bases (zero-filled, not absent) would move the gauge by whatever fraction of the input happens to be unresolved"
+    },
+    "missing": "NaN is NOT passed to the network. Unlike the GBM, which handles missingness natively, this model is told about it explicitly: the value channel is zeroed and the paired observed channel carries the indicator. Feeding NaN straight through gives NaN logits."
+  }
+}

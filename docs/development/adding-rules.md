@@ -32,7 +32,7 @@ rule my_new_rule:
     Brief description of what this rule does.
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
+        bam=rules.finalize_bam.output.bam,
         # Or use path patterns
         # bam=os.path.join(outdir, "bam", "final", "{sample}.bam"),
     output:
@@ -62,8 +62,8 @@ rule my_new_rule:
 
 ```python
 input:
-    bam=rules.transfer_bam_tags.output.classified_bam,
-    bai=rules.transfer_bam_tags.output.classified_bam_bai,
+    bam=rules.finalize_bam.output.bam,
+    bai=rules.finalize_bam.output.bai,
 ```
 
 ### Use Path Patterns
@@ -337,7 +337,7 @@ rule read_length_distribution:
     Calculate read length distribution from final BAM.
     """
     input:
-        bam=rules.transfer_bam_tags.output.classified_bam,
+        bam=rules.finalize_bam.output.bam,
     output:
         tsv=os.path.join(
             outdir, "summary", "tables", "{sample}", "{sample}.read_lengths.tsv.gz"

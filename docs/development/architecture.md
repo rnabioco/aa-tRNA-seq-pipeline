@@ -158,7 +158,6 @@ flowchart TD
         C --> D[ubam_to_fastq]
         D --> E[bwa_align]
         E --> F[classify_charging]
-        F --> G[transfer_bam_tags]
     end
 
     subgraph Summaries
@@ -204,7 +203,8 @@ dorado_version: 2.1.1
 
 # Reference files
 fasta: "resources/ref/..."
-remora_cca_classifier: "resources/models/..."
+charging:
+    model: "resources/models/charging/..."
 
 # Command options
 opts:
@@ -251,12 +251,11 @@ Located in `workflow/scripts/`:
 
 | Script | Called By | Purpose |
 |--------|-----------|---------|
-| `transfer_tags.py` | `transfer_bam_tags` | Transfer BAM tags |
+| `transfer_tags.py` | `inject_ubam_tags` | Transfer BAM tags |
 | `get_charging_table.py` | `get_cca_trna` | Extract CL tag |
 | `get_trna_charging_cpm.py` | `get_cca_trna_cpm` | Calculate CPM |
 | `get_bcerror_freqs.py` | `base_calling_error` | Error metrics |
 | `get_align_stats.py` | `align_stats` | Read statistics |
-| `extract_signal_metrics.py` | `remora_signal_stats` | Signal metrics |
 
 Scripts are called via `SCRIPT_DIR`:
 

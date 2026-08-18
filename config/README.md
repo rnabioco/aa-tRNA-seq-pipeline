@@ -171,8 +171,6 @@ step with it, since that is the value `escpod` is actually launched with.
 
 - `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
 
-- `remora_kmer_table`: Path to a table of expected normalized signal intensities for each kmer, provided by ONT at [nanoporetech/kmer_models](https://github.com/nanoporetech/kmer_models).
-
 - `trna_table`: Path to a table with tRNA isodecoder + sequencing adapter annotation from the FASTA reference file.
 
   The format is four whitespace-delimited columns (no header):
@@ -181,6 +179,47 @@ step with it, since that is the value `escpod` is actually launched with.
   3. **isodecoder**: The isodecoder family (e.g., `Ala-AGC`)
   4. **tRNA gene name**: Representative name for the tRNA (can be any string)
 
-  This table is currently optional since charging classification uses Remora signal analysis rather than adapter sequences.
+  This table is currently optional since charging classification uses signal analysis rather than adapter sequences.
+
+- `charging`: Charged vs uncharged classification, run by `escpod signal
+  classify`. See `resources/models/charging/README.md` for the model bundle
+  itself.
+
+  - `model`: The model bundle **directory** (not a file). It is
+    self-describing — it carries the anchor definition, the feature recipe, the
+    k-mer table the features are defined against (pinned by sha256), the
+    abstain rule and the recommended operating point — so no motif, offsets or
+    threshold are passed as flags. Computing the features differently gives a
+    wrong answer rather than an error, which is why they are not configurable.
+
+    The bundle is vendored in this repository rather than fetched: upstream
+    (`rnabioco/escapepod-models`) is private, and compute nodes have no route
+    to GitHub. It also pins the escpod version — `escpod_version` must be
+    >= 0.10.0 or the binary refuses the bundle outright.
+
+  - `min_mapq`: Minimum MAPQ for a read to be classified. **0**, deliberately,
+    rather than escpod's own default of 1: tRNA references are highly
+    redundant, so a read mapping equally well to two isodecoders gets MAPQ 0
+    from bwa and is still a perfectly good read. On the test data `--min-mapq
+    1` drops 118 of 209 records (56%).
+
+  - `ml_threshold`: `cl` at or above this is called charged. Must match the
+    bundle's declared `operating_point.cl` (200, i.e. P(charged) >= 0.7824)
+    unless you intend to move it. It is a recommendation measured on held-out
+    data, not a property of the model — and precision depends on the *sample's*
+    charged fraction, so 95% precision needs `cl >= 205` at f=0.25 but
+    `cl >= 254` at f=0.05.
+
+  **Reads the model abstains on get no `cl` tag**, rather than a default class.
+  Abstention is charging-correlated (the aminoacyl adduct is what stops the
+  aligner reaching the common arm), so a charging fraction over called reads
+  alone is an **underestimate**. Report the no-call rate beside it:
+  `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` has a per-read
+  `reason`, and `summary/read_attrition.tsv.gz` has the run-level breakdown.
+
+- `escpod_version`: Version of the `escpod` binary that `pixi run setup`
+  downloads. It is on the critical path of every run — POD5 merge/filter,
+  charging classification, and LDX demux — and is pinned alongside the charging
+  model bundle, not independently of it.
 
 - `opts`: Customized command-line options for pipeline tools. The `bam_filter` option controls full-length read filtering parameters. 

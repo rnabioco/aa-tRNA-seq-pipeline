@@ -8,10 +8,10 @@ min_version("8.0")
 configfile: "config/config-base.yml"
 
 
-# Dorado path setup (modkit and remora are managed by pixi)
+# Dorado path setup (modkit is managed by pixi)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
-ESCPOD_VERSION = config.get("escpod_version", "0.7.0")
+ESCPOD_VERSION = config.get("escpod_version", "0.11.0")
 ESCPOD_DIR = f"resources/tools/escpod/{ESCPOD_VERSION}"
 
 
@@ -54,17 +54,16 @@ onstart:
         ("samtools", [conda_prefix]),
         ("bwa", [conda_prefix]),
         ("modkit", [conda_prefix]),
-        ("remora", [conda_prefix]),
-        ("pod5", [conda_prefix]),
+        # escpod is unconditional: merge_pods and classify_charging use it on
+        # every run, not just demux runs.
+        ("escpod", [os.path.join(repo_root, "resources")]),
     ]
     if config.get("warpdemux", {}).get("enabled", False):
         tools_to_check.append(("warpdemux", [conda_prefix]))
-    if config.get("ldx", {}).get("enabled", False):
-        tools_to_check.append(("escpod", [os.path.join(repo_root, "resources")]))
-    if config.get("classifier", "remora") == "leech":
-        tools_to_check.append(
-            ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
-        )
+        # nothing shells out to the pod5 CLI any more, but WarpDemuX imports
+        # the pod5 python package and installing it is what puts the CLI on
+        # PATH -- so this still stands in for "warpdemux can read POD5s".
+        tools_to_check.append(("pod5", [conda_prefix]))
     if config.get("classify_aa", {}).get("enabled", False):
         tools_to_check.append(
             ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
@@ -115,16 +114,6 @@ localrules:
     download_mod_models,
     generate_squiggy_session,
     clean,
-
-
-# Route charging classifier: prefer leech or remora based on config
-if config.get("classifier", "remora") == "leech":
-
-    ruleorder: classify_charging_leech > classify_charging
-
-else:
-
-    ruleorder: classify_charging > classify_charging_leech
 
 
 # Conditionally include demultiplexing rules (WarpDemuX/WDX or escapepod/LDX)
