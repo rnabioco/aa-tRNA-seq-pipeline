@@ -158,6 +158,7 @@ flowchart TD
         C --> D[ubam_to_fastq]
         D --> E[bwa_align]
         E --> F[classify_charging]
+        F --> G[add_adapter_tags<br/>finalize_bam]
     end
 
     subgraph Summaries

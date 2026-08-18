@@ -113,10 +113,12 @@ flowchart TD
         D --> F[classify_charging<br/>escpod signal classify]
         B -.-> F
         A -.-> F
+        F --> G[add_adapter_tags<br/>finalize_bam]
     end
 
     subgraph Outputs
-        G --> H[charging_prob<br/>per-read ML scores]
+        F --> CC[charging_calls<br/>per-read calls + no-call reason]
+        G --> H[charging_prob<br/>per-read cl scores]
         G --> I[get_cca_trna_cpm<br/>CPM counts]
         G --> J[bcerror<br/>basecalling errors]
         G --> K[align_stats]
