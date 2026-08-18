@@ -33,7 +33,6 @@ flowchart LR
 
     C --> A
     D --> A
-    D --> B
 ```
 
 ## Cluster Configuration

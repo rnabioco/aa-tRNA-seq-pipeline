@@ -74,7 +74,7 @@ flowchart TB
         R[render_combined_qc_report<br/>QC report]
     end
 
-    A --> B --> C --> D --> E --> F --> G --> G2 --> G3
+    A --> B --> C --> D --> E --> F --> G2 --> G3
 
     G3 --> H --> I
     G3 --> J
