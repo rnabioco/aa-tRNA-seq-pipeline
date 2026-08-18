@@ -27,7 +27,13 @@ onstart:
     escpod_bin_path = os.path.abspath(f"{ESCPOD_DIR}/bin")
     tool_bins = f"{dorado_bin_path}:{escpod_bin_path}"
     os.environ["PATH"] = f"{tool_bins}:{os.environ['PATH']}"
-    shell.prefix(f"export PATH={tool_bins}:$PATH; ")
+    # NOTE: the `set -euo pipefail` is load-bearing. shell.prefix() REPLACES
+    # snakemake's default prefix, and that default IS bash strict mode
+    # (snakemake/shell.py `_get_process_prefix`). Without it restored here,
+    # every pipeline in every rule reports only its LAST command's exit
+    # status, so a failing `bwa mem | samtools view | samtools sort` looks
+    # like a success with an empty BAM.
+    shell.prefix(f"set -euo pipefail; export PATH={tool_bins}:$PATH; ")
     # Verify dorado version matches config
     dorado_bin = os.path.join(dorado_bin_path, "dorado")
     if os.path.isfile(dorado_bin):
