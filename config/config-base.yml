@@ -9,7 +9,7 @@ base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
 # Adapter sequences for tRNA reference building/validation
-# These must match what the Remora charging model was trained on.
+# These must match what the charging model was trained on.
 # The charging classification uses the CCAGGC 6-mer junction:
 #   CCA = tRNA 3' end (last 3 bases of mature tRNA)
 #   GGC = first 3 bases of 3' adapter
@@ -52,24 +52,35 @@ reference:
   # Default "" = no spacer (backward compatible). Set to e.g. "T" to enable.
   cca_spacer: ""
 
-# Optional: provide a kmer table to extract signal metrics using remora
-# Set to a path (e.g. "resources/kmers/9mer_levels_v1.txt") to enable
-# from: https://github.com/nanoporetech/kmer_models/tree/master/rna004
-remora_kmer_table: null
+# Charged vs uncharged tRNA classification, via `escpod signal classify`.
+charging:
+  # Model bundle DIRECTORY, not a file. It is self-describing: it carries the
+  # anchor definition, the feature recipe, the k-mer table it is defined
+  # against (pinned by sha256), the abstain rule and the recommended operating
+  # point, so nothing below is passed as a flag. See the README beside it.
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
 
-# read classification model - remora trained model to classify charged vs uncharged reads
-remora_cca_classifier: "resources/models/cca_classifier.pt"
+  # Minimum mapping quality for a read to be classified. 0, not escpod's
+  # default of 1, and deliberately: tRNA references are highly redundant, so a
+  # read that maps equally well to two isodecoders gets mapq 0 from bwa and is
+  # a perfectly good read. On the test data `--min-mapq 1` drops 118 of 209
+  # records (56%); 0 classifies exactly the 187 reads Remora did.
+  min_mapq: 0
 
-# CCA charging classifier to use: "remora" (default) or "leech"
-# Leech is a GPU-accelerated alternative (requires resources/leech submodule)
-classifier: "remora"
+  # `cl` at or above this is called charged. The bundle declares its own
+  # recommended operating point (`operating_point.cl`) and this must match it
+  # — 200, i.e. P(charged) >= 0.7824. It is a RECOMMENDATION measured on
+  # held-out data, not a property of the model: precision depends on the
+  # sample's charged fraction, so 95% precision needs cl >= 205 at f=0.25 but
+  # cl >= 254 at f=0.05. Move it for a different precision, and say so.
+  ml_threshold: 200
 
 # AA identity classification using leech one-vs-all bundle (optional)
 aa_identity:
   enabled: false
   bundle: ""
 
-# software tools (modkit and remora managed by pixi)
+# software tools (modkit managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
@@ -77,18 +88,32 @@ dorado_version: 2.1.1
 dorado_model: rna004_130bps_sup@v5.3.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
-# GitHub release. Provides `escpod demux` for LDX (nbc) barcode
-# demultiplexing, and `escpod merge`/`escpod filter` for the POD5 handling that
-# used to shell out to the `pod5` CLI.
+# GitHub release. It is on the critical path of every run, not just demux runs:
+# `escpod merge`/`escpod filter` do the POD5 handling that used to shell out to
+# the `pod5` CLI, `escpod signal classify` is the charging classifier, and
+# `escpod demux` is the LDX (nbc) barcode demultiplexer.
 #
-# 0.8.1 is the floor, and the reason is a correctness one rather than a feature:
-# escpod before 0.8.1 could emit a POD5 whose signal batches break stride, which
-# dorado then reads SHORT — silently, no error, no non-zero exit. On the
-# 2026-08-06 run that cost 97,790 reads (10.6%) and looked like biology.
-# 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and the
-# `boundary.margin` / `boundary.clamp_max_shift` bundle keys the vendored nbc16
-# model declares.
-escpod_version: 0.8.1
+# 0.10.0 is the floor for the charging model. The vendored bundle is the
+# per-base-feature ONNX variant, which escpod reads from escapepod-rs#231
+# onward; an older binary refuses it outright with `missing field \`gbm\``. So
+# the runtime is pinned alongside the model, not independently of it.
+#
+# 0.11.0 is what we run, for two fixes to that classifier:
+#   - the bundle's abstain rule is actually applied. Before, it was parsed and
+#     dropped, so ~0.85% of scoreable reads — reads of something else, mostly
+#     the wrong strand of the duplex — got a confident `cl` like any other.
+#   - `--tsv` gained the `reason` column, so every read the model did not score
+#     says why instead of silently vanishing. That is what feeds
+#     `read_attrition.tsv.gz`.
+#
+# Two earlier floors still hold and are the reason not to go below 0.8.1 even
+# for a demux-only run: escpod before 0.8.1 could emit a POD5 whose signal
+# batches break stride, which dorado then reads SHORT — silently, no error, no
+# non-zero exit (on the 2026-08-06 run that cost 97,790 reads, 10.6%, and
+# looked like biology); and 0.8.1 carries the multi-input `filter` that
+# `split_pod5` needs plus the `boundary.margin` / `boundary.clamp_max_shift`
+# bundle keys the vendored nbc16 model declares.
+escpod_version: 0.11.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -132,9 +157,6 @@ opts:
 
   # requires positive strand alignment and excludes non-primary alignments
   coverage: "--filterRNAstrand 'reverse' --samFlagExclude 256"
-
-  # pass additional options to get_signal_metrics.py script which uses Remora to calculate metrics
-  remora: ""
 
 # WarpDemuX demultiplexing (optional, disabled by default)
 #

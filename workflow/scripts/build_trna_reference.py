@@ -9,7 +9,7 @@ required for the aa-tRNA-seq pipeline:
   3. 3' adapter suffix (must start with GGC to form CCAGGC junction)
 
 The CCAGGC 6-mer junction (CCA from tRNA + GGC from adapter) is critical
-for the Remora charging classification model, which analyzes the nanopore
+for the charging classification model, which analyzes the nanopore
 signal over this region to distinguish charged vs uncharged tRNAs.
 
 Modes:
@@ -515,7 +515,7 @@ Build mode will:
   - Prepend 5' adapter sequence
   - Append 3' adapter sequence after CCA
 
-The CCAGGC junction (tRNA CCA + adapter GGC) is required for the Remora
+The CCAGGC junction (tRNA CCA + adapter GGC) is required for the
 charging classification model to work correctly.
         """,
     )

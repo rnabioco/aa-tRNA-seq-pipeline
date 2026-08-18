@@ -55,7 +55,7 @@ A BWA index is built automatically if it doesn't exist.
 
 ### Adapter Sequences
 
-The pipeline uses adapter sequences for reference validation and building. These must match what the Remora charging model was trained on:
+The pipeline uses adapter sequences for reference validation and building. These must match what the charging model was trained on:
 
 ```yaml
 adapters:
@@ -122,15 +122,29 @@ reference:
     1. Use `mode: "validate"` with a pre-adapted FASTA
     2. Use `mode: "build"` with raw tRNA sequences (CCA endings required or will be added)
 
-### Remora Models
+### Charging Classifier
 
 ```yaml
-# Kmer level table for signal extraction (from ONT kmer_models repo)
-remora_kmer_table: "resources/kmers/9mer_levels_v1.txt"
-
-# Trained ML model for charging classification
-remora_cca_classifier: "resources/models/cca_classifier.pt"
+charging:
+  # Model bundle DIRECTORY, vendored in the repo. Self-describing: it carries
+  # the anchor, feature recipe, k-mer table (pinned by sha256) and operating
+  # point, so none of those are flags.
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+  # 0, not escpod's default of 1 — tRNA references are redundant, so MAPQ 0
+  # is normal and those reads are still good.
+  min_mapq: 0
+  # `cl` >= this is charged. Must match the bundle's operating_point.cl.
+  ml_threshold: 200
 ```
+
+!!! warning "Reads with no `cl` tag are not uncharged"
+
+    The model **abstains** on reads whose common arm did not align, rather than
+    guessing. Those reads carry no `cl` tag at all. Abstention is
+    charging-correlated, so a charging fraction over called reads alone is an
+    **underestimate** — read
+    `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` and
+    `summary/read_attrition.tsv.gz` alongside it.
 
 ## Tool Versions
 
@@ -173,7 +187,7 @@ opts:
 | Option | Description |
 |--------|-------------|
 | `--modified-bases` | Modifications to call during basecalling |
-| `--emit-moves` | Output move tables (required for Remora) |
+| `--emit-moves` | Output move tables (required by the charging model) |
 
 ### BWA Options
 
@@ -257,7 +271,8 @@ output_directory: "results/analysis"
 samples: config/samples.tsv
 output_directory: "results/analysis"
 fasta: "path/to/my/reference.fa"
-remora_cca_classifier: "path/to/my/model.pt"
+charging:
+  model: "path/to/my/bundle"
 ```
 
 ### With Demultiplexing

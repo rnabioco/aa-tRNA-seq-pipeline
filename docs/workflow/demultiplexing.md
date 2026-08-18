@@ -37,7 +37,7 @@ Do **not** use when:
 pixi run setup
 ```
 
-This installs WarpDemuX along with other pipeline tools (dorado, remora).
+This installs WarpDemuX along with other pipeline tools (dorado, escpod).
 
 ### 2. Create YAML Sample File
 

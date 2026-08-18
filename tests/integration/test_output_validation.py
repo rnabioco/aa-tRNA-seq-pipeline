@@ -47,32 +47,37 @@ class TestFinalBamOutput:
             assert len(reads) > 0
 
     def test_final_bam_has_cl_tag(self, final_bam_path):
-        """Final BAM reads should have CL (charging likelihood) tag."""
+        """Final BAM reads should have the cl (charging likelihood) tag.
+
+        Lowercase: two-letter lowercase tags are the SAM spec's local-use
+        space, and tags are case-sensitive. A read with NO cl tag is a
+        deliberate no-call from the charging model, not a failure, so this
+        asserts a majority rather than all.
+        """
         with pysam.AlignmentFile(str(final_bam_path), "rb") as bam:
             reads_with_cl = 0
             total_reads = 0
             for read in bam.fetch():
                 total_reads += 1
-                if read.has_tag("CL"):
+                if read.has_tag("cl"):
                     reads_with_cl += 1
-                    # CL should be in valid range
-                    cl_val = read.get_tag("CL")
+                    # cl should be in valid range
+                    cl_val = read.get_tag("cl")
                     if not isinstance(cl_val, (int, float)):
                         cl_val = cl_val[0]
                     assert 0 <= cl_val <= 255
 
-            # Most reads should have CL tag
             assert reads_with_cl > 0
             assert reads_with_cl / total_reads > 0.5
 
     def test_final_bam_has_pt_tag(self, final_bam_path):
-        """Final BAM reads should have PT (adapter positions) tag."""
+        """Final BAM reads should have the pt (adapter positions) tag."""
         with pysam.AlignmentFile(str(final_bam_path), "rb") as bam:
             reads_with_pt = 0
             for read in bam.fetch():
-                if read.has_tag("PT"):
+                if read.has_tag("pt"):
                     reads_with_pt += 1
-                    pt_val = read.get_tag("PT")
+                    pt_val = read.get_tag("pt")
                     # PT should have expected format
                     assert isinstance(pt_val, str)
                     # Should contain adapter annotations
@@ -85,6 +90,24 @@ class TestFinalBamOutput:
                         assert "adapter" in pt_val
 
             assert reads_with_pt > 0
+
+    def test_final_bam_preserves_modbase_tags(self, final_bam_path):
+        """Dorado's MM/ML modbase tags must survive charging classification.
+
+        `escpod signal classify` adds `cl` alongside them rather than writing
+        into ML/MM the way Remora did, and modkit reads MM/ML downstream. A
+        regression here would silently empty the modification pileups.
+        """
+        with pysam.AlignmentFile(str(final_bam_path), "rb") as bam:
+            reads_with_mods = sum(
+                1 for read in bam.fetch() if read.has_tag("MM") and read.has_tag("ML")
+            )
+        assert reads_with_mods > 0
+
+    def test_final_bam_has_no_cm_tag(self, final_bam_path):
+        """The cm tag is retired along with the Remora ML/MM round-trip."""
+        with pysam.AlignmentFile(str(final_bam_path), "rb") as bam:
+            assert not any(read.has_tag("cm") for read in bam.fetch())
 
     def test_final_bam_index_exists(self, final_bam_path):
         """Final BAM should have accompanying index."""

@@ -1,10 +1,16 @@
 # Rules for tRNA charging classification analysis
-# Extracts and summarizes charged vs uncharged tRNA classification from Remora ML model
+# Extracts and summarizes the charged vs uncharged calls (`cl` tag) that
+# `escpod signal classify` wrote onto the BAM.
 
 
 rule get_cca_trna:
     """
-    extract and report charing probability (ML tag) per read
+    extract and report charging probability (`cl` tag) per read
+
+    Reads that the model abstained on carry no `cl` tag and so do not appear
+    here. Their count and cause are in {sample}.charging_calls.tsv.gz and
+    read_attrition.tsv.gz — read the two together, because abstention is
+    charging-correlated and this table alone understates the charged fraction.
     """
     input:
         bam=rules.finalize_bam.output.bam,
@@ -39,8 +45,7 @@ rule get_cca_trna_cpm:
         os.path.join(outdir, "logs", "cca_trna_cpm", "{sample}"),
     params:
         src=SCRIPT_DIR,
-        # XXX move `ml_thresh` to config file
-        ml_thresh=200,
+        ml_thresh=config["charging"]["ml_threshold"],
     shell:
         """
         python {params.src}/get_trna_charging_cpm.py \

@@ -12,7 +12,8 @@ Documentation for Python scripts in `workflow/scripts/`.
 | `get_charging_summary.py` | Generate charging statistics |
 | `get_bcerror_freqs.py` | Calculate basecalling error metrics |
 | `get_align_stats.py` | Summarize alignment statistics |
-| `extract_signal_metrics.py` | Extract Remora signal metrics |
+| `read_attrition.py` | Report where the run's reads were lost |
+| `anchor_coverage.py` | Count aligned reads spanning the CCA anchor |
 | `filter_reads.py` | Filter BAM by quality criteria |
 | `generate_squiggy_session.py` | Generate Squiggy session JSON for Positron |
 | `compute_odds_ratios.py` | Compute per-tRNA pairwise modification odds ratios |
@@ -274,59 +275,6 @@ python get_align_stats.py \
 | median_bq | Median base quality |
 | mean_mapq | Mean mapping quality |
 | median_mapq | Median mapping quality |
-
----
-
-## extract_signal_metrics.py
-
-Extract signal metrics using Remora API for model interpretation.
-
-### Usage
-
-```bash
-python extract_signal_metrics.py \
-    --pod5_dir sample.pod5 \
-    --bam aligned.bam \
-    --kmer 9mer_levels.txt \
-    --sample_name sample1 \
-    [--region chr:start-end] \
-    [--bed regions.bed] \
-    | gzip > output.tsv.gz
-```
-
-### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `--pod5_dir` | POD5 file or directory |
-| `--bam` | Aligned BAM file |
-| `--kmer` | Kmer level table |
-| `--sample_name` | Sample identifier |
-| `--region` | Specific region (samtools format) |
-| `--bed` | BED file with regions |
-| `--metric` | Metric type (default: dwell_trimmean_trimsd) |
-| `--signal_norm` | Signal normalization (norm/pa/dac) |
-| `--window` | Window size for chunking |
-| `--skip_refine_signal` | Skip DTW refinement |
-| `--scale_iters` | Scale iterations |
-
-### Dependencies
-
-Requires custom Remora fork:
-
-```bash
-pip install git+https://github.com/rnabioco/remora.git@metrics_missing_ok
-```
-
-### Output Format
-
-| Column | Description |
-|--------|-------------|
-| Sample | Sample name |
-| Contig | Reference name |
-| Reference_Position | 1-based position |
-| Read_id | Read identifier |
-| [Metric columns] | Extracted signal metrics |
 
 ---
 

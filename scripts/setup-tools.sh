@@ -14,7 +14,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ============================================================================
 DORADO_VERSION="${DORADO_VERSION:-$(awk '/^dorado_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 DORADO_MODEL="${DORADO_MODEL:-$(awk '/^dorado_model:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
-CUDA_VERSION="${CUDA_VERSION:-cu124}"
 DORADO_DIR="${REPO_ROOT}/resources/tools/dorado/${DORADO_VERSION}"
 MODEL_DIR="${REPO_ROOT}/resources/models"
 
@@ -23,10 +22,10 @@ ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 # Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
 # Pinned rather than fetched alongside the tarball so that re-tagging the
 # release upstream is caught here instead of being silently trusted.
-ESCPOD_SHA256_x86_64_linux="c7e36d2c0dfd807cfefd9a73ef565dbfa0e296f1bd559b9891830ee892bcea63"
-ESCPOD_SHA256_aarch64_linux="93c3f8c7377450598fb897019ab82378ecf3733cb5fc6157d2b12926c0fee4de"
-ESCPOD_SHA256_x86_64_darwin="ac292be92c5cfeeef3d222b02c0559e2432b3f41057912b0221efec9b486a892"
-ESCPOD_SHA256_aarch64_darwin="a1369851cd2895bec2afea827354b4b5ce8fd685fca49673d860e24e471fc6ad"
+ESCPOD_SHA256_x86_64_linux="65bb2625b215d0de8cd39adeef3f92f7d8a116376dfa9eb74bc840084ad8fffd"
+ESCPOD_SHA256_aarch64_linux="20aa796ec31bd10b7145bd0b68428c6a0f3217aac237b01270cd38ca84c3a8f2"
+ESCPOD_SHA256_x86_64_darwin="2e7f23ec3bf4349746d27999e930d548b081b83ee5d5c0253aeecd74192115c2"
+ESCPOD_SHA256_aarch64_darwin="a71d042be39b5c9b1e2f6be051b454e2c3d25620963626cb9b9ae844d796a81e"
 
 # ============================================================================
 # Helper Functions
@@ -196,25 +195,6 @@ echo "=== Checking modification models ==="
 download_mod_models
 
 # ============================================================================
-# Remora Setup (via uv)
-# ============================================================================
-echo "=== Checking remora ==="
-if python -c "import remora" 2>/dev/null; then
-    echo "Remora already installed"
-else
-    echo "Installing PyTorch with CUDA support (${CUDA_VERSION})..."
-    uv pip install torch --index-url "https://download.pytorch.org/whl/${CUDA_VERSION}"
-
-    echo "Installing remora dependencies (excluding pyarrow/numpy to preserve conda versions)..."
-    uv pip install plotnine statsmodels thop
-
-    echo "Installing ont-remora from GitHub..."
-    uv pip install --no-deps "git+https://github.com/nanoporetech/remora.git"
-
-    echo "Remora installed successfully"
-fi
-
-# ============================================================================
 # Pod5 Setup (via uv — bioconda version is outdated)
 # ============================================================================
 echo "=== Checking pod5 ==="
@@ -233,9 +213,11 @@ fi
 # ============================================================================
 # escapepod (escpod) Setup
 # ============================================================================
-# Provides `escpod demux`, the CTC-CRF barcode demultiplexer used for LDX
-# (nbc) barcodes. The barcode models themselves are vendored in
-# resources/models/demux/ rather than fetched — see the README there.
+# Provides `escpod signal classify` (the tRNA charging classifier), `escpod
+# merge`/`escpod filter` (POD5 handling), and `escpod demux` (the CTC-CRF
+# barcode demultiplexer used for LDX/nbc barcodes). The models themselves are
+# vendored in resources/models/charging/ and resources/models/demux/ rather
+# than fetched — see the READMEs there.
 echo "=== Checking escpod ==="
 if [ -x "${ESCPOD_DIR}/bin/escpod" ]; then
     echo "escpod already installed at ${ESCPOD_DIR}"
@@ -260,6 +242,15 @@ fi
 # ============================================================================
 # Leech Setup (via uv, from submodule)
 # ============================================================================
+# Only needed for amino-acid identity classification (`classify_aa` /
+# `aa_identity`), both disabled by default. Charging classification does NOT
+# use leech — it runs `escpod signal classify` against the vendored ONNX
+# bundle, so the default pipeline needs no torch at all.
+#
+# leech's own .pt bundles ARE torch, and it is installed --no-deps here (to
+# keep pip from overriding conda's pyarrow/numpy), so enabling AA
+# classification means installing torch yourself:
+#   uv pip install torch --index-url https://download.pytorch.org/whl/cu124
 echo "=== Checking leech ==="
 if python -c "import leech" 2>/dev/null; then
     echo "Leech already installed"

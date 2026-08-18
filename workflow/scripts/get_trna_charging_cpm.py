@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 """
-Collapses the output of running a Remora CCA model and extracting
+Collapses the output of running the CCA charging model and extracting
 per-read information on charging likelihood into an ML tag into
 per-isodecoder counts (and CPM-normalized counts) of charged and uncharged
 tRNAs as determined by the model with a ML >= 200 threshold.
@@ -16,7 +16,7 @@ tRNA-AA-anticodon-family-species-ref are all preserved from BWA alignment,
 and can be further collapsed as desired in downstream analysis
 
 CPM normalization reflects counts per million reads that passed alignment and
-the filtering parameters for Remora classification; these are full length tRNA
+the filtering parameters for charging classification; these are full length tRNA
 """
 
 import pandas as pd

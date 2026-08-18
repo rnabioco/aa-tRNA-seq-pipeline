@@ -45,7 +45,6 @@ merge_pods                   2
 rebasecall                   2
 bwa_align                    2
 classify_charging            2
-transfer_bam_tags            2
 get_cca_trna                 2
 get_cca_trna_cpm             2
 ...

@@ -59,7 +59,8 @@ Create a configuration file for your analysis:
 
     # Optional: Override base configuration
     # fasta: "path/to/custom/reference.fa"
-    # remora_cca_classifier: "path/to/custom/model.pt"
+    # charging:
+    #   model: "path/to/custom/bundle"
     ```
 
 The configuration inherits defaults from `config/config-base.yml`. Override any parameter as needed.

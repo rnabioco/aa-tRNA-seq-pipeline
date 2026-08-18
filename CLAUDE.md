@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) aa-tRNA-seq data. The pipeline distinguishes between charged (aminoacylated) and uncharged tRNA molecules using Remora machine learning models trained on nanopore signal data over the CCA 3' end of tRNA molecules.
+This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) aa-tRNA-seq data. The pipeline distinguishes between charged (aminoacylated) and uncharged tRNA molecules using a machine learning model — run by `escpod signal classify` — trained on nanopore signal data over the CCA 3' end of tRNA molecules.
 
 ## Setup and Environment
 
@@ -14,7 +14,7 @@ This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) a
 # Install all dependencies
 pixi install
 
-# One-time setup: downloads dorado, basecalling models, remora, and WarpDemuX
+# One-time setup: downloads dorado, basecalling models, escpod, and WarpDemuX
 # IMPORTANT: Run this once before using the pipeline, from a single node only
 pixi run setup
 
@@ -22,7 +22,7 @@ pixi run setup
 pixi run dl-test-data
 ```
 
-**Note:** The `pixi run setup` command installs tools that are not available via conda (dorado, remora, WarpDemuX). Run this once from a single node before submitting cluster jobs to avoid race conditions on shared filesystems.
+**Note:** The `pixi run setup` command installs tools that are not available via conda (dorado, escpod, WarpDemuX). Run this once from a single node before submitting cluster jobs to avoid race conditions on shared filesystems.
 
 ### Running the Pipeline
 
@@ -61,7 +61,7 @@ The pipeline supports both LSF and SLURM schedulers. Key files:
 **SLURM:**
 - `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
 
-GPU-intensive rules (rebasecall, classify_charging) automatically request GPU resources via queue/partition configuration.
+GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` is CPU-only — `escpod signal classify` has no GPU path.
 
 ## Architecture
 
@@ -89,14 +89,14 @@ workflow/
 **Key Architectural Details:**
 
 - **Sample Management**: `workflow/rules/common.smk` contains `parse_samples()` which reads `config/samples.tsv` and `find_raw_inputs()` which recursively searches for pod5 files in specified directories
-- **Tool Management**: Modkit and Remora are managed by pixi. Dorado is downloaded on first `pixi shell` activation via `scripts/setup-dorado.sh`
+- **Tool Management**: Modkit is managed by pixi. Dorado and escpod are downloaded by `pixi run setup` into `resources/tools/`, and put on PATH by the Snakefile's `onstart` shell prefix
 - **Output Aggregation**: `pipeline_outputs()` in `common.smk` defines all final output files for the `rule all` target
 
 ### Pipeline Flow
 
 ```
 POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
-classify_charging (Remora) → transfer_bam_tags → add_adapter_tags → finalize_bam → Summary tables
+classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 For EDX samples (dual barcoding), 3' adapter detection and FASTQ/POD5 splitting happens before alignment:
@@ -109,26 +109,27 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
 1. **merge_pods**: Merge all pod5 files per sample into single pod5
-2. **rebasecall**: Use dorado to rebasecall with move tables (required for Remora)
+2. **rebasecall**: Use dorado to rebasecall with move tables (required by the charging model)
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
-5. **classify_charging**: Use Remora model to classify charged vs uncharged reads (adds ML tag to BAM)
-6. **transfer_bam_tags**: Transfer alignment tags back to classified BAM (ML→cl, MM→cm)
-7. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
-8. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
+5. **classify_charging**: Run `escpod signal classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score
+6. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
+7. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
 
 ### Summary Generation
 
 After classification, generates (split across three rule files):
 
 **aatrnaseq-charging.smk:**
-- Charging probability tables (ML tag values per read)
+- Charging probability tables (`cl` tag values per read)
 - CPM (counts per million) for charged/uncharged tRNA
+- Per-read charging calls with a no-call `reason` (`{sample}.charging_calls.tsv.gz`)
 
 **aatrnaseq-qc.smk:**
 - Base calling error frequencies
-- Alignment statistics
-- Remora signal metrics (if kmer table provided)
+- Alignment statistics (the `classified` row counts reads carrying a `cl` tag)
+- CCA anchor coverage
+- Read attrition (`summary/read_attrition.tsv.gz`), which folds in the classifier's no-call reasons
 
 **aatrnaseq-modifications.smk:**
 - Coverage bedGraph files (counts and CPM)
@@ -145,8 +146,8 @@ After classification, generates (split across three rule files):
 - `config/config-base.yml`: Base configuration included by Snakefile
   - Base calling model path
   - Reference fasta
-  - Remora models and kmer tables
-  - Dorado version for download
+  - Charging model bundle and operating point (`charging`)
+  - Dorado and escpod versions for download
   - Command-line options for tools (dorado, bwa, filters)
 
 - `config/samples.tsv`: Two-column TSV (no header)
@@ -235,13 +236,26 @@ pixi run snakemake --configfile=config/config-demux-test.yml --cores 8
 
 ## Charged vs Uncharged Classification
 
-The pipeline uses Remora machine learning to classify charging state:
+The pipeline runs `escpod signal classify` against a vendored ONNX model bundle:
 
-- **Model Location**: `remora_cca_classifier` config parameter (resources/models/cca_classifier.pt)
-- **Signal Region**: 6-nucleotide kmer spanning CCA 3' end + first 3 adapter bases (CCAGGC)
-- **ML Tag**: Classification score stored in BAM ML tag (0-255 scale)
-- **Threshold**: ML ≥ 200 = charged, ML < 200 = uncharged (adjustable in get_cca_trna_cpm rule)
-- **Filtering**: Only full-length tRNA reads with proper 5'/3' adapters are classified
+- **Model Location**: `charging.model` config parameter — a bundle **directory**,
+  `resources/models/charging/charging_feature_nn_rna004@v0.1.0`. It is
+  self-describing (anchor, feature recipe, k-mer table pinned by sha256, abstain
+  rule, operating point), so nothing about the recipe is passed as a flag.
+  See the README beside it.
+- **Anchor**: the CCA|adapter junction in reference coordinates — the adapter G at
+  `index(CCAGGC) + 3` — mapped through the move table. Features run over offsets
+  -8..+24 around it
+- **`cl` Tag**: `round(P(charged) * 255)`, 0-255, written directly onto the aligned
+  records. There is no `cm` tag
+- **Threshold**: `cl` >= 200 = charged (`charging.ml_threshold`, matching the bundle's
+  declared `operating_point.cl`)
+- **Abstention**: reads where the aligner placed no common-arm base get **no `cl`
+  tag**, not a default class. This is charging-correlated, so a charging fraction
+  over called reads alone is an UNDERESTIMATE — always report the no-call rate
+  beside it (`{sample}.charging_calls.tsv.gz`, `read_attrition.tsv.gz`)
+- **Runtime pinning**: the bundle needs escpod >= 0.10.0; an older binary refuses it
+  with ``missing field `gbm` ``. `escpod_version` is pinned alongside the model
 
 ## Development
 
@@ -277,7 +291,7 @@ pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config
 - LSF project tags (lsf_project)
 - Maximum concurrent jobs
 
-Rules requiring GPU (rebasecall, classify_charging) must set:
+Rules requiring GPU (rebasecall) must set:
 - lsf_queue: "gpu"
 - lsf_extra: "-gpu num=1:j_exclusive=yes"
 - ngpu: 1
@@ -289,19 +303,22 @@ Rules requiring GPU (rebasecall, classify_charging) must set:
 - Runtime limits (runtime, in minutes)
 - Maximum concurrent jobs
 
-Rules requiring GPU (rebasecall, classify_charging) must set:
+Rules requiring GPU (rebasecall) must set:
 - slurm_partition: "gpu" (or your cluster's GPU partition)
 - gres: "gpu:1"
 
 ## Important Notes
 
 - The pipeline requires Snakemake 8.0+
-- Modkit and Remora are managed by pixi (bioconda and pypi-dependencies)
-- Dorado is downloaded automatically on first `pixi shell` activation
+- Modkit is managed by pixi; dorado and escpod are downloaded by `pixi run setup`
+- The charging and demux model bundles are vendored under `resources/models/`
+  rather than fetched: upstream `rnabioco/escapepod-models` is private and
+  compute nodes have no route to GitHub
 - The pipeline tracks git commit ID for reproducibility (see `get_pipeline_commit()`)
 - CUDA_VISIBLE_DEVICES is passed through to dorado if set
 - Pod5 files are searched recursively in pod5_pass/pod5_fail/pod5 subdirectories
-- The ML threshold for charging classification is currently hardcoded in the `get_cca_trna_cpm` rule
+- The charging threshold lives in `charging.ml_threshold` and must match the model bundle's declared operating point
+- `shell.prefix()` in the Snakefile's `onstart` REPLACES snakemake's default prefix, which is bash strict mode — the `set -euo pipefail` in it is load-bearing, do not drop it
 
 ## Key Outputs
 
@@ -310,7 +327,8 @@ Outputs go to directory specified by `output_dir` in config. Test outputs: `.tes
 Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
-- `bam/final/{sample}/{sample}.bam` - Final BAM with cl/cm (charging) and pt (adapter positions) tags
+- `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` - Per-read calls, with a `reason` for every read the model did not score
+- `bam/final/{sample}/{sample}.bam` - Final BAM with cl (charging) and pt (adapter positions) tags, plus dorado's MM/ML modbase tags
 
 Pipeline-level outputs:
 - `squiggy-session.json` - Squiggy session file for loading samples in Positron

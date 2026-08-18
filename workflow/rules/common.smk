@@ -42,6 +42,35 @@ def maybe_temp(path, tier="cascade"):
     return temp(path) if tier in _enabled_cleanup_tiers() else path
 
 
+def get_charging_model():
+    """Absolute path to the charging model BUNDLE directory.
+
+    Relative paths resolve against the pipeline directory, not the invocation
+    cwd, so a run launched from elsewhere still finds the vendored bundle.
+    Mirrors get_ldx_model() in demux.smk — same failure mode, since both are
+    self-describing directories rather than single model files.
+    """
+    model = config.get("charging", {}).get("model")
+    if not model:
+        sys.exit(
+            "charging.model is unset. Point it at a charging bundle "
+            "directory, e.g. "
+            "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+        )
+    if not os.path.isabs(model):
+        model = os.path.join(PIPELINE_DIR, model)
+    if not os.path.isdir(model):
+        sys.exit(
+            f"charging.model is not a directory: {model}\n"
+            "escapepod charging models are self-describing BUNDLES "
+            "(metadata.json plus the ONNX graph and k-mer table it names), "
+            "not a single file. The Remora .pt classifier this replaced was a "
+            "file; a config carried over from before v0.4.0 will still point "
+            "at one."
+        )
+    return model
+
+
 def is_warpdemux_enabled():
     """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)
@@ -403,18 +432,6 @@ def pipeline_outputs():
     #     sample=samples.keys(),
     # )
 
-    if (
-        "remora_kmer_table" in config
-        and config["remora_kmer_table"] != ""
-        and config["remora_kmer_table"] is not None
-    ):
-        outs += expand(
-            os.path.join(
-                outdir, "summary", "tables", "{sample}", "{sample}.remora.tsv.gz"
-            ),
-            sample=samples.keys(),
-        )
-
     # outs += expand(
     #     os.path.join(
     #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
@@ -432,6 +449,16 @@ def pipeline_outputs():
     #     ),
     #     sample=samples.keys(),
     # )
+
+    # Per-read charging calls, with a `reason` row for every read the model
+    # did NOT score. Not optional: abstention is charging-correlated, so a
+    # charging fraction without its no-call rate beside it is biased low.
+    outs += expand(
+        os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.charging_calls.tsv.gz"
+        ),
+        sample=samples.keys(),
+    )
 
     # tRNA-only reference FASTA (adapters stripped)
     outs.append(get_trna_fasta())

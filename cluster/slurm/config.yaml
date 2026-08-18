@@ -51,18 +51,11 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 16
 
+  # CPU only: escpod signal classify has no GPU path
   classify_charging:
     runtime: "4h"
     mem_mb: 24000
-    cpus_per_task: 4
-
-  classify_charging_leech:
-    slurm_partition: gpu
-    slurm_account: gpu_rbi
-    gres: "gpu:1"
-    runtime: "2h"
-    mem_mb: 24000
-    cpus_per_task: 4
+    cpus_per_task: 8
 
   classify_aa_identity:
     slurm_partition: gpu
@@ -78,19 +71,11 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 4
 
-  transfer_bam_tags:
-    cpus_per_task: 4
-
   # CPU-intensive rules
   bwa_align:
     runtime: "12h"
     mem_mb: 96000
     cpus_per_task: 16
-
-  remora_signal_stats:
-    runtime: "3h"
-    mem_mb: 24000
-    cpus_per_task: 4
 
   modkit_extract_calls:
     runtime: "6h"

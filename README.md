@@ -110,10 +110,9 @@ flowchart TD
     end
 
     subgraph Classification
-        D --> F[classify_charging<br/>Remora ML model]
+        D --> F[classify_charging<br/>escpod signal classify]
         B -.-> F
         A -.-> F
-        F --> G[transfer_bam_tags]
     end
 
     subgraph Outputs
@@ -137,18 +136,20 @@ Given a directory of POD5 files, this pipeline:
 
 1. **(Optional) Demultiplexes** pooled runs using WarpDemuX barcode classification
 2. **Merges** all POD5 files per sample into a single file
-3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required for Remora)
+3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required by the charging model)
 4. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
 5. **Filters** for full-length tRNA reads with proper adapter boundaries
-6. **Classifies** charged vs. uncharged reads using a Remora model trained on nanopore signal over the CCA 3' end
+6. **Classifies** charged vs. uncharged reads with `escpod signal classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
 
-The classification generates ML tag values (0-255) indicating the likelihood of aminoacylation. By default, ML values of 200-255 are treated as charged, and values <200 as uncharged. This threshold can be adjusted via the `ml-threshold` parameter in the `get_cca_trna_cpm` rule.
+The classification writes a `cl` tag (0-255) onto each scored read, `round(P(charged) * 255)`. By default `cl` >= 200 is charged and < 200 uncharged; this is the model bundle's own recommended operating point and is set by `charging.ml_threshold` in the config.
 
-The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`), information on raw nanopore signal from Remora (`remora_signal_stats`), per-tRNA pairwise modification odds ratios (`compute_odds_ratios`), reference sequence similarity QC (`compute_reference_similarity`), and a combined Quarto QC report (`render_combined_qc_report`).
+Reads the model **abstains** on carry no `cl` tag at all, rather than a default class. Abstention is charging-correlated, so a charging fraction computed over called reads alone is an underestimate — `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` gives the per-read reason and `summary/read_attrition.tsv.gz` the run-level rate. Read them beside the fraction.
 
-### Remora classification
+The final steps of the pipeline calculate a number of outputs that may be useful for analysis and visualization, including normalized counts for charged and uncharged tRNA (`get_cca_trna_cpm`), basecalling error values (`bcerror`), alignment statistics (`align_stats`), per-tRNA pairwise modification odds ratios (`compute_odds_ratios`), reference sequence similarity QC (`compute_reference_similarity`), and a combined Quarto QC report (`render_combined_qc_report`).
 
-A few notes about Remora classification for charged vs. uncharged tRNA reads
+### Charging classification
+
+A few notes about charged vs. uncharged tRNA read classification
 
 1. this step retains only full length tRNA reads (with an allowance for signal loss at the 5´ end of nanopore direct RNA sequencing)
 2. Additionally, due to the iterative nature of sequencing method development, the present approach does not rely on differences in adapter sequences attached to charged vs. uncharged tRNA molecules (though these sequences are retained as separate entries in the alignment reference and downstream files). While we anticipate being able to leverage this information in the future, the current pipeline relies exclusively on signal data over a 6-nt modification kmer spanning the universal CCA 3′ end of tRNA and the first three nucleotides of the 3′ adapter (CCAGGC) to distinguish charged and uncharged reads.

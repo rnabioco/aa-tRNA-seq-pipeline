@@ -60,7 +60,6 @@ This creates a `.pixi` directory with all required packages including:
 - pysam
 - pandas
 - pod5
-- remora
 - samtools
 - bwa
 - deeptools
@@ -77,7 +76,7 @@ This downloads and installs:
 
 - **Dorado** - Oxford Nanopore basecaller (version set in `config/config-base.yml`)
 - **Dorado model** - `rna004_130bps_sup@v5.3.0` basecalling model
-- **Remora** - ONT signal analysis for charging classification
+- **escpod** - POD5 handling, charging classification, and LDX demultiplexing
 - **WarpDemuX** - Barcode demultiplexing (optional, for multiplexed samples)
 
 Dorado and models are installed to `resources/tools/` and `resources/models/`. Modkit is managed by pixi (installed via conda).
@@ -114,14 +113,16 @@ pixi run dry-run
 
 ```
 aa-tRNA-seq-pipeline/
-├── .pixi/                    # Pixi environment (includes modkit, remora)
+├── .pixi/                    # Pixi environment (includes modkit)
 ├── resources/
 │   ├── tools/
 │   │   ├── dorado/<version>/  # Dorado binaries
+│   │   ├── escpod/<version>/  # escpod binary
 │   │   └── WarpDemuX/       # WarpDemuX (if demux enabled)
 │   ├── models/
 │   │   ├── rna004_130bps_sup@v5.3.0/  # Basecalling model
-│   │   └── cca_classifier.pt          # Remora charging model
+│   │   ├── charging/                  # Charging model bundle (vendored)
+│   │   └── demux/                     # Barcode model bundles (vendored)
 │   ├── ref/                  # Reference sequences
 │   └── kmers/               # Kmer level tables
 ├── .tests/                  # Test data (if downloaded)
@@ -163,14 +164,17 @@ If Dorado fails to detect GPU:
 2. Verify CUDA_VISIBLE_DEVICES is set correctly
 3. Ensure GPU drivers are up to date
 
-### Remora Installation Issues
+### escpod Refuses the Charging Model
 
-If Remora fails to install with CUDA/PyTorch errors:
-
-```bash
-# Manually specify CUDA version
-CUDA_VERSION=cu121 pixi run setup
 ```
+missing field `gbm`
+```
+
+The installed `escpod` predates the per-base-feature bundle format. The model
+and the runtime are pinned together — `escpod_version` must be >= 0.10.0. Run
+`pixi run setup` to install the pinned version, and check that the `escpod` on
+your PATH is the one under `resources/tools/escpod/`, not an older one from
+`~/.local/bin`.
 
 ## Next Steps
 

@@ -43,8 +43,7 @@ flowchart TB
         C[rebasecall<br/>Dorado basecalling]
         D[ubam_to_fastq<br/>Extract FASTQ]
         E[bwa_align<br/>Align to reference]
-        F[classify_charging<br/>Remora ML]
-        G[transfer_bam_tags<br/>Rename tags]
+        F[classify_charging<br/>escpod signal classify]
         G2[add_adapter_tags<br/>PT tags]
         G3[finalize_bam<br/>Symlink final BAM]
     end
@@ -57,7 +56,7 @@ flowchart TB
     subgraph QC[aatrnaseq-qc.smk]
         J[base_calling_error<br/>Error metrics]
         K[align_stats<br/>Read statistics]
-        L[remora_signal_stats<br/>Signal metrics]
+        L[read_attrition<br/>Where reads were lost]
     end
 
     subgraph Mods[aatrnaseq-modifications.smk]
@@ -141,8 +140,7 @@ Core data processing from raw signal to classified reads:
 | `ubam_to_fastq` | Extract reads for alignment | No |
 | `bwa_idx` | Build BWA index | No |
 | `bwa_align` | Align reads to reference | No |
-| `classify_charging` | ML charging classification | No |
-| `transfer_bam_tags` | Rename ML→CL tags | No |
+| `classify_charging` | ML charging classification (`escpod signal classify`) | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Symlink final BAM | No |
 
@@ -164,7 +162,8 @@ Generate QC metrics and statistics:
 | `compute_reference_similarity` | Pairwise reference sequence similarity matrix |
 | `base_calling_error` | Per-position error frequencies |
 | `align_stats` | Read counts through pipeline |
-| `remora_signal_stats` | Raw signal metrics |
+| `anchor_coverage` | How many aligned reads span the CCA anchor |
+| `read_attrition` | Where the run's reads were lost, as one table |
 
 ### Modification Rules
 
@@ -225,7 +224,7 @@ run2/pod5/*.pod5       ─┘
 
 Dorado re-basecalls with:
 
-- Move tables (`--emit-moves`) required for Remora
+- Move tables (`--emit-moves`) required by the charging model
 - Modification calling (`--modified-bases pseU m5C inosine_m6A`)
 - High-accuracy model (rna004_130bps_sup@v5.3.0)
 
@@ -238,28 +237,29 @@ BWA MEM with RNA-optimized parameters:
 
 ### 4. Charging Classification
 
-Remora ML model analyzes signal at CCA 3' end:
+`escpod signal classify` analyzes signal at the CCA 3' end:
 
-- Input: POD5 (signal) + BAM (alignment)
-- Output: ML tag (0-255 score)
-- Threshold: ≥200 = charged
+- Input: POD5 (signal) + aligned BAM (with move tables) + reference + model bundle
+- Output: the same BAM records with a `cl` tag (0-255 score) added
+- Threshold: ≥200 = charged (the bundle's own recommended operating point)
 
-!!! info "Remora Classification Details"
+!!! warning "Reads with no `cl` tag are no-calls, not uncharged"
 
-    A few notes about Remora classification for charged vs. uncharged tRNA reads:
+    The model abstains on reads whose common arm did not align, emitting no tag
+    rather than a default class. Abstention is charging-correlated, so a
+    charging fraction over called reads alone is an **underestimate** — the
+    per-read reasons are in `{sample}.charging_calls.tsv.gz` and the run-level
+    rate in `read_attrition.tsv.gz`.
+
+!!! info "Charging Classification Details"
+
+    A few notes about charging classification for charged vs. uncharged tRNA reads:
 
     1. This step retains only full-length tRNA reads (with an allowance for signal loss at the 5' end of nanopore direct RNA sequencing)
 
     2. The current approach does not rely on differences in adapter sequences attached to charged vs. uncharged tRNA molecules (though these sequences are retained as separate entries in the alignment reference). The pipeline relies exclusively on signal data over a **6-nucleotide modification kmer** spanning the universal CCA 3' end of tRNA and the first three nucleotides of the 3' adapter (**CCAGGC**) to distinguish charged and uncharged reads.
 
-### 5. Tag Transfer
-
-Original Remora tags are renamed to avoid conflicts:
-
-- `ML` → `CL` (charging likelihood)
-- `MM` → `CM` (charging metadata)
-
-### 6. Adapter Position Tagging
+### 5. Adapter Position Tagging
 
 The `add_adapter_tags` rule adds PT tags with adapter boundaries:
 
@@ -292,7 +292,6 @@ These rules require GPU access:
 |------|--------|
 | `modkit_extract_calls` | 96 GB |
 | `warpdemux` | 32 GB |
-| `remora_signal_stats` | 24 GB |
 
 ## Configuration Points
 

@@ -9,7 +9,7 @@ Frequently asked questions about the aa-tRNA-seq pipeline.
 The pipeline is designed for *Saccharomyces cerevisiae* tRNAs by default. To use with other species:
 
 1. Create a reference FASTA with your tRNA sequences + adapters
-2. Train or adapt the Remora charging model for your species
+2. Train or adapt the charging model for your species
 3. Update the config to point to your reference
 
 ### What is the charging threshold?
@@ -107,7 +107,7 @@ CPU-only is 10-100x slower.
 
 ### Can I run without a GPU?
 
-Yes, but not recommended. Dorado and Remora will fall back to CPU:
+Yes, but not recommended. Dorado will fall back to CPU (charging classification is CPU-only anyway):
 
 ```bash
 export CUDA_VISIBLE_DEVICES=""
@@ -165,9 +165,16 @@ Per-tRNA aggregated counts:
 | cpm_charged | Charged CPM |
 | cpm_uncharged | Uncharged CPM |
 
-### Why are CL/CM tags used instead of ML/MM?
+### Why is the charging score in a `cl` tag instead of ML/MM?
 
-The original Remora tags (ML/MM) are renamed to CL/CM to avoid conflicts with standard SAM modification tags used by Dorado.
+`ML`/`MM` are the standard SAM modification tags, and Dorado already uses them
+for the base modifications modkit reads. The charging call gets its own `cl`
+tag (uint8, `round(P(charged) * 255)`), written directly by
+`escpod signal classify`, so the two never collide.
+
+Historically the charging score *did* arrive in `ML`/`MM` — Remora emitted it
+there, clobbering the modbase calls — and a `transfer_bam_tags` step existed
+purely to rename them to `cl`/`cm`. That step and the `cm` tag are both gone.
 
 ### How do I visualize results?
 

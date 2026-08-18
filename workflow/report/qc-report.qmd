@@ -25,7 +25,7 @@ flowchart LR
   B --> C[Rebasecall<br>Dorado]
   C --> D[FASTQ]
   D --> E[Align<br>BWA MEM]
-  E --> F[Classify Charging<br>Remora]
+  E --> F[Classify Charging<br>escpod]
   F --> G[Transfer Tags]
   G --> H[Add Adapter Tags]
   H --> I[Summary Tables<br>& QC Metrics]
