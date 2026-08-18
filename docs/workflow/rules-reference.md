@@ -230,7 +230,8 @@ Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM a
 **Notes:**
 
 - Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
-- This is the final BAM with all tags: `cl` (charging) and `pt` (adapters), plus dorado's MM/ML modbase tags
+- This is the final BAM with all tags: `cl` (charging), `pt` (adapters) and `BC` (barcode, demultiplexed runs only), plus dorado's MM/ML modbase tags
+- The header carries a valid `@RG` whose `SM`/`LB`/`BC` are the pipeline's sample, run and barcode, with dorado's `ID` and basecall-model provenance preserved
 
 ---
 

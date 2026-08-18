@@ -135,7 +135,7 @@ The pipeline produces several key output files per sample:
 
 | Output | Description |
 |--------|-------------|
-| `bam/final/{sample}/{sample}.bam` | Final BAM with charging (`cl`) and adapter (`pt`) tags |
+| `bam/final/{sample}/{sample}.bam` | Final BAM with charging (`cl`), adapter (`pt`) and barcode (`BC`) tags |
 | `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` | CPM-normalized charging counts per tRNA |
 | `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` | Per-read charging probabilities |
 | `summary/modkit/{sample}/{sample}.pileup.bed.gz` | Modification pileup consensus |

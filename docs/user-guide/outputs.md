@@ -59,24 +59,49 @@ flowchart TB
 
 `bam/final/{sample}/{sample}.bam`
 
-The final BAM file with charging classification and adapter position tags.
+The final BAM file with charging classification, adapter positions and barcode.
 
 **Tags:**
 
 | Tag | Type | Description |
 |-----|------|-------------|
-| `CL` | `B:C` | Charging likelihood (0-255 scale) |
-| `CM` | `Z` | Charging model metadata |
-| `PT` | `Z` | Adapter positions (5' and 3' boundaries) |
+| `cl` | `i` | Charging likelihood, `round(P(charged) * 255)` (0-255). Absent = no-call |
+| `pt` | `Z` | Adapter positions (5' and 3' boundaries) |
+| `BC` | `Z` | Barcode the read was demultiplexed to. Absent on non-demux runs |
+
+Tag names are **case-sensitive** and these are the exact spellings: `cl` and
+`pt` are lowercase (the SAM spec's local-use space), `BC` is the spec-reserved
+barcode tag. Dorado's `MM`/`ML` modbase tags and its `mv`/`ts`/`ns` move-table
+tags are preserved alongside them.
+
+**Header:** the BAM carries a valid `@RG` whose `SM`, `LB` and `BC` are the
+pipeline's sample, run id and barcode, with dorado's read-group `ID` and its
+basecall-model provenance (`DS`, `PU`, `PM`, `DT`) preserved. On a
+demultiplexed run an `@CO` line records the upstream barcode name, e.g.
+`aa-tRNA-seq:upstream_barcode=nbc04` for `BC:Z:ldx04`.
 
 **View tags:**
 
 ```bash
-samtools view results/bam/final/sample1/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(CL|CM|PT):"
+samtools view results/bam/final/sample1/sample1.bam | head -1 | tr '\t' '\n' | grep -E "^(cl|pt|BC):"
+samtools view -H results/bam/final/sample1/sample1.bam | grep -E "^@(RG|CO)"
+```
+
+**Split a merged BAM back apart by barcode:**
+
+```bash
+samtools split -d BC merged.bam
 ```
 
 !!! note "`cl` and the modbase tags"
     The charging call lands in its own `cl` tag (uint8, `round(P(charged) * 255)`), written directly by `escpod signal classify`. Dorado's `MM`/`ML` modbase tags are left untouched, which is what modkit reads — there is no tag round-trip and no `cm` tag any more.
+
+!!! note "Why `BC` is written at all"
+    Until it was added, a read's barcode existed **only** in the output path. The
+    per-read record that could recover it (`demux/read_ids/`) is removed by the
+    `clean` rule and, on the WarpDemuX path, is `temp()` under the
+    `demux_scratch` cleanup tier — so a finished run could end up with no
+    per-read barcode record anywhere. `BC` travels with the read instead.
 
 !!! warning "A missing `cl` tag is not an uncharged call"
     Reads the model abstains on carry no `cl` tag. See the charging calls table below.
