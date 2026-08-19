@@ -226,11 +226,55 @@ encoder requires, which is a full `chunk` of history and no more. The
   window is strictly riskier on this panel — see above.
 - **Different corpus**, and one whose labels came from a teacher.
 
-Copying `margin: 0` / `clamp_max_shift: 300` across would be asserting a result
-nobody measured. Use the run-level `demux.boundary_margin` and
-`demux.clamp_max_shift` config keys to evaluate them instead, and amend here
-only once the numbers earn it — recording them in this section as the nbc16
-section does.
+Copying `margin: 0` / `clamp_max_shift: 300` across would have been asserting a
+result nobody measured. **It was measured, and the answer is no.**
+
+#### The measurement (2026-08-19)
+
+100,000 reads of `20260220_1525_P2S-01618-A_PBC72243_d5777da2` — a WDX4 run
+carrying all four codes, and **not** one of the three in the training set. Seven
+conditions, CPU, same reads throughout.
+
+| condition | yield | recovered vs A |
+|---|---|---|
+| A — as shipped (margin 200, no clamp) | 96.60% | — |
+| B — `--boundary-margin 0` | 97.66% | +1,056 |
+| C300 — B + `--clamp-max-shift 300` | 98.62% | +2,017 |
+| C500 — B + `--clamp-max-shift 500` | 99.31% | +2,715 |
+
+Two things are reassuring. The baseline yield is **96.60%**, not the 85.44% the
+16-plex started from — the shorter chunk means the gate barely bites here, which
+is most of the reason to leave it alone. And recovery is purely additive:
+**zero** existing calls change under any condition.
+
+The recovered reads themselves are the problem. Judged against WarpDemuX, which
+has no such window gate and so called these reads normally:
+
+| | agrees with WarpDemuX | reaches a usable (called + aligned) read |
+|---|---|---|
+| reads A already called | **96.6%** | **54.7%** |
+| recovered at margin 0 | 84.1% | 26.1% |
+| recovered at clamp 300 | 81.4% | 14.6% |
+| recovered at clamp 500 | 77.5% | 11.8% |
+
+And the misassignment is **systematic, not noise**. The CRF calls the recovered
+reads 53.5% `bc07` (rising to 63.8% at clamp 500) against an even ~26% across
+the four codes in the baseline — but WarpDemuX calls those very same reads 43%
+`bc03` and only 28% `bc07`. The decode is not recovering a real `bc07`-rich
+population; it is collapsing toward one reference as the window degrades.
+
+That is precisely the failure mode four references at min pairwise distance 8
+are exposed to and sixteen at 12 are not, and it is why the nbc16 numbers do not
+transfer: there, recovered reads decoded at median edit distance 0 with 84.5%
+aligning. Here they align at 26.1% and are misrouted six times more often than
+the baseline. `clamp_max_shift` is worse than `boundary_margin` on every axis and
+should not be used on this panel at all.
+
+**Leave both keys undeclared.** The ~1% of extra yield is bought with reads that
+mostly do not align and, when they do, land in the wrong sample often enough to
+matter. Re-measure before revisiting — `demux.boundary_margin` and
+`demux.clamp_max_shift` exist for exactly that, and
+`workflow/scripts/demux_concordance.py` is the tool.
 
 ### Published accuracy, and the one caveat that matters most
 
@@ -256,6 +300,31 @@ here says the CRF is more *correct* than WarpDemuX. What it is, is higher
 one run alone. Yield is the reason to adopt it; correctness has to be argued
 from arbiters that do not depend on the teacher (3' adapter purity, tRNA
 alignment rate, charging-fraction invariance).
+
+### Concordance with WarpDemuX (2026-08-19)
+
+Measured on the same 100k reads, with WarpDemuX's own calls recovered from the
+donor run's per-sample charging tables (`demux_concordance.py --tables`). 53,212
+reads are comparable — the rest are reads WarpDemuX either never called or that
+failed alignment, and so earn no row.
+
+| outcome | reads | pct | charged fraction |
+|---|---|---|---|
+| agree | 51,089 | 96.01% | 0.147 |
+| CRF refused undecoded (window gate) | 350 | 0.66% | 0.160 |
+| CRF called differently | 1,773 | 3.33% | 0.158 |
+
+**The acceptance criterion passes.** Charging fraction is 0.147 / 0.160 / 0.158
+across the three buckets — the reads the two backends disagree about carry the
+same charging distribution as the reads they agree on. Swapping the backend
+therefore reshuffles a few percent of reads between samples without moving the
+quantity those samples exist to measure. That, not the 96% agreement, is the
+result that matters: agreement is student-teacher agreement and was never in
+doubt.
+
+Note also how small the `refused` bucket is (0.66%) next to `differed` (3.33%).
+On the 16-plex the window gate was the dominant loss; here it is a rounding
+error, which is the second reason not to relax it.
 
 ### Four of twelve codes
 
