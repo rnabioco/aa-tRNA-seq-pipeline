@@ -44,12 +44,30 @@ test can assert on the expected outcome per read rather than on totals alone.
 
 **These populations record how the DONOR run routed the reads**, using
 `barcode_crf_nbc16_rna004@v0.2.0` (whose `nbc01` is this project's `ldx01`). The
-pipeline now ships `barcode_crf_ldx16_rna004@v0.1.0`, a retrain rather than a
-rename, which calls 34 of the 415 reads (8.2%) differently — some into barcodes
-this fixture contains none of. The read set is deliberately unchanged across
-that switch so the difference stays visible; the routing test asserts bounded
-concordance rather than equality, and neither model is treated as ground truth
-here, since the selection was made from the old one's output.
+pipeline now ships `barcode_crf_ldx16_rna004@v0.1.0`, and the two disagree on
+some of these reads.
+
+**Do not use this fixture to measure that.** 415 reads cannot estimate a
+call-agreement rate usefully, and the read set is biased toward the old model by
+construction, having been selected from its output. The measurement was made on
+the full donor run instead — 1,001,307 reads, both models at identical settings:
+
+| comparison | reassigned, of reads both classified |
+|---|---|
+| nbc16 v0.2.0 vs v0.3.1 | 8.24% |
+| nbc16 v0.3.1 vs ldx16 v0.1.0 | 7.71% |
+| nbc16 v0.2.0 vs ldx16 v0.1.0 | 8.40% |
+
+Demux yield is identical (92.22%) in all three — this is purely *which* barcode,
+never *whether*. And the disagreements are not cumulative across releases, which
+is the signature of run-to-run retrain variance rather than a directed change:
+**~8% churn accompanies any retrain in this family**, including an nbc-only
+upgrade. It is not a property of ldx16.
+
+The read set is deliberately unchanged across the model switch so the difference
+surfaces as test churn rather than being hidden by reselection. The routing test
+asserts bounded concordance rather than equality, and neither model is treated as
+ground truth.
 
 The off-target reads matter: without them `filter_{fastq,pod5}_by_edx` would be
 a no-op that still passes, which is a test that cannot fail.

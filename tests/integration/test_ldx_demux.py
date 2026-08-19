@@ -186,13 +186,16 @@ class TestDemuxRouting:
         Bounded concordance, NOT equality, and deliberately so.
 
         The fixture's populations record how the DONOR run routed these reads,
-        which used barcode_crf_nbc16@v0.2.0. The pipeline now ships
-        barcode_crf_ldx16@v0.1.0 — a retrain (corrected geometry, bonito-free
-        stack), not a rename — and on this fixture it calls 34/415 reads (8.2%)
-        differently, including into barcodes the fixture has no reads from.
-        Neither model is ground truth here: the fixture was BUILT from the old
-        model's routing, so it is biased toward it by construction and cannot
-        settle which is right.
+        which used barcode_crf_nbc16@v0.2.0; the pipeline now ships
+        barcode_crf_ldx16@v0.1.0 and the two disagree on some of them.
+
+        415 reads cannot measure that rate, and this set is biased toward the old
+        model anyway, having been selected from its output. Measured properly on
+        the full donor run (1,001,307 reads, both models, identical settings):
+        7.71% of co-classified reads are reassigned, at identical demux yield
+        (92.22%). That churn is family-wide — nbc16 v0.2.0 vs v0.3.1 is 8.24% —
+        so it is retrain variance, not a defect of ldx16, and neither model is
+        ground truth here.
 
         So this asserts the shape that must hold under either model — the bulk
         of each population lands where it was selected — and pins the

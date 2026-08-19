@@ -267,10 +267,35 @@ ldx:
   # The lattice decode stays on the CPU regardless, so threads still matter.
   gpu: false
   # Call a read unclassified when its edit-distance margin to the second-best
-  # reference is below this. 0 keeps every call, including outright ties.
-  # The model's published precision/recall were computed on this margin, so
-  # raising it trades recovery for precision along that curve.
-  min_margin: 0
+  # reference is below this. This is the pipeline's ONLY working false-positive
+  # control, and it is worth understanding what it does and does not buy.
+  #
+  # The margin is quantised: on a 1,001,307-read RNA004 run, 99.0% of classified
+  # reads sit at 12/13/14, because the 16 references are >=12 apart by design and
+  # a WRONG decode lands just as cleanly on its reference as a right one. So the
+  # residual error rate barely moves — which makes 12 look useless until you ask
+  # what it DISCARDS. Measured against a second, independently trained bundle
+  # (disagreement between two models is a floor on error):
+  #
+  #   threshold  drops        of calls   of which disagreements
+  #        1     1,295         0.14%          96.2%
+  #       10     7,427         0.80%          91.3%
+  #       12     8,817         0.95%          85.2%   <- set here
+  #       13   431,747        46.76%           8.5%   <- cliff, do not
+  #
+  # 12 removes 10.5% of all disagreements for 0.95% of reads: an 11:1 trade, and
+  # exactly the right one where a misassignment means cross-sample contamination
+  # and an unclassified read merely costs yield. 13 is a trap — it looks like
+  # more filtering but eats half the run at 8.5% precision, because the plateau
+  # is where nearly every read lives.
+  #
+  # The ceiling is low (only ~1% of reads have a sub-plateau margin); the other
+  # ~90% of errors need a real per-read score, which escpod computes in the CRF
+  # lattice and discards (rnabioco/escapepod-rs#241).
+  #
+  # Set 0 deliberately when the measurement IS the crosstalk — gating removes the
+  # very reads such a run exists to count.
+  min_margin: 12
   threads: 16
 
 # EDX (3' adapter barcode) handling.

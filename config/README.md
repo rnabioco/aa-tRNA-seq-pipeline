@@ -103,7 +103,7 @@ and enable the backend:
 ldx:
     enabled: true
     model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
-    min_margin: 0        # unclassify calls whose edit-distance margin is below this
+    min_margin: 12       # the only working false-positive control; see below
     boundary_margin: 0   # NOT declared by any bundle; unset means escpod's 200
     clamp_max_shift: 300 # likewise. See resources/models/demux/README.md
     threads: 32
@@ -170,6 +170,31 @@ Two things about this config are easy to get wrong when copying it:
   can only assign a read to an adapter in the list, so omitting the rest would
   collapse the off-target reads to `none` and make the concordance table
   meaningless.
+
+### `min_margin` is the false-positive control, and 12 is the operating point
+
+Measured on a 1,001,307-read run against a second, independently trained bundle
+(two models disagreeing is a floor on error):
+
+```
+threshold  drops      of calls   of which disagreements
+     1     1,295       0.14%          96.2%
+    12     8,817       0.95%          85.2%   <- the default
+    13   431,747      46.76%           8.5%   <- cliff, do not
+```
+
+The residual error rate barely moves, which makes 12 look pointless — but what it
+*discards* is 85% wrong calls, removing 10.5% of all disagreements for 0.95% of
+reads. That is the trade to make when a misassignment means cross-sample
+contamination and an unclassified read only costs yield.
+
+13 is a trap: 99.0% of reads sit on a margin plateau of 12/13/14 (the references
+are >=12 apart by design, so a wrong decode scores like a right one), so 13 eats
+half the run at 8.5% precision.
+
+**Set 0 when the measurement IS the crosstalk** — an adapter-ligation QC run
+exists to count misassignment, and gating removes exactly the reads it is
+counting.
 
 `config-demux-test.yml` (WarpDemuX) is a **dry-run target only** and cannot
 complete a run; its header explains why, and there is no committed WDX fixture.
