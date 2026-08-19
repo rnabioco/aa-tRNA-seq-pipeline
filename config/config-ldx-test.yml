@@ -14,7 +14,9 @@ output_directory: ".tests/outputs-ldx"
 # --- Demultiplexing -------------------------------------------------------
 ldx:
     enabled: true
-    model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+    # `model` is deliberately NOT set: the test must exercise whatever
+    # config-base.yml ships as the default, so a model bump is covered here
+    # rather than silently bypassed. Same for boundary_margin/clamp_max_shift.
     # 0 keeps every call, so ambiguous reads stay visible in demux_summary
     # instead of being silently folded into `unclassified`.
     min_margin: 0

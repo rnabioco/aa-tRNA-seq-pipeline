@@ -1,0 +1,577 @@
+{
+  "format": "escapepod-crf-encoder/1",
+  "onnx": "barcode_crf_ldx16_rna004.onnx",
+  "opset": 17,
+  "input": {
+    "name": "signal",
+    "shape": [
+      "batch",
+      1,
+      3000
+    ],
+    "dtype": "float32",
+    "layout": "batch-major",
+    "domain": "raw pA, standardised"
+  },
+  "output": {
+    "name": "scores",
+    "shape": [
+      300,
+      "batch",
+      1280
+    ],
+    "dtype": "float32",
+    "layout": "time-major",
+    "note": "T = CHUNK / stride; NOT batch-major like the boundary CNN"
+  },
+  "standardisation": {
+    "mean": 61.82167437657652,
+    "stdev": 9.57168188800244,
+    "source": "float(X.mean())/float(X.std()) over st_data.npz",
+    "warning": "config.toml's [standardisation] block holds SeqTagger's 80.8758975922949/17.26975967138176, which these weights were NOT trained with. Using those silently degrades the decode."
+  },
+  "signal": {
+    "chunk": 3000,
+    "stride": 10,
+    "window": "[adapter_end - chunk, adapter_end]"
+  },
+  "crf": {
+    "state_len": 4,
+    "n_base": 4,
+    "alphabet": [
+      "N",
+      "A",
+      "C",
+      "G",
+      "T"
+    ],
+    "blank_score": 2.0,
+    "n_score": 1280,
+    "n_states": 256,
+    "scores_per_state": 5,
+    "decode": "Viterbi over n_states x scores_per_state; not expressible in standard ONNX ops, so it stays in the consumer"
+  },
+  "provenance": {
+    "checkpoint": "results/barcode_crf_ldx16_rna004/barcode_crf_ldx16_rna004.pt",
+    "config": "/beevol/home/jhessel/devel/rnabioco/escapepod-models/.claude/worktrees/wdx-crf/scripts/ldx/crf_config.toml",
+    "encoder": [
+      "conv",
+      "rnns",
+      "linear"
+    ]
+  },
+  "barcodes": [
+    {
+      "name": "ldx01",
+      "sequence": "AGAAGCCGGGCTCCTCAGGAACTCTCATTAAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx02",
+      "sequence": "AGAACGTGCGGCCAAATCGAGCGCTAGACCAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx03",
+      "sequence": "AGAAGGACTATTATCGCACGCTACCAGAGGAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx04",
+      "sequence": "AGAAGTTAATACTCTTTATTACGACTATCCCAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx05",
+      "sequence": "AGAAGTGTATAGGCGAATAGTCCCGGTAGTGAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx06",
+      "sequence": "AGAACGAGAAATGATGATAGCCGAATTAGGCAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx07",
+      "sequence": "AGAATAGCCCAATTCAGAGGGAAATAGGAGAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx08",
+      "sequence": "AGAACTGGAAAGTGAGTCTTACCTTAACTCCAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx09",
+      "sequence": "AGAACGTATAAATCTGGCCCTCTATAACGGAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx10",
+      "sequence": "AGAAACACAGCTGCGATGATGCCCGTGATGAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx11",
+      "sequence": "AGAAGAGTGGGCCGACGTTGGTTTAGCGCATAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx12",
+      "sequence": "AGAACAACCCAGATATCTAACGAAATACACGAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx13",
+      "sequence": "AGAATGGATGTCGTCCTTGCGGTGTAAGTTGAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx14",
+      "sequence": "AGAAGGTAGAGCTAATAGGAACATGGAGTTCAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx15",
+      "sequence": "AGAACGTTTGTGGCGCAAACACTCGGATCGGAGGTAGTAGGTTC"
+    },
+    {
+      "name": "ldx16",
+      "sequence": "AGAACGGCACACGTTGTGATAGACAATTATTAGGTAGTAGGTTC"
+    }
+  ],
+  "boundary": {
+    "method": "cnn",
+    "onnx": "adapter_rna004.onnx",
+    "model_id": "adapter_rna004@v1.1.0",
+    "sha256": "b59f8667187ef9fa7e940cd37b108f8d5f3c6d6213ca841cda6eced0e33d26b5",
+    "input": {
+      "min_obs_adapter": 1000,
+      "max_obs_trace": 16000,
+      "downscale_factor": 10,
+      "input_len": 1500,
+      "pad_value": -5.0,
+      "source": "escapepod_models.config.DataConfig"
+    }
+  },
+  "model": {
+    "id": "barcode_crf_ldx16_rna004",
+    "version": "0.1.0",
+    "chemistry": "rna004",
+    "notes": "Successor family to barcode_crf_nbc16_rna004, closed at v0.3.1 (nbc -> ldx rename; same panel, corpus lineage and architecture \u2014 only the name and the reported class names change). The history below is that lineage's.\nFirst model trained without bonito or ont-koi. The two stacks are EQUIVALENT, established over 3 paired seeds rather than one: same corpus, same recorded split, same seed per pair, so the per-seed difference is the signal and its spread is the error bar (benchmarks/crf_bonito_free/ab_3seed.json, scripts/ldx/analysis/ab_seeds.py). Every metric SIGN-FLIPS across seeds \u2014 exact match -0.03/+0.03/+1.28pp, balanced recall +0.13/-0.10/+0.44pp \u2014 so the means are not effects. A single seed had shown every metric moving the right way by ~0.4pp; three seeds show that was the ~1 point run-to-run spread this task is known for, which is exactly the ordering that spread invents. The three replaced pieces are separately verified against bonito on real weights: encoder bit-exact, loss to 1.9e-06 with gradients to 6e-08, decode rule exact (our pass 2 on bonito's own posteriors reproduces its strings on 512/512 reads).\nRetrained at the corrected geometry (issue #36). state_len=4 means the CRF emits target[4:]; the 48-nt target puts those four sacrificial bases in the oligo's constant prefix so the full 27-nt code is emitted, where the previous 40-nt target discarded the code's first four bases and discriminated on 23 nt. Measured accuracy-neutral at 16-plex across 4 geometries x 3 seeds \u2014 the 16-plex is not discrimination-limited \u2014 but it restores the separability the 96-code pool was designed for, which an 80-plex needs. Match decodes against the EMITTED references shipped in the bundle, never the full-length targets. The pilot is CONFOUNDED (each ldx code on exactly one flowcell): report two 8x8 matrices, never one 16x16."
+  },
+  "metrics": {
+    "source": "workflow/rules/barcode_crf.smk (eval_window_ab.py + decode_position_profile.py)",
+    "verified": true,
+    "split": "the corpus's recorded held-out split, carved per code BEFORE the cap by extract_chunks.py, so these reads were never trained on",
+    "n_train": 283296,
+    "n_test": 107878,
+    "n_scored": 60000,
+    "panel": "ldx",
+    "grouped_by": "code",
+    "geometry": {
+      "chunk": 3000,
+      "target_len": 48,
+      "state_len": 4,
+      "emits": 44
+    },
+    "standardisation": {
+      "mean": 61.82167437657652,
+      "stdev": 9.57168188800244
+    },
+    "final_train_loss": 0.001194707763679814,
+    "selected_train_loss": 0.001194707763679814,
+    "weights_from_epoch": 32,
+    "epochs": 32,
+    "exact_match_to_emitted_reference": 0.9834166666666667,
+    "median_decoded_len": 44.0,
+    "per_base_error": {
+      "all_emitted": 0.0035511363636363635,
+      "shared_constant": 0.0035511363636363635,
+      "lead": null
+    },
+    "balanced_precision@0.97": 0.9920694098994788,
+    "balanced_recall@0.97": 0.9634329252735285,
+    "per_group": {
+      "LDX1-8": {
+        "n": 27234,
+        "ref_min_pairwise": 13,
+        "median_edit_distance": 0.0,
+        "median_margin": 14.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.987106154848996,
+            "bal_precision": 0.983752496541686,
+            "errors": 327,
+            "per_code": {
+              "ldx01": {
+                "recall": 0.9859724203518783,
+                "precision": 0.9973544973544973,
+                "n": 4206
+              },
+              "ldx02": {
+                "recall": 0.9828843995510662,
+                "precision": 0.9831602582093741,
+                "n": 3564
+              },
+              "ldx03": {
+                "recall": 0.9913441955193483,
+                "precision": 0.9739869934967483,
+                "n": 1964
+              },
+              "ldx04": {
+                "recall": 0.9724208375893769,
+                "precision": 0.9932185706833594,
+                "n": 1958
+              },
+              "ldx05": {
+                "recall": 0.9910175003871767,
+                "precision": 0.9944055944055944,
+                "n": 6457
+              },
+              "ldx06": {
+                "recall": 0.9910519951632406,
+                "precision": 0.9872319922910142,
+                "n": 4135
+              },
+              "ldx07": {
+                "recall": 0.9922219341457091,
+                "precision": 0.987358101135191,
+                "n": 3857
+              },
+              "ldx08": {
+                "recall": 0.989935956084172,
+                "precision": 0.9533039647577093,
+                "n": 1093
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9840544318010139,
+            "bal_precision": 0.9921307213785806,
+            "errors": 130,
+            "per_code": {
+              "ldx01": {
+                "recall": 0.9854969091773657,
+                "precision": 0.9975932611311673,
+                "n": 4206
+              },
+              "ldx02": {
+                "recall": 0.9778338945005611,
+                "precision": 0.9962835906232133,
+                "n": 3564
+              },
+              "ldx03": {
+                "recall": 0.9867617107942973,
+                "precision": 0.9943560800410467,
+                "n": 1964
+              },
+              "ldx04": {
+                "recall": 0.9719101123595506,
+                "precision": 0.9932150313152401,
+                "n": 1958
+              },
+              "ldx05": {
+                "recall": 0.9894687935573796,
+                "precision": 0.99828125,
+                "n": 6457
+              },
+              "ldx06": {
+                "recall": 0.9859733978234583,
+                "precision": 0.9960908868800391,
+                "n": 4135
+              },
+              "ldx07": {
+                "recall": 0.9896292455276121,
+                "precision": 0.9953063885267275,
+                "n": 3857
+              },
+              "ldx08": {
+                "recall": 0.9853613906678865,
+                "precision": 0.9659192825112107,
+                "n": 1093
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9590710816703042,
+            "bal_precision": 0.9923346992953097,
+            "errors": 122,
+            "per_code": {
+              "ldx01": {
+                "recall": 0.9854969091773657,
+                "precision": 0.9975932611311673,
+                "n": 4206
+              },
+              "ldx02": {
+                "recall": 0.9778338945005611,
+                "precision": 0.9962835906232133,
+                "n": 3564
+              },
+              "ldx03": {
+                "recall": 0.9867617107942973,
+                "precision": 0.9943560800410467,
+                "n": 1964
+              },
+              "ldx04": {
+                "recall": 0.9719101123595506,
+                "precision": 0.9932150313152401,
+                "n": 1958
+              },
+              "ldx05": {
+                "recall": 0.9894687935573796,
+                "precision": 0.99828125,
+                "n": 6457
+              },
+              "ldx06": {
+                "recall": 0.8812575574365176,
+                "precision": 0.9964451736395953,
+                "n": 4135
+              },
+              "ldx07": {
+                "recall": 0.9896292455276121,
+                "precision": 0.9953063885267275,
+                "n": 3857
+              },
+              "ldx08": {
+                "recall": 0.8902104300091491,
+                "precision": 0.967196819085487,
+                "n": 1093
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9352117083470456,
+            "bal_precision": 0.9926437669100943,
+            "errors": 114,
+            "per_code": {
+              "ldx01": {
+                "recall": 0.9854969091773657,
+                "precision": 0.9975932611311673,
+                "n": 4206
+              },
+              "ldx02": {
+                "recall": 0.9778338945005611,
+                "precision": 0.9962835906232133,
+                "n": 3564
+              },
+              "ldx03": {
+                "recall": 0.9867617107942973,
+                "precision": 0.9943560800410467,
+                "n": 1964
+              },
+              "ldx04": {
+                "recall": 0.9719101123595506,
+                "precision": 0.9932150313152401,
+                "n": 1958
+              },
+              "ldx05": {
+                "recall": 0.9894687935573796,
+                "precision": 0.99828125,
+                "n": 6457
+              },
+              "ldx06": {
+                "recall": 0.773639661426844,
+                "precision": 0.9968837644125896,
+                "n": 4135
+              },
+              "ldx07": {
+                "recall": 0.9896292455276121,
+                "precision": 0.9953063885267275,
+                "n": 3857
+              },
+              "ldx08": {
+                "recall": 0.8069533394327539,
+                "precision": 0.9692307692307692,
+                "n": 1093
+              }
+            }
+          }
+        }
+      },
+      "LDX9-16": {
+        "n": 32766,
+        "ref_min_pairwise": 14,
+        "median_edit_distance": 0.0,
+        "median_margin": 15.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9893138136225152,
+            "bal_precision": 0.9857869700579847,
+            "errors": 354,
+            "per_code": {
+              "ldx09": {
+                "recall": 0.9851068422188647,
+                "precision": 0.9874513197749892,
+                "n": 4633
+              },
+              "ldx10": {
+                "recall": 0.9881656804733728,
+                "precision": 0.995343639411436,
+                "n": 5408
+              },
+              "ldx11": {
+                "recall": 0.9848024316109423,
+                "precision": 0.9969230769230769,
+                "n": 2961
+              },
+              "ldx12": {
+                "recall": 0.9924314096499527,
+                "precision": 0.9510426110607434,
+                "n": 1057
+              },
+              "ldx13": {
+                "recall": 0.991796718687475,
+                "precision": 0.9904095904095904,
+                "n": 4998
+              },
+              "ldx14": {
+                "recall": 0.9901011878574572,
+                "precision": 0.9918466284706919,
+                "n": 4546
+              },
+              "ldx15": {
+                "recall": 0.9910222403591104,
+                "precision": 0.9865935405240707,
+                "n": 4901
+              },
+              "ldx16": {
+                "recall": 0.991083998122947,
+                "precision": 0.9866853538892782,
+                "n": 4262
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9845893259783163,
+            "bal_precision": 0.9918705581475841,
+            "errors": 189,
+            "per_code": {
+              "ldx09": {
+                "recall": 0.979710770559033,
+                "precision": 0.9947403024326101,
+                "n": 4633
+              },
+              "ldx10": {
+                "recall": 0.9796597633136095,
+                "precision": 0.9968015051740358,
+                "n": 5408
+              },
+              "ldx11": {
+                "recall": 0.9824383654170888,
+                "precision": 0.9969156956819739,
+                "n": 2961
+              },
+              "ldx12": {
+                "recall": 0.988647114474929,
+                "precision": 0.9693877551020408,
+                "n": 1057
+              },
+              "ldx13": {
+                "recall": 0.9885954381752701,
+                "precision": 0.9953666398066076,
+                "n": 4998
+              },
+              "ldx14": {
+                "recall": 0.9859216893972723,
+                "precision": 0.9975517471622524,
+                "n": 4546
+              },
+              "ldx15": {
+                "recall": 0.9881656804733728,
+                "precision": 0.992011470708726,
+                "n": 4901
+              },
+              "ldx16": {
+                "recall": 0.983575786015955,
+                "precision": 0.9921893491124261,
+                "n": 4262
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9677947688767528,
+            "bal_precision": 0.9918041205036479,
+            "errors": 188,
+            "per_code": {
+              "ldx09": {
+                "recall": 0.979710770559033,
+                "precision": 0.9947403024326101,
+                "n": 4633
+              },
+              "ldx10": {
+                "recall": 0.9086538461538461,
+                "precision": 0.9965524234435206,
+                "n": 5408
+              },
+              "ldx11": {
+                "recall": 0.9824383654170888,
+                "precision": 0.9969156956819739,
+                "n": 2961
+              },
+              "ldx12": {
+                "recall": 0.988647114474929,
+                "precision": 0.9693877551020408,
+                "n": 1057
+              },
+              "ldx13": {
+                "recall": 0.9885954381752701,
+                "precision": 0.9953666398066076,
+                "n": 4998
+              },
+              "ldx14": {
+                "recall": 0.9859216893972723,
+                "precision": 0.9975517471622524,
+                "n": 4546
+              },
+              "ldx15": {
+                "recall": 0.9881656804733728,
+                "precision": 0.992011470708726,
+                "n": 4901
+              },
+              "ldx16": {
+                "recall": 0.9202252463632098,
+                "precision": 0.9919069296914517,
+                "n": 4262
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9507622936553799,
+            "bal_precision": 0.9917806567831255,
+            "errors": 185,
+            "per_code": {
+              "ldx09": {
+                "recall": 0.979710770559033,
+                "precision": 0.9947403024326101,
+                "n": 4633
+              },
+              "ldx10": {
+                "recall": 0.8455991124260355,
+                "precision": 0.9965134016125518,
+                "n": 5408
+              },
+              "ldx11": {
+                "recall": 0.9824383654170888,
+                "precision": 0.9969156956819739,
+                "n": 2961
+              },
+              "ldx12": {
+                "recall": 0.988647114474929,
+                "precision": 0.9693877551020408,
+                "n": 1057
+              },
+              "ldx13": {
+                "recall": 0.9885954381752701,
+                "precision": 0.9953666398066076,
+                "n": 4998
+              },
+              "ldx14": {
+                "recall": 0.9859216893972723,
+                "precision": 0.9975517471622524,
+                "n": 4546
+              },
+              "ldx15": {
+                "recall": 0.9881656804733728,
+                "precision": 0.992011470708726,
+                "n": 4901
+              },
+              "ldx16": {
+                "recall": 0.8470201783200375,
+                "precision": 0.9917582417582418,
+                "n": 4262
+              }
+            }
+          }
+        }
+      }
+    },
+    "note": "Reported per code, never pooled: for ldx the pilot aliases code identity with flowcell (issue #26), and for a panel whose codes are crossed with batch the run is the only honest holdout. Edit distances are against the reference the model EMITS (target[state_len:]); scoring against the full-length target inflates every distance and compresses the margin (issue #36)."
+  }
+}

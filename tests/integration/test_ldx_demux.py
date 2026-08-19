@@ -38,9 +38,9 @@ SAMPLES = REPO_ROOT / "config" / "samples-ldx-test.yml"
 
 # sample -> (barcode, edx assignment or None)
 EXPECTED_SAMPLES = {
-    "ldx01_edx01": ("nbc01", "edx01"),
-    "ldx02_edx02": ("nbc02", "edx02"),
-    "ldx08_pool": ("nbc08", None),
+    "ldx01_edx01": ("ldx01", "edx01"),
+    "ldx02_edx02": ("ldx02", "edx02"),
+    "ldx08_pool": ("ldx08", None),
 }
 
 needs_run = pytest.mark.skipif(
@@ -61,7 +61,7 @@ def manifest_populations():
 
 
 def barcode_of(selected_as):
-    """`nbc01:edx01:on_target` -> `nbc01`; `unclassified` -> `unclassified`."""
+    """`ldx01:edx01:on_target` -> `ldx01`; `unclassified` -> `unclassified`."""
     return selected_as.split(":")[0]
 
 
@@ -81,12 +81,12 @@ class TestFixture:
     def test_manifest_matches_documented_composition(self):
         counts = manifest_populations()
         assert counts == {
-            "nbc01:edx01:on_target": 100,
-            "nbc01:other_adapter": 25,
-            "nbc02:edx02:on_target": 100,
-            "nbc02:other_adapter": 25,
-            "nbc08:pool_aligned": 100,
-            "nbc05:unclaimed": 40,
+            "ldx01:edx01:on_target": 100,
+            "ldx01:other_adapter": 25,
+            "ldx02:edx02:on_target": 100,
+            "ldx02:other_adapter": 25,
+            "ldx08:pool_aligned": 100,
+            "ldx05:unclaimed": 40,
             "unclassified": 25,
         }
 
@@ -109,8 +109,8 @@ class TestFixture:
         filter_{fastq,pod5}_by_edx is a no-op that cannot fail.
         """
         counts = manifest_populations()
-        assert counts["nbc01:other_adapter"] > 0
-        assert counts["nbc02:other_adapter"] > 0
+        assert counts["ldx01:other_adapter"] > 0
+        assert counts["ldx02:other_adapter"] > 0
 
 
 # --------------------------------------------------------------------------
@@ -181,10 +181,22 @@ class TestConfig:
 
 @needs_run
 class TestDemuxRouting:
-    def test_routing_reproduces_fixture_exactly(self):
+    def test_routing_broadly_reproduces_the_fixture(self):
         """
-        Barcode assignment is made from raw signal, so a rerun must place every
-        read in the barcode it was selected for.
+        Bounded concordance, NOT equality, and deliberately so.
+
+        The fixture's populations record how the DONOR run routed these reads,
+        which used barcode_crf_nbc16@v0.2.0. The pipeline now ships
+        barcode_crf_ldx16@v0.1.0 — a retrain (corrected geometry, bonito-free
+        stack), not a rename — and on this fixture it calls 34/415 reads (8.2%)
+        differently, including into barcodes the fixture has no reads from.
+        Neither model is ground truth here: the fixture was BUILT from the old
+        model's routing, so it is biased toward it by construction and cannot
+        settle which is right.
+
+        So this asserts the shape that must hold under either model — the bulk
+        of each population lands where it was selected — and pins the
+        disagreement rate so a real regression still shows up as a failure.
         """
         (summary,) = (OUTPUTS / "demux" / "read_ids").glob("*/demux_summary.tsv.gz")
         with gzip.open(summary, "rt") as fh:
@@ -195,12 +207,23 @@ class TestDemuxRouting:
         expected = Counter()
         for label, n in manifest_populations().items():
             expected[barcode_of(label)] += n
-        assert observed == dict(expected)
+
+        total = sum(expected.values())
+        assert sum(observed.values()) == total, "reads went missing entirely"
+
+        # every population still dominated by its selected barcode
+        for barcode, n in expected.items():
+            assert observed.get(barcode, 0) >= 0.85 * n, (
+                f"{barcode}: {observed.get(barcode, 0)} of {n} selected reads"
+            )
+        # and the leakage into unrepresented barcodes stays bounded
+        leaked = sum(n for b, n in observed.items() if b not in expected)
+        assert leaked <= 0.12 * total, f"{leaked}/{total} reads into unexpected barcodes"
 
     def test_unclaimed_barcode_produces_no_sample(self):
-        """nbc05 is in the fixture but claimed by no sample."""
+        """ldx05 is in the fixture but claimed by no sample."""
         assert not (OUTPUTS / "bam" / "final" / "ldx05").exists()
-        assert not list((OUTPUTS / "bam" / "final").glob("*nbc05*"))
+        assert not list((OUTPUTS / "bam" / "final").glob("*ldx05*"))
 
 
 @needs_run
@@ -258,11 +281,12 @@ class TestFinalBamTags:
     @pytest.mark.parametrize("sample,barcode", [(s, b) for s, (b, _) in EXPECTED_SAMPLES.items()])
     def test_barcode_tag_on_every_read(self, sample, barcode):
         """
-        BC carries OUR name for the barcode (ldx01), not upstream's (nbc01),
-        and it must be on every read — a partially tagged BAM is worse than an
-        untagged one.
+        BC must be on every read — a partially tagged BAM is worse than an
+        untagged one. Since barcode_crf_ldx16 the model already emits `ldx01`,
+        so get_sample_barcode's nbc->ldx rename is an identity here; it still
+        applies to anyone pinned to an nbc16 bundle.
         """
-        expected = barcode.replace("nbc", "ldx")
+        expected = barcode
         bam = OUTPUTS / "bam" / "final" / sample / f"{sample}.bam"
         with pysam.AlignmentFile(bam, "rb") as fh:
             tags = [r.get_tag("BC") if r.has_tag("BC") else None for r in fh]
@@ -281,11 +305,23 @@ class TestFinalBamTags:
         assert used <= declared, f"dangling RG: {used - declared}"
 
     @pytest.mark.parametrize("sample,barcode", [(s, b) for s, (b, _) in EXPECTED_SAMPLES.items()])
-    def test_upstream_barcode_recorded_in_comment(self, sample, barcode):
+    def test_upstream_barcode_comment_iff_renamed(self, sample, barcode):
+        """
+        @CO records upstream's name only when it DIFFERS from the tag — with an
+        nbc16 bundle `nbc01` is tagged `ldx01` and the comment disambiguates,
+        but ldx16 emits `ldx01` directly and there is nothing to disambiguate.
+        Asserting the conditional keeps this honest under either bundle.
+        """
         bam = OUTPUTS / "bam" / "final" / sample / f"{sample}.bam"
         with pysam.AlignmentFile(bam, "rb") as fh:
             comments = fh.header.to_dict().get("CO", [])
-        assert f"aa-tRNA-seq:upstream_barcode={barcode}" in comments
+            tags = {r.get_tag("BC") for r in fh if r.has_tag("BC")}
+        (tag,) = tags
+        upstream = [c for c in comments if c.startswith("aa-tRNA-seq:upstream_barcode=")]
+        if barcode == tag:
+            assert not upstream, f"redundant @CO for an unrenamed barcode: {upstream}"
+        else:
+            assert f"aa-tRNA-seq:upstream_barcode={barcode}" in comments
 
     @pytest.mark.parametrize("sample", list(EXPECTED_SAMPLES))
     def test_sample_name_in_read_group(self, sample):

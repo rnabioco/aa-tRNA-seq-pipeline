@@ -52,8 +52,18 @@ results, out = Path(sys.argv[1]), Path(sys.argv[2])
 keep, offtarget, decoy, unclassified = (int(a) for a in sys.argv[3:7])
 
 RUN_ID = "20260806_1113_P2S-00519-A_PBG58575_3669d73d"
+
+# The donor run was demultiplexed with barcode_crf_nbc16, so its
+# classifications.csv and output directories carry UPSTREAM's `nbc` names.
+# Those are data at rest and are read as-is; only what this script EMITS into
+# the manifest is canonicalised to the `ldx` names this project uses.
 SAMPLE_OF = {"nbc01": "ldx01_fresh_edx01", "nbc02": "ldx02_fresh_edx02",
              "nbc08": "ldx08_fresh_pool", "nbc05": "ldx05_fresh_edx05"}
+
+
+def canon(code):
+    """nbc04 -> ldx04; anything else (e.g. `unclassified`) unchanged."""
+    return "ldx" + code[3:] if code.startswith("nbc") else code
 
 
 def aligned_ids(sample):
@@ -101,13 +111,13 @@ for barcode, want in (("nbc01", "edx01"), ("nbc02", "edx02")):
     sample = SAMPLE_OF[barcode]
     ali, adp = aligned_ids(sample), adapters(sample)
     take([r for r in by_bc[barcode] if adp.get(r) == want and r in ali],
-         keep, f"{barcode}:{want}:on_target")
+         keep, f"{canon(barcode)}:{want}:on_target")
     take([r for r in by_bc[barcode] if adp.get(r) not in (want, None) and r in ali],
-         offtarget, f"{barcode}:other_adapter")
+         offtarget, f"{canon(barcode)}:other_adapter")
 
 ali = aligned_ids(SAMPLE_OF["nbc08"])
-take([r for r in by_bc["nbc08"] if r in ali], keep, "nbc08:pool_aligned")
-take(by_bc["nbc05"], decoy, "nbc05:unclaimed")
+take([r for r in by_bc["nbc08"] if r in ali], keep, f"{canon('nbc08')}:pool_aligned")
+take(by_bc["nbc05"], decoy, f"{canon('nbc05')}:unclaimed")
 take(by_bc["unclassified"], unclassified, "unclassified")
 
 (out / "read_ids.txt").write_text("\n".join(picked) + "\n")

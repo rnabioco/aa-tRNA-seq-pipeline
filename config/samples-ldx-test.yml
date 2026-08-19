@@ -7,10 +7,10 @@
 # The fixture holds five populations, chosen so that each of them exercises a
 # different branch:
 #
-#   nbc01 + edx01   -> ldx01_edx01, an EDX-FILTERED sample
-#   nbc02 + edx02   -> ldx02_edx02, an EDX-FILTERED sample
-#   nbc08 (mixed)   -> ldx08_pool,  NOT filtered, keeps every adapter
-#   nbc05           -> claimed by no sample, so demux must route it nowhere
+#   ldx01 + edx01   -> ldx01_edx01, an EDX-FILTERED sample
+#   ldx02 + edx02   -> ldx02_edx02, an EDX-FILTERED sample
+#   ldx08 (mixed)   -> ldx08_pool,  NOT filtered, keeps every adapter
+#   ldx05           -> claimed by no sample, so demux must route it nowhere
 #   unclassified    -> reads the CRF could not call
 #
 # The two filtered samples deliberately carry off-target adapters as well, so
@@ -22,6 +22,6 @@ runs:
     # No barcode_kit: the LDX model bundle is self-describing and carries its
     # own barcode references. Setting one here would be ignored at best.
     samples:
-      ldx01_edx01: {ldx: "nbc01", edx: "edx01"}
-      ldx02_edx02: {ldx: "nbc02", edx: "edx02"}
-      ldx08_pool: {ldx: "nbc08"}
+      ldx01_edx01: {ldx: "ldx01", edx: "edx01"}
+      ldx02_edx02: {ldx: "ldx02", edx: "edx02"}
+      ldx08_pool: {ldx: "ldx08"}

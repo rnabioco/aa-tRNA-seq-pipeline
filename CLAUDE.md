@@ -172,7 +172,7 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 | Backend | Config key | Barcodes | Tool | Shape |
 |---|---|---|---|---|
 | WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `pod5 filter` per sample |
-| escapepod | `ldx.enabled` | LDX (`nbc01`) | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
+| escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
 
 Both converge on the same per-sample split POD5, and everything downstream is
 identical. Enabling both is rejected at parse time. LDX is the successor path;

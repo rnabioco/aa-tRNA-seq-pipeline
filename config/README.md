@@ -77,8 +77,10 @@ See `config-demux-test.yml` for a complete example.
 ### YAML Format (With LDX Demultiplexing)
 
 LDX is the successor barcode set, and `escpod demux` is the successor demux
-backend. Upstream (escapepod-models) names these barcodes `nbc01`..`nbc16`;
-**LDX is what we call them.** Rather than classifying boundary-gated
+backend. The current bundle names these barcodes `ldx01`..`ldx16`. Older
+`barcode_crf_nbc16_rna004` bundles emit `nbc01`..`nbc16` for the same physical
+barcodes; the pipeline canonicalises those to `ldx` and records the upstream
+name in an `@CO` line, so either bundle can be configured. Rather than classifying boundary-gated
 fingerprints, escapepod basecalls the barcode out of the raw adapter signal
 with a CTC-CRF model and matches the decode to references by edit distance.
 
@@ -88,11 +90,11 @@ Assign barcodes with the `ldx:` key instead of `wdx:`:
 runs:
   - path: /path/to/pooled/sequencing/run
     samples:
-      sample_a: { ldx: "nbc01" }
-      sample_b: { ldx: "nbc02" }
+      sample_a: { ldx: "ldx01" }
+      sample_b: { ldx: "ldx02" }
       # `edx:` may still be combined with `ldx:` to filter a library down to a
       # single 3' adapter, exactly as with `wdx:`.
-      sample_c: { ldx: "nbc03", edx: "edx01" }
+      sample_c: { ldx: "ldx03", edx: "edx01" }
 ```
 
 and enable the backend:
@@ -100,8 +102,10 @@ and enable the backend:
 ```yaml
 ldx:
     enabled: true
-    model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
-    min_margin: 0   # unclassify calls whose edit-distance margin is below this
+    model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
+    min_margin: 0        # unclassify calls whose edit-distance margin is below this
+    boundary_margin: 0   # NOT declared by any bundle; unset means escpod's 200
+    clamp_max_shift: 300 # likewise. See resources/models/demux/README.md
     threads: 32
 ```
 
@@ -113,10 +117,12 @@ DAG.
 **No barcode kit is configured.** The model is a self-describing bundle
 *directory* that carries its own barcode references and pins the boundary
 detector it was calibrated against, so neither `--barcodes` nor `--method` is
-passed. Inspect one with:
+passed. It does **not** declare `boundary.margin` or `boundary.clamp_max_shift`
+— no upstream bundle does — so those two are set in config and passed as flags;
+leaving them unset silently costs reads. Inspect one with:
 
 ```bash
-escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info
+escpod demux --model resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0 --info
 ```
 
 Do not override the boundary detector. LLR boundaries cost 17.2 points of

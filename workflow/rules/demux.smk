@@ -240,7 +240,7 @@ def get_ldx_model():
         sys.exit(
             "ldx.enabled is true but ldx.model is unset. Point it at a CRF "
             "bundle directory, e.g. "
-            "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+            "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
         )
     if not os.path.isabs(model):
         model = os.path.join(PIPELINE_DIR, model)
@@ -321,14 +321,22 @@ rule escapepod_demux:
     params:
         model=get_ldx_model(),
         min_margin=config.get("ldx", {}).get("min_margin", 0),
-        # Overrules the model bundle's declared `boundary.margin` — the samples
-        # of adapter_end a read needs beyond the model's chunk before the CRF
-        # will decode it. Unset (the default) leaves the bundle in charge, which
-        # is where this belongs; set it only to evaluate a change the bundle has
-        # not adopted yet. Needs escpod with the flag (escapepod-rs#193).
+        # Boundary gating. NO upstream CRF bundle declares `boundary.margin` or
+        # `boundary.clamp_max_shift` — build_crf_bundle.py cannot write them —
+        # so unset does not mean "the bundle decides", it means escpod's
+        # fallback of margin 200 and no clamp. Both are therefore configured
+        # explicitly in config-base.yml, which documents the measurements.
+        # Needs escpod with the flags (escapepod-rs#193).
         boundary_margin=lambda wildcards: (
             f"--boundary-margin {config['ldx']['boundary_margin']}"
             if config.get("ldx", {}).get("boundary_margin") is not None
+            else ""
+        ),
+        # Reaches the reads --boundary-margin cannot: those whose adapter ends
+        # before the chunk, decoded from [0, chunk] instead. 0 disables.
+        clamp_max_shift=lambda wildcards: (
+            f"--clamp-max-shift {config['ldx']['clamp_max_shift']}"
+            if config.get("ldx", {}).get("clamp_max_shift") is not None
             else ""
         ),
         # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
@@ -379,6 +387,7 @@ rule escapepod_demux:
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
             {params.boundary_margin} \
+            {params.clamp_max_shift} \
             {params.gpu} \
             --threads {threads} 2>&1 | tee {log}
 

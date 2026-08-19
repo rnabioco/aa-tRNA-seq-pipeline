@@ -222,20 +222,42 @@ warpdemux:
 # fail silently.
 ldx:
   enabled: false
-  model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+  model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
+
+  # --- Boundary gating -----------------------------------------------------
+  # BOTH of the next two values are set HERE, not in the bundle, and that is
+  # deliberate. No CRF bundle upstream has ever declared either key —
+  # `build_crf_bundle.py` cannot write them — so a bundle that appears to
+  # declare one has been edited locally. We did exactly that to nbc16 in #107
+  # and #108; it broke that bundle's own SHA256SUMS for eleven days and then
+  # read as evidence that a later release had *removed* the keys. Vendored
+  # bundles are now byte-for-byte upstream, and the overrides live here where
+  # they are visible and diffable.
+
   # Samples of adapter_end a read needs beyond the model's chunk (3000) before
   # the CRF will decode it; below that the read routes to `unclassified` with
-  # confidence 0, undecoded. `null` leaves the bundle's own declaration in
-  # charge, which is where this belongs — set it only to evaluate a margin the
-  # bundle has not adopted yet.
+  # confidence 0, undecoded. Unset would inherit escpod's fallback of 200 —
+  # which records only how `extract_chunks.py` FILTERED the training corpus,
+  # not what the encoder needs: adapter_end >= chunk already yields a full
+  # window.
   #
-  # The shipped v0.2.0 bundle declares nothing, so it falls back to 200 (the
-  # filter `extract_chunks.py` applied when building the corpus). On the
-  # 2026-08-06 nbc16 run that dropped 145,775 reads (14.56%), every one of which
-  # HAD a detected adapter; 0 recovers 36,921 of them at median edit distance 0
-  # (yield 85.44% -> 89.13%). The rest have adapter_end < 3000 and need a
-  # shorter-chunk model, not a margin change.
-  boundary_margin: null
+  # 0, measured: on the 1.0M-read 2026-08-06 nbc16 run the 200 fallback dropped
+  # 145,775 reads (14.56%), every one of which HAD a detected adapter; 0
+  # recovers 36,921 of them at median edit distance 0, 98.3% within 2 edits —
+  # cleaner than the reads that already passed (yield 85.44% -> 89.13%). Reads
+  # with adapter_end < 3000 are out of its reach and need the clamp below.
+  boundary_margin: 0
+
+  # Decode a read whose adapter ends BEFORE the chunk from the window
+  # [0, chunk], provided chunk - adapter_end is at most this. 0 disables it.
+  # `boundary_margin` cannot reach these reads: their window would start before
+  # sample 0, so there is nothing to relax. Clamping keeps the window width and
+  # anchors it at the read start instead. Such reads are truncated mid-adapter,
+  # so part of the barcode is already gone; this bounds how much of that we
+  # accept.
+  #
+  # 300 on the 415-read LDX fixture is worth 11 reads (379/415 -> 390/415).
+  clamp_max_shift: 300
   # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
   # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
   # --gpu outright — enabling this requires an escpod built from source with
