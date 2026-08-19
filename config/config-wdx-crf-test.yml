@@ -36,3 +36,8 @@ demux:
     boundary_margin: null
     clamp_max_shift: null
     threads: 4
+    # false ONLY so this DAG check runs on a fresh clone. `demux.gpu` defaults
+    # to true and that is the recommended setting -- but resolving it requires a
+    # CUDA libonnxruntime and cuDNN on disk, and failing a syntax check for want
+    # of a GPU toolchain would be a poor trade. Nothing here executes anyway.
+    gpu: false

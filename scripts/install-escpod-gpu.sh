@@ -35,7 +35,13 @@ SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
 # silently (unknown JSON fields are skipped), so the bundle would load and lose
 # ~7% of the flowcell with nothing to say so; and one older than #195 writes
 # POD5s that dorado reads short, also silently.
-ESCPOD_REF="${ESCPOD_REF:-v0.8.1}"
+# Track config-base.yml's `escpod_version` rather than a fixed tag: this binary
+# replaces the released one for the whole pipeline, not just demux, so building
+# an older ref produces something `escpod signal classify` then refuses (the
+# charging bundle needs >= 0.10.0). Falls back to v0.8.1, the floor discussed
+# above, only if the config cannot be read.
+_cfg_version="$(awk '/^escpod_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml" 2>/dev/null || true)"
+ESCPOD_REF="${ESCPOD_REF:-v${_cfg_version:-0.8.1}}"
 
 if [ ! -f "${SRC}/Cargo.toml" ]; then
     echo "escapepod-rs source not found at ${SRC}" >&2
@@ -61,9 +67,14 @@ if ! grep -qE '^crf-gpu =' "${SRC}/crates/escapepod-cli/Cargo.toml"; then
     exit 1
 fi
 
-echo "Building escpod with crf-gpu,cnn-gpu (this takes ~10 min)..."
+# `gpu`, not `crf-gpu,cnn-gpu`. Upstream's Cargo.toml is explicit that the
+# granular flags "remain for library consumers and CI isolation builds; CLI
+# users should just use `gpu`" -- it is the one user-facing switch and pulls in
+# the CUDA DTW leg alongside the CNN and CRF paths, so `--gpu` at run time picks
+# whichever path fits the model and stage rather than silently lacking one.
+echo "Building escpod with the gpu feature (this takes ~10 min)..."
 cargo build --release --manifest-path "${SRC}/Cargo.toml" \
-    -p escapepod-cli --bin escpod --features crf-gpu,cnn-gpu
+    -p escapepod-cli --bin escpod --features gpu
 
 version="$("${SRC}/target/release/escpod" --version | awk '{print $2}')"
 dest="${REPO_ROOT}/resources/tools/escpod/${version}-gpu/bin"
@@ -77,7 +88,11 @@ fi
 
 echo "Installed ${dest}/escpod"
 echo
+echo "Safe to pin as the default: ort is load-dynamic, so this binary runs on"
+echo "CPU-only nodes too -- the CUDA runtime is only touched when --gpu is asked"
+echo "for. It is a superset of the release build, not an alternative to it."
+echo
 echo "To use it, set in your run config:"
 echo "  escpod_version: ${version}-gpu"
-echo "  ldx: { gpu: true }"
+echo "  demux: { gpu: true }"
 echo "and run 'pixi run install-ort-gpu' for the CUDA onnxruntime it loads."

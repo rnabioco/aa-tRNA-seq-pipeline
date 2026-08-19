@@ -122,18 +122,23 @@ set-resources:
   # cpus_per_task stays high to feed it: POD5 decode, signal prep, the encoder
   # and the lattice decode all run CPU-side while the GPU does detection.
   #
-  # Needs an escpod built with crf-gpu/cnn-gpu (`pixi run install-escpod-gpu`)
-  # plus the CUDA onnxruntime (`pixi run install-ort-gpu`); the stock release
-  # binary rejects --gpu.
+  # GPU by default, matching `demux.gpu: true` in config-base.yml. For a CRF
+  # bundle the encoder is ~91% of the head's CPU cost, so this is the stage that
+  # pays for the device.
   #
-  # CPU by default, to match `demux.gpu: false`. Requesting a GPU here while the
-  # rule runs pure-CPU work holds an allocation nothing uses — and the stock
-  # binary cannot use one anyway. To run on GPU, set `demux.gpu: true` AND
-  # uncomment the three lines below.
+  # Needs an escpod built with `--features gpu` (`pixi run install-escpod-gpu`)
+  # plus the CUDA onnxruntime (`pixi run install-ort-gpu`) and cuDNN
+  # (`pixi install -e gpu`). The stock release binary has no --gpu flag at all.
+  #
+  # cpus_per_task stays high even on GPU: POD5 decode, signal prep and the
+  # lattice decode all remain CPU-side and feed the device.
+  #
+  # Running on CPU instead (`demux.gpu: false` + `escpod_version: 0.11.0`)?
+  # Comment out the three GPU lines, or the job holds a device it never touches.
   escapepod_demux:
-    # slurm_partition: gpu
-    # slurm_account: gpu_rbi
-    # gres: "gpu:1"
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
     runtime: "8h"
     mem_mb: 48000
     cpus_per_task: 16

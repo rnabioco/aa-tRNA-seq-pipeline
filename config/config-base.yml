@@ -113,7 +113,20 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # looked like biology); and 0.8.1 carries the multi-input `filter` that
 # `split_pod5` needs plus the `boundary.margin` / `boundary.clamp_max_shift`
 # bundle keys the vendored nbc16 model declares.
-escpod_version: 0.11.0
+# `-gpu` is a SUPERSET of the released 0.11.0, not an alternative to it: same
+# version, built with `--features gpu`, which the published release omits
+# (upstream ships `default = ["cli"]`, and the `--gpu` flag is behind
+# `#[cfg(feature = ...)]` so it does not exist in that binary at all).
+#
+# Safe as the default even on machines with no GPU: `ort` is load-dynamic, so
+# the CUDA runtime is only touched when `--gpu` is actually passed. A CPU-only
+# node runs this binary exactly as it ran the release one.
+#
+# Build it with `pixi run install-escpod-gpu` (and `pixi run install-ort-gpu`
+# plus `pixi install -e gpu` for the CUDA onnxruntime and cuDNN it dlopens).
+# Set this to plain `0.11.0` to fall back to the released CPU-only build, in
+# which case `demux.gpu` must also be false.
+escpod_version: 0.11.0-gpu
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -261,14 +274,32 @@ demux:
   # for reads within the bound. `null` leaves the bundle in charge (nbc16
   # declares 300; wdx4 declares nothing, i.e. clamping off).
   clamp_max_shift: null
-  # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
-  # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
-  # --gpu outright — enabling this requires an escpod built from source with
-  # those features, plus a CUDA-enabled libonnxruntime on ORT_DYLIB_PATH
-  # (`pixi install -e gpu` provides one; see the `gpu` feature in pixi.toml).
-  # When true, escapepod_demux must also be given a GPU in the cluster profile.
-  # The lattice decode stays on the CPU regardless, so threads still matter.
-  gpu: false
+  # Run the CRF encoder and boundary CNN on the GPU.
+  #
+  # ON by default, because for a CRF bundle this is where the time goes: the
+  # encoder is ~91% of that head's CPU cost (13.9 ms/read against a 1.19 ms
+  # AVX-512 lattice decode), so leaving it on the CPU leaves the device idle
+  # even with `--method cnn` doing detection there.
+  #
+  # Requires `escpod_version` to be a `-gpu` build (see above) plus a CUDA
+  # libonnxruntime on ORT_DYLIB_PATH and cuDNN — `pixi run install-escpod-gpu`,
+  # `pixi run install-ort-gpu`, `pixi install -e gpu`. The rule exports the
+  # library paths itself. escapepod_demux must also be given a GPU in the
+  # cluster profile.
+  #
+  # Set false (and `escpod_version: 0.11.0`) to run entirely on CPU. The lattice
+  # decode stays on the CPU either way, so threads still matter.
+  #
+  # REPRODUCIBILITY: GPU and CPU do not produce byte-identical calls. Measured on
+  # 5,000 reads of a real WDX4 run (A30, escpod 0.11.0-gpu): 2 reads (0.040%)
+  # were assigned to a different barcode, and 99.96% of the rest carried an
+  # identical confidence (max delta 1). Repeated GPU runs are IDENTICAL to each
+  # other, so this is fixed float-ordering in the encoder, not run-to-run
+  # flakiness — but a run redone on the other device can move a handful of reads
+  # between samples. Keep a run on one device end to end.
+  #
+  # Speed on the same 5,000 reads: 12.5 s on GPU vs 19.8 s on 8 CPU threads.
+  gpu: true
   # Call a read unclassified when its edit-distance margin to the second-best
   # reference is below this. 0 keeps every call, including outright ties.
   # The model's published precision/recall were computed on this margin, so

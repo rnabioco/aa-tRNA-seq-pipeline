@@ -168,12 +168,30 @@ already exists when the command returns. The per-read classifications CSV
 (`demux/read_ids/<run>/classifications.csv`) is kept because it is the only
 record of each call's confidence margin.
 
-**Performance.** The released `escpod` binary has no CUDA execution provider, so
-the CRF encoder runs on CPU. Measured on 20k RNA004 reads: **59 ms of CPU per
-read** for detect + encode + decode. A single 561k-read POD5 is therefore ~9
-CPU-hours — about 20 minutes at 32 cores, and most of a day at 1. Size
-`cpus_per_task` for `escapepod_demux` accordingly, and keep `demux.threads` in
-step with it, since that is the value `escpod` is actually launched with.
+**Performance.** The CRF encoder is ~91% of the head's CPU cost (13.9 ms/read
+against a 1.19 ms AVX-512 lattice decode), which is why `demux.gpu` defaults to
+true and why `escpod_version` pins a `-gpu` build.
+
+The *released* escpod tarball is built `default = ["cli"]` and has no GPU code at
+all — `--gpu` is behind `#[cfg(feature = ...)]`, so the flag does not exist in
+that binary and passing it is a hard argument error. Build the GPU one with
+`pixi run install-escpod-gpu` (plus `pixi run install-ort-gpu` and
+`pixi install -e gpu`). It is a superset: `ort` is load-dynamic, so the same
+binary runs on CPU-only nodes as long as `--gpu` is not asked for.
+
+On CPU, budget **59 ms per read** for detect + encode + decode. A single
+561k-read POD5 is ~9 CPU-hours — about 20 minutes at 32 cores, and most of a day
+at 1. Measured on 5,000 reads of a real WDX4 run: 12.5 s on an A30 against 19.8 s
+on 8 CPU threads. Size `cpus_per_task` for `escapepod_demux` accordingly even on
+GPU, and keep `demux.threads` in step with it, since POD5 decode, signal prep and
+the lattice decode all stay CPU-side and feed the device.
+
+**GPU and CPU calls are not identical.** On those same 5,000 reads, 2 (0.040%)
+were assigned to a different barcode, with 99.96% of the rest at identical
+confidence. Repeated GPU runs agree exactly with each other, so this is fixed
+float-ordering in the encoder rather than run-to-run flakiness — but a run
+redone on the other device can move a handful of reads between samples. Keep a
+run on one device end to end.
 
 ## Other Configuration Parameters
 
