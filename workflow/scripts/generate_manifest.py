@@ -192,9 +192,15 @@ def extract_config_params(config):
     if "opts" in config:
         params["opts"] = config["opts"]
 
-    # WarpDemuX settings
+    # Demultiplexing settings. Both backends are recorded when present: which
+    # model routed a read into which sample is part of how the run was made,
+    # and the escpod bundle path is the only record of the panel used.
     if "warpdemux" in config:
         params["warpdemux"] = config["warpdemux"]
+    for key in ("demux", "ldx"):
+        if config.get(key):
+            params["demux"] = config[key]
+            break
 
     return params
 

@@ -204,38 +204,63 @@ warpdemux:
   save_boundaries: true
   threads: 8
 
-# LDX demultiplexing via escapepod's CTC-CRF barcode basecaller (optional).
+# Signal-level barcode demultiplexing via escapepod's CTC-CRF barcode
+# basecaller (optional). This is the successor to the WarpDemuX/WDX path: it
+# reads the barcode out of the raw adapter signal with a CRF and matches the
+# decode to references by edit distance, rather than classifying boundary-gated
+# fingerprints.
 #
-# LDX is our name for the barcodes escapepod-models calls `nbc01`..`nbc16`.
-# This is the successor to the WarpDemuX/WDX path: it reads the barcode out of
-# the raw adapter signal with a CRF and matches the decode to references by
-# edit distance, rather than classifying boundary-gated fingerprints.
+# The PANEL comes from the model bundle, not from this block — the bundle is
+# self-describing and carries its own barcode references. Two are vendored:
 #
-# Enable exactly one of `warpdemux.enabled` and `ldx.enabled` — they both
-# populate the same per-sample `barcode` field and their rules write the same
-# outputs. Assign barcodes with the `ldx:` key in the samples YAML.
+#   barcode_crf_nbc16_rna004  16-plex LDX panel. Emits `nbc01`..`nbc16`;
+#                             assign with the `ldx:` key in the samples YAML.
+#   barcode_crf_wdx4_rna004   4-plex WarpDemuX panel (the WDX4_tRNA_rna004_v1_0
+#                             kit). Emits `bc03`/`bc04`/`bc05`/`bc07`; assign
+#                             with the familiar `wdx: "barcode03"` spelling.
 #
-# The model is a bundle DIRECTORY, not a file, and is self-describing: it
-# carries its own barcode references and pins the boundary detector it was
-# calibrated against, so no --barcodes and no --method are passed. Do not
-# override the detector; LLR boundaries cost 17.2 points of balanced recall and
-# fail silently.
-ldx:
+# The two panels name barcodes in opposite directions — `nbc01` is upstream's
+# name and `ldx01` is ours, while `barcode03` is ours and `bc03` is upstream's.
+# workflow/scripts/barcode_names.py translates both, so sample files keep their
+# existing spellings either way. Every sample's barcode is checked against the
+# bundle's own reference list when the DAG is built, so a code the panel does
+# not cover fails immediately rather than after a multi-hour demux.
+#
+# `demux:` supersedes the old `ldx:` block, which is still accepted as a
+# deprecated alias. `warpdemux.enabled` remains mutually exclusive with this —
+# they populate the same per-sample `barcode` field and write the same outputs.
+#
+# Do not override the boundary detector: the bundle pins the one it was
+# calibrated against, and LLR boundaries cost 17.2 points of balanced recall and
+# fail silently. No --barcodes and no --method are passed.
+demux:
   enabled: false
+  # A bundle DIRECTORY, not a file.
   model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
-  # Samples of adapter_end a read needs beyond the model's chunk (3000) before
-  # the CRF will decode it; below that the read routes to `unclassified` with
-  # confidence 0, undecoded. `null` leaves the bundle's own declaration in
-  # charge, which is where this belongs — set it only to evaluate a margin the
-  # bundle has not adopted yet.
+  # For the WarpDemuX panel instead:
+  # model: "resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0"
   #
-  # The shipped v0.2.0 bundle declares nothing, so it falls back to 200 (the
-  # filter `extract_chunks.py` applied when building the corpus). On the
-  # 2026-08-06 nbc16 run that dropped 145,775 reads (14.56%), every one of which
-  # HAD a detected adapter; 0 recovers 36,921 of them at median edit distance 0
-  # (yield 85.44% -> 89.13%). The rest have adapter_end < 3000 and need a
-  # shorter-chunk model, not a margin change.
+  # Samples of adapter_end a read needs beyond the model's chunk before the CRF
+  # will decode it; below that the read routes to `unclassified` with confidence
+  # 0, undecoded. `null` leaves the bundle's own declaration in charge, which is
+  # where this belongs — set it only to evaluate a margin the bundle has not
+  # adopted yet.
+  #
+  # nbc16 (chunk 3000) carries a local amendment declaring 0. wdx4 (chunk 2000)
+  # declares nothing, so it falls back to 200 — the filter `extract_chunks.py`
+  # applied when building the corpus. On the 2026-08-06 nbc16 run that fallback
+  # dropped 145,775 reads (14.56%), every one of which HAD a detected adapter;
+  # 0 recovers 36,921 of them at median edit distance 0 (yield 85.44% ->
+  # 89.13%). That measurement is nbc16's and does NOT transfer to wdx4, which
+  # has a different chunk and only 4 references at min pairwise distance 8 —
+  # see resources/models/demux/README.md.
   boundary_margin: null
+  # A read whose adapter ends BEFORE chunk cannot be reached by boundary_margin:
+  # its window would start before sample 0. This instead keeps the window width
+  # and anchors it at the read start, sliding downstream signal into the tail,
+  # for reads within the bound. `null` leaves the bundle in charge (nbc16
+  # declares 300; wdx4 declares nothing, i.e. clamping off).
+  clamp_max_shift: null
   # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
   # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
   # --gpu outright — enabling this requires an escpod built from source with
@@ -250,6 +275,11 @@ ldx:
   # raising it trades recovery for precision along that curve.
   min_margin: 0
   threads: 16
+
+# `ldx:` is the deprecated spelling of `demux:`. It is not declared here — an
+# absent key is what keeps the deprecation warning quiet on runs that do not use
+# it — but any keys a run config sets under `ldx:` are layered over `demux:`
+# above. See demux_config() in workflow/rules/common.smk.
 
 # EDX (3' adapter barcode) handling.
 #

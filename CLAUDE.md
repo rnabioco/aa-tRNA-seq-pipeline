@@ -169,16 +169,39 @@ After classification, generates (split across three rule files):
 The pipeline supports optional signal-level barcode demultiplexing for
 pooled/multiplexed runs, via one of two mutually exclusive backends:
 
-| Backend | Config key | Barcodes | Tool | Shape |
-|---|---|---|---|---|
-| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `pod5 filter` per sample |
-| escapepod | `ldx.enabled` | LDX (`nbc01`) | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
+| Backend | Config key | Tool | Shape |
+|---|---|---|---|
+| WarpDemuX | `warpdemux.enabled` | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `pod5 filter` per sample |
+| escapepod CRF | `demux.enabled` | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
 
 Both converge on the same per-sample split POD5, and everything downstream is
-identical. Enabling both is rejected at parse time. LDX is the successor path;
-see `config/README.md` for the LDX sample-file format, the self-describing model
-bundle, and its CPU cost. The vendored model lives in `resources/models/demux/`
-(see the README there for why it is committed rather than fetched).
+identical. Enabling both is rejected at parse time.
+
+**The CRF backend serves both barcode panels** — the panel comes from the model
+bundle, not from a config switch:
+
+| Bundle | Panel | Emits | Assign with |
+|---|---|---|---|
+| `barcode_crf_nbc16_rna004@v0.2.0` | 16-plex LDX | `nbc01`..`nbc16` | `ldx: "nbc01"` |
+| `barcode_crf_wdx4_rna004@v0.2.0` | 4-plex WDX (`WDX4_tRNA_rna004_v1_0`) | `bc03 bc04 bc05 bc07` | `wdx: "barcode03"` |
+
+The WDX bundle is what makes the WarpDemuX *software* removable: the same fused
+rule routes its panel. It is a distillation of WarpDemuX's own calls, so its
+published metrics are student↔teacher **agreement**, not independent accuracy —
+the reason to adopt it is **yield** (WarpDemuX declines ~21% of reads). It covers
+4 of WarpDemuX's 12 codes, which is exactly the kit in use. Both caveats are
+documented in `resources/models/demux/README.md`, which is also where the
+vendored bundles live and why they are committed rather than fetched.
+
+Barcode names are translated by `workflow/scripts/barcode_names.py`, and the two
+panels run in opposite directions — `nbc01` is upstream's name and `ldx01` ours,
+while `barcode03` is ours and `bc03` upstream's. Existing WarpDemuX sample files
+therefore need no edits to move to the CRF backend. Every sample's barcode is
+checked against the bundle's declared references when the DAG is built, so a
+code the panel does not cover fails immediately rather than after the demux.
+
+`demux:` supersedes the older `ldx:` config block; `ldx:` still works (its keys
+layer over `demux:`) and warns once per run.
 
 The rest of this section describes the WarpDemuX backend.
 
@@ -281,7 +304,21 @@ pixi run snakemake <rule_name> --configfile=config/config-test.yml
 
 # Force rerun of specific rule
 pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config-test.yml
+
+# Demultiplexing DAGs (none of these execute -- see below)
+pixi run dry-run-demux    # WarpDemuX
+pixi run dry-run-wdx      # WDX panel through the CRF backend
+
+# The vendored demux bundles
+pixi run verify-demux-models      # checksums
+pixi run escpod-model-info        # LDX (nbc16) geometry and references
+pixi run escpod-model-info-wdx    # WDX (wdx4) geometry and references
 ```
+
+Neither demux dry-run config can execute: both point at `.tests/sample1`, which
+is unbarcoded sacCer3 data. A dry-run only builds the DAG and never looks at the
+data, which is how `config-demux-test.yml` stayed green while being unable to
+run (#120). The WDX panel has no barcoded fixture yet.
 
 ### Cluster Resource Configuration
 

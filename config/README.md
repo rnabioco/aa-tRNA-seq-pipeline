@@ -74,41 +74,69 @@ pixi run snakemake --configfile=config/config-demux.yml --cores 8
 
 See `config-demux-test.yml` for a complete example.
 
-### YAML Format (With LDX Demultiplexing)
+### YAML Format (With CRF Demultiplexing)
 
-LDX is the successor barcode set, and `escpod demux` is the successor demux
-backend. Upstream (escapepod-models) names these barcodes `nbc01`..`nbc16`;
-**LDX is what we call them.** Rather than classifying boundary-gated
-fingerprints, escapepod basecalls the barcode out of the raw adapter signal
-with a CTC-CRF model and matches the decode to references by edit distance.
+`escpod demux` is the successor demux backend. Rather than classifying
+boundary-gated fingerprints, it basecalls the barcode out of the raw adapter
+signal with a CTC-CRF model and matches the decode to references by edit
+distance. **It serves both barcode panels** — which one you get is decided by
+the model bundle, not by a config switch:
 
-Assign barcodes with the `ldx:` key instead of `wdx:`:
+| Bundle | Panel | Emits | Assign with |
+|---|---|---|---|
+| `barcode_crf_nbc16_rna004@v0.2.0` | 16-plex LDX | `nbc01`..`nbc16` | `ldx: "nbc01"` |
+| `barcode_crf_wdx4_rna004@v0.2.0` | 4-plex WarpDemuX (`WDX4_tRNA_rna004_v1_0`) | `bc03 bc04 bc05 bc07` | `wdx: "barcode03"` |
+
+The WDX bundle is what retires the WarpDemuX *software*: the same fused rule
+now routes the WarpDemuX panel, so nothing has to shell out to `warpdemux`.
+Existing sample files keep working untouched — see "Barcode naming" below.
 
 ```yaml
 runs:
   - path: /path/to/pooled/sequencing/run
     samples:
-      sample_a: { ldx: "nbc01" }
-      sample_b: { ldx: "nbc02" }
-      # `edx:` may still be combined with `ldx:` to filter a library down to a
-      # single 3' adapter, exactly as with `wdx:`.
-      sample_c: { ldx: "nbc03", edx: "edx01" }
+      # `barcode:` is the panel-neutral spelling; `ldx:`/`wdx:` are the older
+      # names for the same field and stay supported. Give exactly one.
+      sample_a: {barcode: "nbc01"}
+      sample_b: {ldx: "nbc02"}
+      # `edx:` may be combined with any of them to filter a library down to a
+      # single 3' adapter.
+      sample_c: {ldx: "nbc03", edx: "edx01"}
 ```
 
 and enable the backend:
 
 ```yaml
-ldx:
+demux:
     enabled: true
     model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
     min_margin: 0   # unclassify calls whose edit-distance margin is below this
     threads: 32
 ```
 
-`warpdemux.enabled` and `ldx.enabled` are mutually exclusive — they populate
-the same per-sample barcode field and their rules write the same outputs, so
-turning on both is rejected at parse time rather than producing an ambiguous
-DAG.
+`demux:` supersedes the older `ldx:` block. `ldx:` is still honoured — its keys
+are layered over `demux:` — and warns once per run. `warpdemux.enabled` and
+`demux.enabled` remain mutually exclusive: they populate the same per-sample
+barcode field and their rules write the same outputs, so turning on both is
+rejected at parse time rather than producing an ambiguous DAG.
+
+**Barcode naming.** The name a model emits is not always the name we use, and
+the two panels differ in *which* side is ours:
+
+| Panel | samples YAML | model emits | BAM / tables |
+|---|---|---|---|
+| LDX | `nbc01` | `nbc01` | `ldx01` |
+| WDX | `barcode03` | `bc03` | `barcode03` |
+
+`workflow/scripts/barcode_names.py` translates both directions, so a samples
+file written for WarpDemuX needs no edits when you move it to the CRF backend.
+
+**Barcodes are validated against the bundle when the DAG is built.** The bundle
+declares its own references, so a sample naming a code the panel does not cover
+fails immediately, naming the codes that are available, rather than demuxing for
+hours and then routing nothing. This matters most for the WDX panel: it covers 4
+of WarpDemuX's 12 codes (`bc11` and the rest need new sequencing, not a config
+change), so `wdx: "barcode11"` is a real config that cannot work.
 
 **No barcode kit is configured.** The model is a self-describing bundle
 *directory* that carries its own barcode references and pins the boundary
@@ -116,12 +144,22 @@ detector it was calibrated against, so neither `--barcodes` nor `--method` is
 passed. Inspect one with:
 
 ```bash
-escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info
+pixi run escpod-model-info        # the LDX (nbc16) bundle
+pixi run escpod-model-info-wdx    # the WDX (wdx4) bundle
+pixi run verify-demux-models      # checksums for every vendored bundle
 ```
 
 Do not override the boundary detector. LLR boundaries cost 17.2 points of
 balanced recall against the same classifier and the failure is silent — it runs
 and produces plausible output.
+
+**Window geometry is the bundle's business, not the run's.** `boundary_margin`
+and `clamp_max_shift` both default to `null`, which leaves the bundle's own
+declaration in charge. Set them only to evaluate a value the bundle has not
+adopted. The two vendored bundles differ here and the difference is not
+transferable — nbc16 has chunk 3000 and carries a locally measured amendment,
+wdx4 has chunk 2000 and only 4 references at min pairwise distance 8. See
+`resources/models/demux/README.md`.
 
 **This backend is fused.** A single pass detects, basecalls, matches and routes
 each read straight into its barcode's POD5, so unlike the WarpDemuX path there
@@ -134,7 +172,7 @@ record of each call's confidence margin.
 the CRF encoder runs on CPU. Measured on 20k RNA004 reads: **59 ms of CPU per
 read** for detect + encode + decode. A single 561k-read POD5 is therefore ~9
 CPU-hours — about 20 minutes at 32 cores, and most of a day at 1. Size
-`cpus_per_task` for `escapepod_demux` accordingly, and keep `ldx.threads` in
+`cpus_per_task` for `escapepod_demux` accordingly, and keep `demux.threads` in
 step with it, since that is the value `escpod` is actually launched with.
 
 ## Other Configuration Parameters

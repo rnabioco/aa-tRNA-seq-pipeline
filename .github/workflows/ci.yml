@@ -57,6 +57,45 @@ jobs:
       - name: Run integration tests
         run: pixi run -e test pytest tests/integration/ -v
 
+  demux-models:
+    name: Demux Model Bundles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.10.1
+
+      # The bundles are vendored, so a corrupted or half-committed one is a
+      # real possibility and nothing else in CI would notice: the demux itself
+      # needs a GPU for the surrounding pipeline and never runs here.
+      - name: Verify vendored bundle checksums
+        run: pixi run verify-demux-models
+
+      # The barcode set is the part of a bundle the pipeline reasons about, and
+      # it is readable from metadata.json alone -- no escpod, no ONNX, no POD5.
+      # That matters here: escpod is downloaded by `pixi run setup` into a
+      # gitignored directory, so `escpod demux --info` is not available on a CI
+      # runner. Run `pixi run escpod-model-info{,-wdx}` locally for the full
+      # description including the signal geometry.
+      - name: Check the bundles declare the panels the pipeline expects
+        run: |
+          pixi run python -c "
+          import sys
+          sys.path.insert(0, 'workflow/scripts')
+          from barcode_names import bundle_barcode_names
+          root = 'resources/models/demux'
+          expected = {
+              'barcode_crf_nbc16_rna004@v0.2.0': {f'nbc{i:02d}' for i in range(1, 17)},
+              'barcode_crf_wdx4_rna004@v0.2.0': {'bc03', 'bc04', 'bc05', 'bc07'},
+          }
+          for bundle, want in expected.items():
+              got = bundle_barcode_names(f'{root}/{bundle}')
+              assert got == want, f'{bundle}: expected {sorted(want)}, got {sorted(got)}'
+              print(f'{bundle}: {len(got)} barcodes OK')
+          "
+
   config-validation:
     name: Configuration Validation
     runs-on: ubuntu-latest
@@ -73,6 +112,8 @@ jobs:
           pixi run python -c "import yaml; yaml.safe_load(open('config/config-base.yml'))"
           pixi run python -c "import yaml; yaml.safe_load(open('config/config-test.yml'))"
           pixi run python -c "import yaml; yaml.safe_load(open('config/config-preprint.yml'))"
+          pixi run python -c "import yaml; yaml.safe_load(open('config/config-wdx-crf-test.yml'))"
+          pixi run python -c "import yaml; yaml.safe_load(open('config/samples-wdx-crf-test.yml'))"
           echo "All config files are valid YAML"
 
       - name: Check samples files

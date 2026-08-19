@@ -29,6 +29,11 @@ set-resources:
   - modkit_extract_full:mem_mb=48
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
+  # escapepod CRF demux. CPU-bound: the released escpod has no CUDA provider,
+  # so the encoder runs on cores (~59 ms of CPU per read). Memory scales with
+  # the barcode count, not the input size.
+  - escapepod_demux:mem_mb=48
+  - link_demux_pod5:mem_mb=2
 
 printshellcmds: True
 show-failed-logs: True

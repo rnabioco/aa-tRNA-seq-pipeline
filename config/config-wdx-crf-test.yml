@@ -1,0 +1,38 @@
+# WDX barcode demultiplexing through the escapepod CTC-CRF model.
+#
+#   pixi run dry-run-wdx     # DAG only — this is all it can do today
+#
+# ############################################################################
+# DAG-ONLY. This config cannot complete a run, for the same reason
+# config-demux-test.yml cannot: .tests/sample1 is unbarcoded sacCer3 data, so
+# no read carries a WDX barcode and demux would route nothing. It exists to
+# assert that the DAG builds, that the WDX bundle loads, and that a
+# `wdx: "barcode03"` sample resolves to the `bc03` the model emits.
+#
+# The end-to-end demux test is config/config-ldx-test.yml, which is backed by a
+# real barcoded fixture. The shared machinery — escapepod_demux,
+# link_demux_pod5, the EDX branch — is panel-independent, so what is genuinely
+# untested here is WDX signal routing, which needs a WDX fixture (planned).
+# ############################################################################
+
+samples: config/samples-wdx-crf-test.yml
+output_directory: ".tests/outputs-wdx-crf"
+
+# --- Demultiplexing -------------------------------------------------------
+# The panel comes from the bundle. This one declares bc03/bc04/bc05/bc07 — the
+# WDX4_tRNA_rna004_v1_0 kit — so a sample naming any other WarpDemuX code fails
+# at DAG construction rather than after the demux.
+demux:
+    enabled: true
+    model: "resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0"
+    # 0 keeps every call, so ambiguous reads stay visible in demux_summary
+    # instead of being folded into `unclassified`. Note this panel's references
+    # are only 8 edits apart (the LDX panel's are 12), so margin means less here.
+    min_margin: 0
+    # null leaves the bundle's own geometry in charge. This bundle declares
+    # neither key, so escpod falls back to boundary margin 200 and no clamping.
+    # Do NOT copy the LDX bundle's 0/300 here — different chunk, half the
+    # reference separation, unmeasured. See resources/models/demux/README.md.
+    boundary_margin: null
+    clamp_max_shift: null
+    threads: 4

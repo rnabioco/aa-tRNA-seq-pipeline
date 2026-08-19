@@ -7,6 +7,12 @@ from git import Repo
 
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
+# workflow/scripts is put on sys.path by the Snakefile too, but that happens
+# AFTER the includes, so it is not available at the time this file is parsed.
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
+
+from barcode_names import bundle_barcode_names, emitted_to_label, label_to_emitted
 
 # Cleanup tiers for maybe_temp(). Each large intermediate is assigned a tier so
 # they can be deleted or kept independently via the `cleanup_intermediates`
@@ -47,7 +53,7 @@ def get_charging_model():
 
     Relative paths resolve against the pipeline directory, not the invocation
     cwd, so a run launched from elsewhere still finds the vendored bundle.
-    Mirrors get_ldx_model() in demux.smk — same failure mode, since both are
+    Mirrors get_demux_model() below — same failure mode, since both are
     self-describing directories rather than single model files.
     """
     model = config.get("charging", {}).get("model")
@@ -76,9 +82,48 @@ def is_warpdemux_enabled():
     return config.get("warpdemux", {}).get("enabled", False)
 
 
+_LDX_DEPRECATION_WARNED = False
+
+
+def demux_config():
+    """The escpod CRF demux settings, from `demux:` and the deprecated `ldx:`.
+
+    `ldx:` named a panel rather than a backend, which stopped being accurate
+    once the same rules started serving the WarpDemuX panel too.
+
+    It is still honoured, as an OVERRIDE on top of `demux:` rather than as an
+    alternative to it. That is forced by how snakemake merges configs:
+    config-base.yml always supplies a full `demux:` block, so "the user set
+    both" is not a state this function can observe — by the time it runs,
+    `demux:` is present on every run. Layering gives an `ldx:`-only config the
+    base defaults it expects for keys it does not mention.
+    """
+    demux = dict(config.get("demux") or {})
+    ldx = config.get("ldx") or {}
+    if ldx:
+        # Once, not once per call: this is read from several rules' params.
+        global _LDX_DEPRECATION_WARNED
+        if not _LDX_DEPRECATION_WARNED:
+            _LDX_DEPRECATION_WARNED = True
+            logger.warning(
+                "config key `ldx:` is deprecated — rename it to `demux:`. It "
+                "selects a model bundle, not a panel, and the same rules now "
+                "serve the WarpDemuX panel too."
+            )
+        demux.update(ldx)
+    return demux
+
+
+def is_crf_demux_enabled():
+    """Check if escpod CRF barcode demultiplexing is enabled in config."""
+    return demux_config().get("enabled", False)
+
+
+# Deprecated alias. The escpod CRF path is no longer LDX-specific — it serves
+# the WarpDemuX panel too — so prefer is_crf_demux_enabled().
 def is_ldx_enabled():
-    """Check if escapepod CRF (LDX/nbc) demultiplexing is enabled in config."""
-    return config.get("ldx", {}).get("enabled", False)
+    """Deprecated: use is_crf_demux_enabled()."""
+    return is_crf_demux_enabled()
 
 
 def is_demux_enabled():
@@ -88,12 +133,12 @@ def is_demux_enabled():
     `barcode` field and their rules write the same barcode_mapping output, so
     enabling both would make the DAG ambiguous.
     """
-    if is_warpdemux_enabled() and is_ldx_enabled():
+    if is_warpdemux_enabled() and is_crf_demux_enabled():
         sys.exit(
-            "Config enables both `warpdemux` and `ldx` demultiplexing. "
+            "Config enables both `warpdemux` and `demux` demultiplexing. "
             "These are alternative backends for the same step — enable exactly one."
         )
-    return is_warpdemux_enabled() or is_ldx_enabled()
+    return is_warpdemux_enabled() or is_crf_demux_enabled()
 
 
 def parse_samples_tsv(fl):
@@ -169,17 +214,23 @@ def parse_samples_yaml(fl):
                 barcode = sample_val
                 edx = None
             elif isinstance(sample_val, dict):
-                # `wdx` (WarpDemuX) and `ldx` (escapepod CRF) both name the
-                # signal-level barcode; which one is meaningful depends on the
-                # enabled backend, so only one may be given per sample.
-                wdx_bc, ldx_bc = sample_val.get("wdx"), sample_val.get("ldx")
-                if wdx_bc is not None and ldx_bc is not None:
+                # `barcode`, `wdx` and `ldx` all name the same field: the
+                # signal-level barcode. `barcode` is the panel-neutral spelling;
+                # `wdx`/`ldx` predate it and stay supported indefinitely, since
+                # real sample files use them. Give exactly one — two would
+                # silently disagree about which code the sample is.
+                given = {
+                    key: sample_val[key]
+                    for key in ("barcode", "wdx", "ldx")
+                    if sample_val.get(key) is not None
+                }
+                if len(given) > 1:
                     sys.exit(
-                        f"Sample '{sample_name}' sets both 'wdx' and 'ldx'. "
-                        "These name the same field for different demux backends — "
-                        "give exactly one."
+                        f"Sample '{sample_name}' sets {' and '.join(repr(k) for k in sorted(given))}. "
+                        "These all name the signal-level barcode — give exactly one "
+                        "(prefer 'barcode')."
                     )
-                barcode = wdx_bc if wdx_bc is not None else ldx_bc
+                barcode = next(iter(given.values()), None)
                 edx = sample_val.get("edx")
             else:
                 sys.exit(f"Invalid sample value for '{sample_name}': {sample_val}")
@@ -297,6 +348,74 @@ def find_raw_inputs(sample_dict):
     return sample_dict
 
 
+def get_demux_model():
+    """Path to the CRF bundle directory, resolved against the pipeline dir.
+
+    Config carries a repo-relative path so it stays portable, but Snakemake runs
+    with the working directory set by the caller, so relative paths cannot be
+    handed to the shell as-is.
+    """
+    model = demux_config().get("model")
+    if not model:
+        sys.exit(
+            "demux.enabled is true but demux.model is unset. Point it at a CRF "
+            "bundle directory, e.g. "
+            "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+        )
+    if not os.path.isabs(model):
+        model = os.path.join(PIPELINE_DIR, model)
+    if not os.path.isdir(model):
+        sys.exit(
+            f"demux.model is not a directory: {model}\n"
+            "escapepod CRF models are self-describing BUNDLES (metadata.json "
+            "plus the ONNX graphs it names), not a single file."
+        )
+    return model
+
+
+def validate_sample_barcodes():
+    """Fail at DAG construction if a sample names a barcode the model lacks.
+
+    The bundle declares its own references, so this is knowable before a single
+    read is processed — and worth knowing then, because the alternative is
+    discovering it after a multi-hour demux, as a barcode that routed nowhere.
+
+    It catches two distinct mistakes with one check: a code the panel does not
+    cover (the WDX CRF is 4 of WarpDemuX's 12, so `barcode11` has no path), and
+    the wrong bundle entirely (WDX samples against the nbc16 default, which
+    would otherwise demux every read to `unclassified`).
+
+    Only meaningful for the CRF backend: WarpDemuX carries its barcode set in
+    the kit, not in a bundle we can read.
+    """
+    if not is_crf_demux_enabled():
+        return
+    declared = bundle_barcode_names(get_demux_model())
+    if not declared:
+        return  # not a CRF bundle, or one that declares no references
+    unknown = {}
+    for sample, info in samples.items():
+        barcode = info.get("barcode")
+        if not barcode:
+            continue
+        emitted = label_to_emitted(barcode)
+        if emitted not in declared:
+            unknown[sample] = (barcode, emitted)
+    if unknown:
+        lines = "\n".join(
+            f"  {sample}: {barcode!r} (looked up as {emitted!r})"
+            for sample, (barcode, emitted) in sorted(unknown.items())
+        )
+        sys.exit(
+            f"These samples name barcodes the demux model does not provide:\n"
+            f"{lines}\n"
+            f"model: {get_demux_model()}\n"
+            f"provides: {', '.join(sorted(declared))}\n"
+            "Either the samples file names a code outside this panel, or the "
+            "wrong model bundle is configured."
+        )
+
+
 # set up global samples dictionary to be used throughout pipeline
 outdir = config["output_directory"]
 
@@ -331,6 +450,10 @@ if _reuse_from:
 samples = parse_samples(config["samples"])
 samples = find_raw_inputs(samples)
 
+# Cheap, and the only chance to catch a barcode the model cannot produce before
+# committing hours of compute to it.
+validate_sample_barcodes()
+
 
 # Define target files for rule all
 def get_demux_summaries(wildcards=None):
@@ -340,10 +463,7 @@ def get_demux_summaries(wildcards=None):
     QC rules and must work either way: demux.smk is only included when a backend
     is on, so referencing its helpers unconditionally breaks every non-demux run.
     """
-    if not (
-        config.get("warpdemux", {}).get("enabled", False)
-        or config.get("ldx", {}).get("enabled", False)
-    ):
+    if not is_demux_enabled():
         return []
     run_ids = {
         info["run_id"]

@@ -1,0 +1,18 @@
+# Sample file for the WDX-CRF demux DAG test.
+#
+# DAG CONSTRUCTION ONLY. There is no barcoded WarpDemuX-panel fixture in this
+# repository yet, so this cannot execute — see config-wdx-crf-test.yml. The
+# committed fixture (.tests/fixtures/ldx-demux) is the LDX panel.
+#
+# Barcodes keep the familiar WarpDemuX spelling (`barcode03`), which is the
+# point: swapping the model must not force every existing sample file to be
+# rewritten. The CRF bundle emits `bc03`, and barcode_names.py bridges the two.
+#
+# `wdx:` and the panel-neutral `barcode:` are both shown, because both are
+# accepted and a reader should see that they are the same field.
+
+runs:
+  - path: .tests/sample1
+    samples:
+      wdx_bc03: {wdx: "barcode03"}
+      wdx_bc04: {barcode: "barcode04"}

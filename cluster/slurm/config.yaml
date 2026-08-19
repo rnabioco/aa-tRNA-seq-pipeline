@@ -103,7 +103,7 @@ set-resources:
     mem_mb: 8000
     cpus_per_task: 1
 
-  # escapepod (LDX) demux rules
+  # escapepod CRF demux rules (LDX and WDX panels alike)
   #
   # The released escpod binary has no CUDA execution provider, so the CRF
   # encoder runs on the CPU and this rule is compute-bound on cores rather
@@ -124,17 +124,21 @@ set-resources:
   #
   # Needs an escpod built with crf-gpu/cnn-gpu (`pixi run install-escpod-gpu`)
   # plus the CUDA onnxruntime (`pixi run install-ort-gpu`); the stock release
-  # binary rejects --gpu. With the stock binary, drop the gpu lines and set
-  # ldx.gpu false.
+  # binary rejects --gpu.
+  #
+  # CPU by default, to match `demux.gpu: false`. Requesting a GPU here while the
+  # rule runs pure-CPU work holds an allocation nothing uses — and the stock
+  # binary cannot use one anyway. To run on GPU, set `demux.gpu: true` AND
+  # uncomment the three lines below.
   escapepod_demux:
-    slurm_partition: gpu
-    slurm_account: gpu_rbi
-    gres: "gpu:1"
+    # slurm_partition: gpu
+    # slurm_account: gpu_rbi
+    # gres: "gpu:1"
     runtime: "8h"
     mem_mb: 48000
     cpus_per_task: 16
 
-  link_ldx_pod5:
+  link_demux_pod5:
     runtime: "10m"
     mem_mb: 2000
     cpus_per_task: 1

@@ -42,10 +42,18 @@ escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --in
 | `metadata.json` | — | Runtime sidecar: references, geometry, standardisation, boundary pin. |
 | `provenance.json` | — | Training provenance and published metrics. |
 
-Both checksums were verified against two independent sources: the release's own
-`provenance.json`/release notes, and — for `adapter_rna004` — the pinned member
-hash in escapepod-rs's `demux/models.rs` manifest. Re-check with
-`sha256sum -c SHA256SUMS.txt` from inside the bundle directory.
+Both ONNX checksums were verified against two independent sources: the release's
+own `provenance.json`/release notes, and — for `adapter_rna004` — the pinned
+member hash in escapepod-rs's `demux/models.rs` manifest. Re-check with
+`sha256sum -c SHA256SUMS.txt` from inside the bundle directory, or
+`pixi run verify-demux-models` for every bundle at once.
+
+Note that the `metadata.json` hash here is of the **locally amended** file (see
+below), so it attests to our copy, not to upstream's. It went stale once
+already: the `clamp_max_shift` amendment edited `metadata.json` without
+regenerating this file, and the mismatch went unnoticed until
+`verify-demux-models` existed. **Regenerate `SHA256SUMS.txt` whenever a sidecar
+is amended.**
 
 ### The boundary model is not interchangeable
 
@@ -131,3 +139,158 @@ already carries the emitted form, which is the reason to prefer it over a
 hand-written `--barcodes` CSV: full-length targets still call the same barcode
 but inflate every distance and compress the confidence margin that
 `--min-margin` gates on.
+
+## `barcode_crf_wdx4_rna004@v0.2.0`
+
+4-plex CTC-CRF barcode basecaller for the **WarpDemuX** panel — the kit this
+pipeline documents as `WDX4_tRNA_rna004_v1_0`. Upstream names these codes
+`bc03`/`bc04`/`bc05`/`bc07`; the pipeline's project-facing names are
+`barcode03`/`barcode04`/`barcode05`/`barcode07`, and `barcode_names.py`
+translates between them (the same job it does for `nbc`->`ldx`, in the opposite
+direction — here the *configured* name is ours and the *emitted* name is
+upstream's).
+
+It exists to replace WarpDemuX itself. `escpod demux` already runs the LDX
+bundle above through one fused pass; pointing it at this bundle puts the WDX
+panel on the same path and removes WarpDemuX from the dependency graph.
+
+### Provenance is a worktree commit, not a release
+
+Unlike the nbc16 bundle, **there is no release to fetch**. `models/*.onnx` is
+gitignored in escapepod-models, no zip exists in `dist/`, and escpod's built-in
+manifest has no name that resolves to it. The only complete copy upstream is:
+
+```
+escapepod-models/.claude/worktrees/wdx-crf/models/barcode_crf_wdx4_rna004@v0.2.0/
+  (branch wdx-crf, commit b9b9fd8
+   "feat(registry): ship barcode_crf_wdx4_rna004@v0.2.0, and separate the training seed (#68)")
+```
+
+Do not assume `escpod demux models fetch` reproduces these bytes — it cannot.
+Re-vendor from that worktree, or from a release once one is tagged (see the
+licence note below for why one has not been).
+
+### Contents
+
+| File | sha256 | Verifiable against |
+|---|---|---|
+| `barcode_crf_wdx4_rna004.onnx` | `a33459d1…62b93` | the bundle's own `provenance.json` **and** escapepod-models `MANIFEST.json` — two independent sources |
+| `adapter_rna004.onnx` | `b59f8667…3d26b5` | this bundle's `boundary.sha256`, the pinned member hash in escapepod-rs's `demux/models.rs`, and byte-for-byte equality with the nbc16 bundle's copy |
+| `metadata.json` | `4986ceb5…82af2` | **local integrity only** — nothing upstream publishes a hash for the sidecar |
+| `provenance.json` | `b46e6ef0…e9820` | **local integrity only** |
+
+Re-check with `sha256sum -c SHA256SUMS.txt` from inside the bundle directory.
+
+Note what the last two rows are worth. A `SHA256SUMS.txt` entry for a sidecar
+proves only that nobody edited it since vendoring — and if a local amendment is
+ever applied (as one was for nbc16), the recorded hash becomes *ours*, not
+upstream's. The same caveat applies to the nbc16 `SHA256SUMS.txt` above, whose
+`metadata.json` hash is of the amended file.
+
+`adapter_rna004.onnx` is byte-identical to the copy in the nbc16 bundle, and it
+is **deliberately duplicated rather than shared or symlinked**: escpod resolves
+`boundary.onnx` relative to the bundle directory, and a bundle that reaches
+outside itself stops being self-contained and independently hash-verifiable.
+512 KB is the price of that property. Please do not "fix" it.
+
+### Geometry differs from the nbc16 bundle
+
+|  | nbc16 | **wdx4** |
+|---|---|---|
+| `signal.chunk` | 3000 | **2000** |
+| timesteps (chunk/stride) | 300 | **200** |
+| emitted reference length | 44 nt | **28 nt** |
+| references | 16 | **4** |
+| min pairwise edit distance | 12 | **8** |
+
+The last row is the one to keep in mind. With half the redundancy, a decode
+error here is likelier to land on another *valid* barcode than to fall through
+to `unclassified` — the panel is closer to its discrimination limit than the
+16-plex is.
+
+### No local amendment
+
+**This bundle is vendored byte-identical to upstream**, and that is deliberate
+rather than an oversight. It declares no `boundary.margin` and no
+`boundary.clamp_max_shift`, so escpod falls back to margin 200 (`--info` reports
+`min adapter_end 2200`) and refuses to clamp.
+
+The *structural* argument from the nbc16 amendment above does carry over: 200
+records how `extract_chunks.py` selected the training corpus, not what the
+encoder requires, which is a full `chunk` of history and no more. The
+*measurement* does not carry over, on three counts:
+
+- **Different chunk.** The affected band here is `[2000, 2200)`, a different
+  population of reads from nbc16's `[3000, 3200)`.
+- **Four references at min pairwise 8**, against sixteen at 12. Relaxing the
+  window is strictly riskier on this panel — see above.
+- **Different corpus**, and one whose labels came from a teacher.
+
+Copying `margin: 0` / `clamp_max_shift: 300` across would be asserting a result
+nobody measured. Use the run-level `demux.boundary_margin` and
+`demux.clamp_max_shift` config keys to evaluate them instead, and amend here
+only once the numbers earn it — recording them in this section as the nbc16
+section does.
+
+### Published accuracy, and the one caveat that matters most
+
+Exact match to the emitted reference is 0.96075; balanced precision/recall at a
+0.97 recovery threshold is 0.9667/0.9393; per-base error 0.0117.
+
+Held out **by run across 17 runs** (`grouped_by: run`), with every one of the 17
+groups at median edit distance 0 and median margin 8 — i.e. margin equal to the
+panel's minimum pairwise distance, which is what a clean call looks like. This
+is a genuine cross-run holdout, and on that count it is *better evidence* than
+the nbc16 bundle's confounded pilot.
+
+**But the labels are WarpDemuX's own calls.** From `provenance.json`:
+
+> `label_source`: "WarpDemuX WDX4_tRNA_rna004_v1_0 calls (fpt_boost teacher)
+> … **UNGATED** … Additionally restricted to reads that aligned to a tRNA".
+
+So every number above is **student↔teacher agreement, not an independent
+accuracy measurement**, and WarpDemuX is a hard ceiling on all of them. Nothing
+here says the CRF is more *correct* than WarpDemuX. What it is, is higher
+*yield*: upstream's build config records that WarpDemuX declines ~21% of reads
+(~6% hard `unclassified`, ~15% below its 0.9 confidence gate) — ~1.9M reads on
+one run alone. Yield is the reason to adopt it; correctness has to be argued
+from arbiters that do not depend on the teacher (3' adapter purity, tRNA
+alignment rate, charging-fraction invariance).
+
+### Four of twelve codes
+
+The panel covers `bc03`, `bc04`, `bc05`, `bc07` only. Upstream:
+
+> "The panel is only 4 codes because that is all the data covers. bc11 and the
+> other seven WarpDemuX codes need new sequencing, not a config change."
+
+Those four are exactly the `WDX4_tRNA_rna004_v1_0` kit, so runs using that kit
+are fully covered. A run using any other WarpDemuX code has **no path** through
+this model. The pipeline validates every sample's barcode against the bundle's
+own reference list at DAG-construction time, so this surfaces as an immediate
+error naming the four supported codes rather than as a silent misroute.
+
+### Licence review is still open
+
+`provenance.json` carries an explicit hold:
+
+> "**Do not tag a release until this is signed off.** … the twelve barcode
+> sequences are WarpDemuX's, transcribed from `ext/WarpDemuX/README.md`, and the
+> labels are distilled from WarpDemuX's own calls. Neither the sequences nor the
+> teacher are ours." (escapepod-models#40)
+
+`rnabioco/aa-tRNA-seq-pipeline` is a **private** repository, so vendoring the
+bundle here is not a public distribution and the hold does not block it.
+**If this repository is ever made public, that sign-off is a prerequisite.**
+
+### Upstream provenance is internally inconsistent
+
+Three fields in the upstream `provenance.json` disagree with the rest of it, and
+are reproduced here unedited rather than silently corrected:
+
+- `training.dataset` names **3 runs**, while `training.label_source` and
+  `metrics.per_group` both describe **17**. The 17-run figure is the one the
+  metrics were computed on.
+- `runtime` still points at `@v0.1.0`.
+
+Worth an upstream issue; nothing in this pipeline reads those fields.

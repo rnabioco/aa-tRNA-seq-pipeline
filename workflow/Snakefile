@@ -122,10 +122,8 @@ localrules:
     clean,
 
 
-# Conditionally include demultiplexing rules (WarpDemuX/WDX or escapepod/LDX)
-if config.get("warpdemux", {}).get("enabled", False) or config.get("ldx", {}).get(
-    "enabled", False
-):
+# Conditionally include demultiplexing rules (WarpDemuX, or escapepod CRF)
+if is_demux_enabled():
 
     include: "rules/demux.smk"
 

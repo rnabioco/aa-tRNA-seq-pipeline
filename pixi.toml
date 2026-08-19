@@ -69,8 +69,12 @@ install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install 
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
 dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
-# escapepod (LDX) demux tasks
+# escapepod CRF demux tasks
 escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info", description = "Describe the vendored LDX (nbc16) CRF demux bundle" }
+escpod-model-info-wdx = { cmd = "escpod demux --model resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0 --info", description = "Describe the vendored WDX (wdx4) CRF demux bundle" }
+# DAG only: there is no barcoded WDX fixture yet, so this config cannot execute.
+dry-run-wdx = { cmd = "snakemake -n --configfile=config/config-wdx-crf-test.yml", description = "Dry run the WDX-CRF demux DAG" }
+verify-demux-models = { cmd = "bash -c 'for d in resources/models/demux/*@*/; do (cd \"$d\" && sha256sum -c SHA256SUMS.txt); done'", description = "Verify the vendored demux model bundles against their pinned checksums" }
 # Charging classifier
 verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_feature_nn_rna004@v0.1.0 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored charging model bundle against its pinned checksums" }
 # GPU demux runtime.

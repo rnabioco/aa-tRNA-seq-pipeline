@@ -228,31 +228,6 @@ rule parse_warpdemux:
 # --- escapepod CTC-CRF (LDX / nbc) demultiplexing ---
 
 
-def get_ldx_model():
-    """Path to the CRF bundle directory, resolved against the pipeline dir.
-
-    Config carries a repo-relative path so it stays portable, but Snakemake runs
-    with the working directory set by the caller, so relative paths cannot be
-    handed to the shell as-is.
-    """
-    model = config.get("ldx", {}).get("model")
-    if not model:
-        sys.exit(
-            "ldx.enabled is true but ldx.model is unset. Point it at a CRF "
-            "bundle directory, e.g. "
-            "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
-        )
-    if not os.path.isabs(model):
-        model = os.path.join(PIPELINE_DIR, model)
-    if not os.path.isdir(model):
-        sys.exit(
-            f"ldx.model is not a directory: {model}\n"
-            "escapepod CRF models are self-describing BUNDLES (metadata.json "
-            "plus the ONNX graphs it names), not a single file."
-        )
-    return model
-
-
 def get_ort_dylib():
     """Absolute path to the CUDA-enabled libonnxruntime for `ldx.gpu`.
 
@@ -317,18 +292,26 @@ rule escapepod_demux:
         ),
     log:
         os.path.join(outdir, "logs", "escapepod_demux", "{run_id}"),
-    threads: config.get("ldx", {}).get("threads", 16)
+    threads: demux_config().get("threads", 16)
     params:
-        model=get_ldx_model(),
-        min_margin=config.get("ldx", {}).get("min_margin", 0),
+        model=get_demux_model(),
+        min_margin=demux_config().get("min_margin", 0),
         # Overrules the model bundle's declared `boundary.margin` — the samples
         # of adapter_end a read needs beyond the model's chunk before the CRF
         # will decode it. Unset (the default) leaves the bundle in charge, which
         # is where this belongs; set it only to evaluate a change the bundle has
         # not adopted yet. Needs escpod with the flag (escapepod-rs#193).
         boundary_margin=lambda wildcards: (
-            f"--boundary-margin {config['ldx']['boundary_margin']}"
-            if config.get("ldx", {}).get("boundary_margin") is not None
+            f"--boundary-margin {demux_config()['boundary_margin']}"
+            if demux_config().get("boundary_margin") is not None
+            else ""
+        ),
+        # The sibling of --boundary-margin, for reads whose adapter ends BEFORE
+        # chunk, where relaxing the margin cannot help because the window would
+        # start before sample 0. Same null-means-the-bundle-decides contract.
+        clamp_max_shift=lambda wildcards: (
+            f"--clamp-max-shift {demux_config()['clamp_max_shift']}"
+            if demux_config().get("clamp_max_shift") is not None
             else ""
         ),
         # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
@@ -341,7 +324,7 @@ rule escapepod_demux:
         # Naming the same detector the bundle pins is not an override, so this
         # cannot silently downgrade to LLR.
         gpu=lambda wildcards: (
-            "--gpu --method cnn" if config.get("ldx", {}).get("gpu", False) else ""
+            "--gpu --method cnn" if demux_config().get("gpu", False) else ""
         ),
         # ort dlopens onnxruntime at run time from ORT_DYLIB_PATH, and the CUDA
         # execution provider sits beside it, so its directory must also be on
@@ -353,7 +336,7 @@ rule escapepod_demux:
             f"export LD_LIBRARY_PATH={os.path.dirname(get_ort_dylib())}:"
             f"{os.path.join(PIPELINE_DIR, '.pixi', 'envs', 'gpu', 'lib')}:"
             f"$LD_LIBRARY_PATH; "
-            if config.get("ldx", {}).get("gpu", False)
+            if demux_config().get("gpu", False)
             else ""
         ),
         pod5_dirs=lambda wildcards: " ".join(
@@ -379,6 +362,7 @@ rule escapepod_demux:
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
             {params.boundary_margin} \
+            {params.clamp_max_shift} \
             {params.gpu} \
             --threads {threads} 2>&1 | tee {log}
 
@@ -396,7 +380,7 @@ def get_sample_escapepod_dir(wildcards):
     return os.path.join(outdir, "demux", "escapepod", run_id)
 
 
-rule link_ldx_pod5:
+rule link_demux_pod5:
     """
     Adopt escapepod's per-barcode POD5 as the sample's split POD5.
 
@@ -404,6 +388,11 @@ rule link_ldx_pod5:
     copy during the demux pass, so re-deriving the same split with `pod5 filter`
     would be a second full pass for an identical result. This rule only renames
     barcode -> sample.
+
+    The file to adopt is named for the barcode the MODEL emits, which is not
+    necessarily the name the samples file used: the WDX panel is configured as
+    `barcode03` but emitted as `bc03`. label_to_emitted() is what bridges that —
+    see workflow/scripts/barcode_names.py.
     """
     input:
         demux_dir=get_sample_escapepod_dir,
@@ -413,16 +402,22 @@ rule link_ldx_pod5:
             tier="split_pod5",
         ),
     log:
-        os.path.join(outdir, "logs", "link_ldx_pod5", "{sample}"),
+        os.path.join(outdir, "logs", "link_demux_pod5", "{sample}"),
     params:
         barcode=lambda wildcards: samples[wildcards.sample]["barcode"],
+        emitted=lambda wildcards: label_to_emitted(samples[wildcards.sample]["barcode"]),
     run:
         # escapepod names outputs <prefix>_<barcode>.pod5 and skips barcodes
         # with no reads, so a missing file means this barcode got nothing.
-        src = Path(input.demux_dir) / f"barcode_{params.barcode}.pod5"
+        src = Path(input.demux_dir) / f"barcode_{params.emitted}.pod5"
         if not src.exists():
+            named = (
+                f"'{params.barcode}'"
+                if params.emitted == params.barcode
+                else f"'{params.barcode}' (emitted as '{params.emitted}')"
+            )
             raise WorkflowError(
-                f"No reads were assigned to barcode '{params.barcode}' "
+                f"No reads were assigned to barcode {named} "
                 f"(sample '{wildcards.sample}'): {src} was not written.\n"
                 f"Check the per-barcode counts in "
                 f"{Path(input.demux_dir).parent.parent}/read_ids/"
@@ -447,14 +442,14 @@ rule link_ldx_pod5:
 # Route the two backends. They overlap on exactly two outputs — the per-sample
 # split POD5 and the per-run demux summary — so each needs an explicit winner.
 # is_demux_enabled() has already rejected a config that turns on both backends.
-if is_ldx_enabled():
+if is_crf_demux_enabled():
 
-    ruleorder: link_ldx_pod5 > split_pod5
+    ruleorder: link_demux_pod5 > split_pod5
     ruleorder: escapepod_demux > parse_warpdemux
 
 else:
 
-    ruleorder: split_pod5 > link_ldx_pod5
+    ruleorder: split_pod5 > link_demux_pod5
     ruleorder: parse_warpdemux > escapepod_demux
 
 
