@@ -16,7 +16,58 @@ compute nodes on this cluster generally cannot use, since they have no route to
 GitHub. Committing the bundle removes the token, the network, and the cache
 from the run-time path entirely.
 
-## `barcode_crf_nbc16_rna004@v0.2.0`
+## Vendored bundles are byte-for-byte upstream
+
+**Do not edit a bundle, and do not add files to one.** Not `metadata.json`, not
+a regenerated `SHA256SUMS.txt`. Verify with:
+
+```bash
+pixi run verify-demux-model
+```
+
+which checks each bundle against the hashes UPSTREAM declares
+(`metadata.boundary.sha256`, `provenance.sha256`) plus any `SHA256SUMS.txt` the
+release itself shipped — never a checksum file written here.
+
+This rule exists because it was broken. PRs #107 and #108 patched
+`boundary.margin: 0` and `boundary.clamp_max_shift: 300` into the nbc16
+`metadata.json`. `SHA256SUMS.txt` was not regenerated, so that bundle failed its
+own integrity check for eleven days, and the patched copy then read as evidence
+that a later upstream release had *removed* those keys — it had not; **no
+upstream CRF bundle has ever declared either key**, because
+`build_crf_bundle.py` cannot write them. Both values now live in
+`config-base.yml` under `ldx:`, where they are visible and diffable, and the
+measurements that justify them are recorded below.
+
+## `barcode_crf_ldx16_rna004@v0.1.0`  (default)
+
+16-plex CTC-CRF barcode basecaller, and **the first bundle whose class names are
+`ldx01`..`ldx16`** rather than upstream's older `nbc` vocabulary. Released
+2026-08-19 from
+`https://github.com/rnabioco/escapepod-models/releases/tag/barcode_crf_ldx16_rna004%40v0.1.0`.
+
+Successor to the `barcode_crf_nbc16_rna004` family, which is **closed at
+v0.3.1**. It is a retrain, not just a rename: corrected geometry
+(escapepod-models#36, `state_len=4` so the full 27-nt code is emitted rather
+than discriminating on 23 nt) and the first trained without bonito or ont-koi,
+which upstream established as equivalent over 3 paired seeds.
+
+Because it is a retrain, **its calls are not identical to nbc16's**: on the
+415-read LDX fixture the two disagree on 34 reads (8.2%), some into barcodes the
+fixture contains none of. Neither is ground truth there — the fixture was built
+from nbc16's routing — but demux results are not comparable across the switch.
+
+```bash
+pixi run escpod-model-info      # geometry, references, published metrics
+```
+
+The zip ships no `SHA256SUMS.txt`; both ONNX graphs are instead pinned by hashes
+inside the bundle's own metadata, which `verify-demux-model` checks.
+
+## `barcode_crf_nbc16_rna004@v0.2.0`  (retained)
+
+Kept so runs pinned to it stay reproducible. Not the default.
+
 
 16-plex CTC-CRF barcode basecaller for the LDX adapters (upstream calls these
 barcodes `nbc01`..`nbc16`; **LDX is the name we use for them**). Released
@@ -55,13 +106,15 @@ detector costs 17.2 points of balanced recall, and the failure is silent — it
 runs and produces plausible output. `escpod` refuses `--method llr` against a
 bundle pinned to `cnn`, so do not pass `--method` at all.
 
-### Local amendment: `boundary.margin: 0` and `boundary.clamp_max_shift: 300`
+### Why `ldx.boundary_margin: 0` and `ldx.clamp_max_shift: 300`
 
-**`metadata.json` in this copy differs from the released v0.2.0 by two keys**, both
-in the `boundary` block. Nothing else is touched — the ONNX graphs,
-references, standardisation and geometry are byte-identical to upstream, and the
-sidecar is not covered by any checksum (the pinned adapter is, via
-`boundary.sha256`, which v0.2.0 does not declare).
+Both are set in `config-base.yml` and passed to `escpod` as flags. No bundle
+declares them, so leaving them unset does not mean "the model decides" — it
+means escpod's fallback of margin 200 and no clamp. On the 415-read fixture that
+fallback costs 24 reads (390/415 -> 366/415).
+
+The measurements below are what justify the two values. They were made on the
+nbc16 model; the geometry they describe (`chunk` 3000) is unchanged in ldx16.
 
 `margin` is the samples of `adapter_end` a read needs *beyond* `signal.chunk`
 before the CRF will decode it. Absent, escpod falls back to 200 — the filter
@@ -80,11 +133,11 @@ minimum pairwise distance is 12, and cleaner than the reads that already passed
 yield 85.44% -> 89.13%. Reads below `chunk` still decode 0%, confirming the
 window genuinely does not exist there.
 
-Declaring it here rather than in the run config keeps the value with the model,
-which is what `escpod demux --boundary-margin` documents as the intended home
-(rnabioco/escapepod-rs#193). **Drop this amendment** when escapepod-models
-re-exports the bundle with the key set upstream; until then, re-fetching the
-released v0.2.0 silently reverts to 200.
+`escpod demux --boundary-margin` documents the bundle as the intended long-term
+home for this value (rnabioco/escapepod-rs#193), and that remains right — but it
+is an UPSTREAM fix, in `build_crf_bundle.py`, not something to patch in after
+the fact. Until a release declares it, the config is the honest place: it
+survives re-fetching a bundle, and it shows up in a diff.
 
 #### `clamp_max_shift: 300`
 
@@ -112,8 +165,7 @@ two things decay together across it:
 aligning fraction near two thirds, and gives up the ~5,800 reads past it where
 half no longer align. The alignment decay is a property of these reads — a bigger
 shift means more of the adapter was truncated to begin with — not of the model,
-so raise the bound per run (`ldx.boundary_margin`'s sibling, or
-`--clamp-max-shift`) if an analysis wants the tail.
+so raise `ldx.clamp_max_shift` per run if an analysis wants the tail.
 
 ### Published accuracy
 

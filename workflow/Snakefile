@@ -11,7 +11,7 @@ configfile: "config/config-base.yml"
 # Dorado path setup (modkit is managed by pixi)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
-ESCPOD_VERSION = config.get("escpod_version", "0.11.0")
+ESCPOD_VERSION = config.get("escpod_version", "0.12.0")
 ESCPOD_DIR = f"resources/tools/escpod/{ESCPOD_VERSION}"
 
 

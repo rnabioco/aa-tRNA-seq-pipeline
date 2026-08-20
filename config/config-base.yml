@@ -98,13 +98,19 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # onward; an older binary refuses it outright with `missing field \`gbm\``. So
 # the runtime is pinned alongside the model, not independently of it.
 #
-# 0.11.0 is what we run, for two fixes to that classifier:
+# 0.11.0 brought two fixes to that classifier:
 #   - the bundle's abstain rule is actually applied. Before, it was parsed and
 #     dropped, so ~0.85% of scoreable reads — reads of something else, mostly
 #     the wrong strand of the duplex — got a confident `cl` like any other.
 #   - `--tsv` gained the `reason` column, so every read the model did not score
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
+#
+# 0.12.0 is what we run, for the demux side. `--ref-scores` computes
+# log P(barcode | signal) from the CRF lattice itself, so a demux call finally
+# carries a continuous per-read confidence instead of only the edit-distance
+# margin a designed panel pins to three values (escapepod-rs#241). See
+# `ldx.ref_scores` below for what that buys and what it still does not.
 #
 # Two earlier floors still hold and are the reason not to go below 0.8.1 even
 # for a demux-only run: escpod before 0.8.1 could emit a POD5 whose signal
@@ -113,7 +119,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # looked like biology); and 0.8.1 carries the multi-input `filter` that
 # `split_pod5` needs plus the `boundary.margin` / `boundary.clamp_max_shift`
 # bundle keys the vendored nbc16 model declares.
-escpod_version: 0.11.0
+escpod_version: 0.12.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -222,20 +228,42 @@ warpdemux:
 # fail silently.
 ldx:
   enabled: false
-  model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+  model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
+
+  # --- Boundary gating -----------------------------------------------------
+  # BOTH of the next two values are set HERE, not in the bundle, and that is
+  # deliberate. No CRF bundle upstream has ever declared either key —
+  # `build_crf_bundle.py` cannot write them — so a bundle that appears to
+  # declare one has been edited locally. We did exactly that to nbc16 in #107
+  # and #108; it broke that bundle's own SHA256SUMS for eleven days and then
+  # read as evidence that a later release had *removed* the keys. Vendored
+  # bundles are now byte-for-byte upstream, and the overrides live here where
+  # they are visible and diffable.
+
   # Samples of adapter_end a read needs beyond the model's chunk (3000) before
   # the CRF will decode it; below that the read routes to `unclassified` with
-  # confidence 0, undecoded. `null` leaves the bundle's own declaration in
-  # charge, which is where this belongs — set it only to evaluate a margin the
-  # bundle has not adopted yet.
+  # confidence 0, undecoded. Unset would inherit escpod's fallback of 200 —
+  # which records only how `extract_chunks.py` FILTERED the training corpus,
+  # not what the encoder needs: adapter_end >= chunk already yields a full
+  # window.
   #
-  # The shipped v0.2.0 bundle declares nothing, so it falls back to 200 (the
-  # filter `extract_chunks.py` applied when building the corpus). On the
-  # 2026-08-06 nbc16 run that dropped 145,775 reads (14.56%), every one of which
-  # HAD a detected adapter; 0 recovers 36,921 of them at median edit distance 0
-  # (yield 85.44% -> 89.13%). The rest have adapter_end < 3000 and need a
-  # shorter-chunk model, not a margin change.
-  boundary_margin: null
+  # 0, measured: on the 1.0M-read 2026-08-06 nbc16 run the 200 fallback dropped
+  # 145,775 reads (14.56%), every one of which HAD a detected adapter; 0
+  # recovers 36,921 of them at median edit distance 0, 98.3% within 2 edits —
+  # cleaner than the reads that already passed (yield 85.44% -> 89.13%). Reads
+  # with adapter_end < 3000 are out of its reach and need the clamp below.
+  boundary_margin: 0
+
+  # Decode a read whose adapter ends BEFORE the chunk from the window
+  # [0, chunk], provided chunk - adapter_end is at most this. 0 disables it.
+  # `boundary_margin` cannot reach these reads: their window would start before
+  # sample 0, so there is nothing to relax. Clamping keeps the window width and
+  # anchors it at the read start instead. Such reads are truncated mid-adapter,
+  # so part of the barcode is already gone; this bounds how much of that we
+  # accept.
+  #
+  # 300 on the 415-read LDX fixture is worth 11 reads (379/415 -> 390/415).
+  clamp_max_shift: 300
   # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
   # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
   # --gpu outright — enabling this requires an escpod built from source with
@@ -245,10 +273,112 @@ ldx:
   # The lattice decode stays on the CPU regardless, so threads still matter.
   gpu: false
   # Call a read unclassified when its edit-distance margin to the second-best
-  # reference is below this. 0 keeps every call, including outright ties.
-  # The model's published precision/recall were computed on this margin, so
-  # raising it trades recovery for precision along that curve.
+  # reference is below this. RETIRED to 0 in favour of the lattice gate below;
+  # what follows is why it was 12, and why that stopped being the right value.
+  #
+  # The margin is quantised: on a 1,001,307-read RNA004 run, 99.0% of classified
+  # reads sit at 12/13/14, because the 16 references are >=12 apart by design and
+  # a WRONG decode lands just as cleanly on its reference as a right one. So the
+  # residual error rate barely moves — which made 12 look useless until you asked
+  # what it DISCARDS. Measured against a second, independently trained bundle
+  # (disagreement between two models is a floor on error):
+  #
+  #   threshold  drops        of calls   of which disagreements
+  #        1     1,295         0.14%          96.2%
+  #       10     7,427         0.80%          91.3%
+  #       12     8,817         0.95%          85.2%   <- the old default
+  #       13   431,747        46.76%           8.5%   <- cliff, do not
+  #
+  # That was an 11:1 trade and the right one WHILE it was the only gate. Its
+  # ceiling was always low: only ~1% of reads have a sub-plateau margin, so ~90%
+  # of errors were out of its reach entirely.
+  #
+  # `min_crf_margin` below reaches them, and once it is on, 12 is not
+  # complementary — it is redundant and then harmful. Re-measured on the same
+  # run (2026-08-20, 923,431 calls, 77,618 cross-bundle disagreements), what
+  # min_margin 12 removes ON TOP of the lattice gate:
+  #
+  #   crf gate   extra reads dropped   of which real errors
+  #     0.5             1,157                 36.3%
+  #     0.7               855                 19.2%
+  #     1.0               728                  9.5%   <- at the shipped gate
+  #     2.3               666                  3.5%
+  #
+  # At the shipped crf 1.0 it discards 728 reads that are 90.5% CORRECT and moves
+  # total error removed by +0.09 points. The lattice gate's own discards are
+  # ~85% real errors, so keeping 12 only lowers the average quality of what the
+  # pipeline throws away.
+  #
+  # Raise it again only for a run with no lattice gate. Leave it 0 when the
+  # measurement IS the crosstalk — gating removes the very reads such a run
+  # exists to count.
   min_margin: 0
+
+  # --- The lattice's own confidence ----------------------------------------
+  # `--ref-scores` restricts the CRF forward recursion to the paths that emit a
+  # given reference and normalises by the full partition function, which is a
+  # real log P(barcode | signal):
+  #
+  #     crf_logp = logZ_target(reference) - logZ_full
+  #
+  # It adds four columns to classifications.csv — `crf_logp`, `crf_best` (the
+  # reference the lattice itself prefers, which need not be the one edit
+  # distance called), `crf_margin` (log-odds in nats against the runner-up) and
+  # `mean_logpost`. That is resolution `confidence` does not have: over 20k
+  # RNA004 reads `confidence` takes 15 distinct values with 98.7% of reads in
+  # three of them, while `crf_margin` takes 14,818 over 16,747 reads.
+  #
+  # On by default, because it is exactly the audit record classifications.csv
+  # is kept for, and it is cheap: +3.6% on the fused command. It costs MORE
+  # under `gpu: true` — the constrained scan reads the raw scores, so the
+  # decode returns to the host while the encoder stays on the device.
+  ref_scores: true
+
+  # Gates on that score. Below either threshold a read becomes `unclassified`
+  # rather than a possibly-wrong assignment, and keeps its scores in the CSV so
+  # the row still says which gate dropped it and by how much. Setting either
+  # implies `--ref-scores`.
+  #
+  # Swept on the 2026-08-06 donor flowcell (1,001,307 reads; 923,431 calls at
+  # margin 0), scoring precision against a second, independently trained bundle
+  # exactly as the min_margin table above does — 77,618 of those calls are
+  # cross-bundle disagreements, which is a floor on the error rate:
+  #
+  #   gate                 recall%   of all errors removed   discard precision%
+  #   min_margin 12         91.34            9.52                  83.78
+  #   min_crf_margin 0.5    89.53           29.87                  86.12
+  #   min_crf_margin 0.7    88.74           38.59                  85.84
+  #   min_crf_margin 1.0    87.85           47.69                  84.56   <- set
+  #   min_crf_margin 2.3    85.59           64.48                  75.38
+  #   min_crf_margin 4.6    80.18           77.71                  50.02
+  #
+  # 1.0 is where the dial stops being free. Its discards are 84.56% real errors
+  # — the same quality as min_margin 12's 83.78% — while removing 47.69% of all
+  # error against that gate's 9.52%: five times the error for the same discard
+  # precision, costing 3.5 points of recall. Past ~1.3 discard precision decays,
+  # and by 4.6 half of what is dropped is correct, which is yield burnt for
+  # nothing.
+  #
+  # Measured on the GPU (onnxruntime) encoder, unlike the CPU-measured
+  # min_margin table above. Calls agree with the CPU (tract) encoder on 99.76%
+  # of fixture reads and crf_margin differs at a median of 0.0016 nats, so the
+  # threshold is not sensitive to that difference — but it is the reason the two
+  # tables are not strictly one measurement.
+  #
+  #   min_crf_margin — nats of log-odds for the CALLED barcode against its best
+  #     alternative. Continuous, and negative when the lattice prefers a
+  #     different reference, so any positive threshold rejects both the
+  #     ambiguous reads and the ones the lattice actively disagrees with. On
+  #     this run 9,617 of 9,618 such reads have a negative margin, and 87.9% of
+  #     them are genuine cross-bundle disagreements.
+  #     0.7 nats is 2:1 odds, 2.3 is 10:1, 4.6 is 100:1.
+  #   min_crf_prob — P(called barcode | signal) in absolute terms. A different
+  #     cut, not a rescaling of the same one: a read can be sure it is none of
+  #     the other 15 barcodes and still put little mass on any reference at all.
+  #     Left unset; the margin gate is the one that was swept.
+  min_crf_margin: 1.0
+  min_crf_prob: null
+
   threads: 16
 
 # EDX (3' adapter barcode) handling.

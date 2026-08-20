@@ -136,9 +136,7 @@
   "boundary": {
     "method": "cnn",
     "onnx": "adapter_rna004.onnx",
-    "model_id": "adapter_rna004@v1.1.0",
-    "margin": 0,
-    "clamp_max_shift": 300
+    "model_id": "adapter_rna004@v1.1.0"
   },
   "model": {
     "id": "barcode_crf_nbc16_rna004",
