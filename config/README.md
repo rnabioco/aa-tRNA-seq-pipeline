@@ -103,7 +103,9 @@ and enable the backend:
 ldx:
     enabled: true
     model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
-    min_margin: 12       # the only working false-positive control; see below
+    min_margin: 0        # retired; the lattice gate supersedes it
+    ref_scores: true     # record the lattice's own log P(barcode | signal)
+    min_crf_margin: 1.0  # the false-positive control; swept, see below
     boundary_margin: 0   # NOT declared by any bundle; unset means escpod's 200
     clamp_max_shift: 300 # likewise. See resources/models/demux/README.md
     threads: 32
@@ -134,7 +136,8 @@ each read straight into its barcode's POD5, so unlike the WarpDemuX path there
 is no separate read-ID extraction or `pod5 filter` split; the per-sample POD5
 already exists when the command returns. The per-read classifications CSV
 (`demux/read_ids/<run>/classifications.csv`) is kept because it is the only
-record of each call's confidence margin.
+record of how each call went: `confidence` always, and — under `ref_scores`, on
+by default — `crf_logp`, `crf_margin`, `crf_best` and `mean_logpost`.
 
 **Performance.** The released `escpod` binary has no CUDA execution provider, so
 the CRF encoder runs on CPU. Measured on 20k RNA004 reads: **59 ms of CPU per
@@ -142,6 +145,33 @@ read** for detect + encode + decode. A single 561k-read POD5 is therefore ~9
 CPU-hours — about 20 minutes at 32 cores, and most of a day at 1. Size
 `cpus_per_task` for `escapepod_demux` accordingly, and keep `ldx.threads` in
 step with it, since that is the value `escpod` is actually launched with.
+
+`ref_scores: true` adds **+3.6%** to that, which is why it is on by default. It
+costs more under `ldx.gpu: true`: the constrained scan reads the raw scores, so
+the decode comes back to the host while the encoder stays on the device.
+
+**GPU is worth it, and by more than upstream's headline figure.** Measured here
+on the 2026-08-06 flowcell, `--ref-scores` on, one GPU + 8 cores against the
+released CPU binary on 32 cores:
+
+```
+                          wall        reads/s   yield
+CPU (released, 32 cores)  ~2.6 h          108   92.22%
+GPU (0.12.0-gpu, 1 GPU)   458.9 s       2,182   92.22%
+```
+
+**20.3x**, at identical yield and using a quarter of the cores. Upstream quotes
+2.4x because that compares the GPU encoder against the CPU encoder *within the
+same GPU-capable binary*; this compares what you would actually switch between.
+The stage trace shows the device saturated (workers busy 94% of wall, producer
+blocked on send 347.7 s), so a second GPU would push it further.
+
+It needs a source build — the released binary has no GPU code and does not carry
+the `--gpu` flag at all. `pixi run install-escpod-gpu` (with `ESCPOD_REF` set to
+the release you want) installs it as a distinct `<version>-gpu` that
+`escpod_version` selects, alongside `pixi install -e gpu` for cuDNN. Without
+cuDNN the CUDA provider fails to register and onnxruntime falls back to CPU with
+only a warning, so confirm the log says `CRF encoder: N worker(s) on GPU [0]`.
 
 ### Testing the LDX path
 
@@ -171,7 +201,7 @@ Two things about this config are easy to get wrong when copying it:
   collapse the off-target reads to `none` and make the concordance table
   meaningless.
 
-### `min_margin` is the false-positive control, and 12 is the operating point
+### `min_margin` is retired to 0, and this is why it was 12
 
 Measured on a 1,001,307-read run against a second, independently trained bundle
 (two models disagreeing is a floor on error):
@@ -195,6 +225,74 @@ half the run at 8.5% precision.
 **Set 0 when the measurement IS the crosstalk** — an adapter-ligation QC run
 exists to count misassignment, and gating removes exactly the reads it is
 counting.
+
+### `crf_margin` is the false-positive control, and 1.0 is the operating point
+
+`min_margin` can only ever reach ~1% of reads, because it measures the wrong
+thing. `confidence` is the edit-distance margin to the runner-up, and on a
+*designed* panel that measures how far apart the references are, not how sure
+the model is — 90% of the reads two independently trained bundles disagree
+about are **exact** matches to a reference, so no edit-distance threshold can
+see them.
+
+Since escpod 0.12.0, `ref_scores: true` (the default) asks the lattice instead.
+Restricting the CRF forward recursion to the paths that emit a given reference
+and normalising by the full partition function is a real probability:
+
+```text
+crf_logp = logZ_target(reference) - logZ_full = log P(reference | signal)
+```
+
+`classifications.csv` gains four columns, appended after `confidence` (so
+anything parsing it positionally, `summarize_demux.awk` included, is unaffected):
+
+| column | meaning |
+|---|---|
+| `crf_logp` | log-probability of the **called** barcode |
+| `crf_best` | the reference the lattice itself prefers — need not be the one edit distance called |
+| `crf_margin` | log-odds in nats against the runner-up; **negative** when `crf_best` disagrees with the call |
+| `mean_logpost` | the decoded path's mean per-timestep log-posterior |
+
+The resolution difference is the whole point: over 20k RNA004 reads
+`confidence` takes 15 distinct values with 98.7% of reads in three of them,
+while `crf_margin` takes 14,818 over 16,747 reads. Even within the 98.4% of
+reads that match a reference exactly, `P(barcode | signal)` still spans from
+below 0.1 up to 0.9–0.99 — reads a clean decode cannot tell apart and the
+lattice can.
+
+**Swept on the 2026-08-06 donor flowcell** (1,001,307 reads, 923,431 calls at
+margin 0), scoring precision against a second, independently trained bundle —
+the same floor-on-error methodology as the `min_margin` table above:
+
+```
+gate                 recall%   of all errors removed   discard precision%
+min_margin 12         91.34            9.52                  83.78
+min_crf_margin 0.5    89.53           29.87                  86.12
+min_crf_margin 0.7    88.74           38.59                  85.84
+min_crf_margin 1.0    87.85           47.69                  84.56   <- set
+min_crf_margin 2.3    85.59           64.48                  75.38
+min_crf_margin 4.6    80.18           77.71                  50.02
+```
+
+**1.0 is where the dial stops being free.** Its discards are 84.56% real errors —
+the same quality as `min_margin 12`'s 83.78% — while removing 47.69% of all
+error against that gate's 9.52%. Five times the error caught at the same discard
+precision, for 3.5 points of recall. Past ~1.3 discard precision decays; by 4.6
+half of what is dropped is correct.
+
+**`min_margin` goes to 0 because it is not complementary.** On top of the crf
+gate it removes only 728 further reads, **90.5% of which are correct**, moving
+total error removed by +0.09 points. Since the crf gate's own discards are ~85%
+real errors, keeping 12 lowers the average quality of what the pipeline throws
+away. Raise it again only for a run with no lattice gate.
+
+`min_crf_prob` is left unset — a different cut (absolute confidence rather than
+separability), and not the one that was swept.
+
+These margins were measured on the **GPU encoder**, unlike the CPU-measured
+`min_margin` table. Calls agree with the CPU encoder on 99.76% of fixture reads
+and `crf_margin` differs at a median of 0.0016 nats, so the threshold is not
+sensitive to that — but the two tables are not strictly one measurement.
 
 `config-demux-test.yml` (WarpDemuX) is a **dry-run target only** and cannot
 complete a run; its header explains why, and there is no committed WDX fixture.

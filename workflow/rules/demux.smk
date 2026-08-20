@@ -300,10 +300,13 @@ rule escapepod_demux:
     pins the boundary detector it was calibrated against, and overriding either
     silently degrades the calls.
 
-    The classifications CSV is kept because it is the only per-read record of the
-    call and its confidence margin — the POD5 routing preserves which barcode won,
-    but not by how much, and that margin is what separates a confident call from a
-    near-tie when auditing demux quality.
+    The classifications CSV is kept because it is the only per-read record of how
+    the call went — the POD5 routing preserves which barcode won, but not by how
+    much, and that is what separates a confident call from a near-tie when
+    auditing demux quality. Under `ldx.ref_scores` (on by default) it carries the
+    lattice's own log P(barcode | signal) as well, which is the score with enough
+    resolution to audit against; `confidence` alone is an edit-distance margin
+    that a designed panel pins to three values.
     """
     input:
         get_run_raw_inputs,
@@ -321,6 +324,30 @@ rule escapepod_demux:
     params:
         model=get_ldx_model(),
         min_margin=config.get("ldx", {}).get("min_margin", 0),
+        # The CRF's own confidence. `--ref-scores` restricts the forward
+        # recursion to the paths emitting each reference and normalises by the
+        # partition function, so classifications.csv gains crf_logp /
+        # crf_margin / crf_best / mean_logpost — a continuous per-read score,
+        # where `confidence` is an edit-distance margin a designed panel pins
+        # to three values. Needs escpod >= 0.12.0 (escapepod-rs#241); an older
+        # binary rejects the flag outright rather than ignoring it, which is
+        # the failure mode we want given the pin lives in the same config.
+        ref_scores=lambda wildcards: (
+            "--ref-scores" if config.get("ldx", {}).get("ref_scores", True) else ""
+        ),
+        # Gates on that score, both unset by default — see config-base.yml for
+        # why an unmeasured operating point is not shipped. Either flag implies
+        # --ref-scores upstream, so a gate cannot silently do nothing.
+        min_crf_margin=lambda wildcards: (
+            f"--min-crf-margin {config['ldx']['min_crf_margin']}"
+            if config.get("ldx", {}).get("min_crf_margin") is not None
+            else ""
+        ),
+        min_crf_prob=lambda wildcards: (
+            f"--min-crf-prob {config['ldx']['min_crf_prob']}"
+            if config.get("ldx", {}).get("min_crf_prob") is not None
+            else ""
+        ),
         # Boundary gating. NO upstream CRF bundle declares `boundary.margin` or
         # `boundary.clamp_max_shift` — build_crf_bundle.py cannot write them —
         # so unset does not mean "the bundle decides", it means escpod's
@@ -386,6 +413,9 @@ rule escapepod_demux:
             --output-dir {output.outdir} \
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
+            {params.ref_scores} \
+            {params.min_crf_margin} \
+            {params.min_crf_prob} \
             {params.boundary_margin} \
             {params.clamp_max_shift} \
             {params.gpu} \
