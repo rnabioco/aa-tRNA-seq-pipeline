@@ -1,4 +1,6 @@
-.tests
+.tests/*
+!.tests/*.sh
+!.tests/fixtures/
 .snakemake
 ext
 logs
@@ -9,6 +11,10 @@ results/
 resources/tools/*
 *.bam
 *.pod5
+# ...except the checked-in LDX demux fixture, which is deliberately
+# versioned: it is the only barcoded input the demux path can be tested
+# against, and it is 4.6 MB. See .tests/fixtures/ldx-demux/README.md.
+!.tests/fixtures/**/*.pod5
 .tmp_pod5_v3_v4_migration_*/
 
 # python testing

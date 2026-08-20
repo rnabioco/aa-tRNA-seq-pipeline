@@ -1,0 +1,73 @@
+# End-to-end test config for LDX (escapepod) demultiplexing.
+#
+#   pixi run snakemake -n --configfile=config/config-ldx-test.yml     # DAG only
+#   pixi run snakemake --configfile=config/config-ldx-test.yml --cores 8
+#
+# Unlike config-demux-test.yml, this one RUNS. It is backed by a real pooled
+# barcoded run (.tests/fixtures/ldx-demux) rather than by unbarcoded sacCer3
+# reads relabelled as barcoded, which is why the WarpDemuX test config could
+# never complete -- see issue #120.
+
+samples: config/samples-ldx-test.yml
+output_directory: ".tests/outputs-ldx"
+
+# --- Demultiplexing -------------------------------------------------------
+ldx:
+    enabled: true
+    model: "resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0"
+    # 0 keeps every call, so ambiguous reads stay visible in demux_summary
+    # instead of being silently folded into `unclassified`.
+    min_margin: 0
+    # Small, because the fixture is small. `escpod demux` costs ~59 ms of CPU
+    # per read, so 415 reads is well under a CPU-minute at any thread count.
+    threads: 4
+
+# --- 3' adapter (EDX) -----------------------------------------------------
+# enabled -> emit summary/edx/edx_concordance.tsv.gz.
+# detect_all stays false: ldx08_pool has no `edx:` assignment, and leaving it
+# false is what keeps that sample on the unfiltered path, which is the branch
+# it exists to cover.
+edx:
+    enabled: true
+    detect_all: false
+    min_margin: 5
+
+# --- Adapters -------------------------------------------------------------
+# MUST be overridden. config-base.yml also defines names `edx01`/`edx02`, but
+# with the sacCer3 dual-adapter SEQUENCES -- same names, different molecules.
+# Inheriting those would make every read here detect as `none` and reproduce
+# exactly the failure #120 describes.
+#
+# These are the seven adapters actually present in the donor run: a fixed 25-nt
+# prefix + a 10-nt barcode + a 10-nt poly(A) tail. All seven are listed even
+# though the fixture only filters on two, because detection can only assign a
+# read to an adapter in this list -- omitting the rest would make the
+# off-target reads come back as `none` and the concordance table meaningless.
+adapters:
+    five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+    three_prime:
+        - name: "edx01"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCAGTACTAGTCAAAAAAAAAA"
+        - name: "edx02"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCGCATAGCATCAAAAAAAAAA"
+        - name: "edx03"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCTACGCAGTTCAAAAAAAAAA"
+        - name: "edx04"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCCTGCTCTCTCAAAAAAAAAA"
+        - name: "edx05"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCTCGAGACTTCAAAAAAAAAA"
+        - name: "edx06"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCGTACGCATTCAAAAAAAAAA"
+        - name: "edx07"
+          seq: "GGCTTCTTCTTGCTCTTAGGAAGGCTGACAGTCTCAAAAAAAAAA"
+    min_score_5p: 25
+    min_score_3p: 20
+    infer_5p_from_alignment: true
+    max_ref_start_for_5p: 20
+
+# --- Reference ------------------------------------------------------------
+# The donor run is human tRNA, not sacCer3, so the fixture ships its own raw
+# reference and the pipeline builds the adapted version from it.
+reference:
+    mode: "build"
+    raw_fasta: ".tests/fixtures/ldx-demux/collapsed.fa"

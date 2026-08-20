@@ -68,8 +68,13 @@ lint-yaml = { cmd = "yamllint -d \"{extends: default, rules: {line-length: {max:
 install-leech = { cmd = "bash scripts/install-leech.sh", description = "Install leech AA-identity classifier from submodule (release build)" }
 # WarpDemuX tasks
 install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
-dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run demux test" }
+dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run WDX demux DAG (this config cannot execute — see its header and issue #120)" }
 # escapepod (LDX) demux tasks
+# The LDX path is the one with a real barcoded fixture, so it is the only
+# demux config that runs end to end. dry-run-ldx is cheap enough for CI;
+# test-ldx needs a GPU for dorado.
+dry-run-ldx = { cmd = "snakemake -n --configfile=config/config-ldx-test.yml", description = "Dry run the LDX demux test DAG" }
+test-ldx = { cmd = "snakemake --configfile=config/config-ldx-test.yml --cores 8", description = "Run the LDX demux test end-to-end on the committed fixture (needs a GPU)" }
 escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info", description = "Describe the vendored LDX (nbc16) CRF demux bundle" }
 # Charging classifier
 verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_feature_nn_rna004@v0.1.0 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored charging model bundle against its pinned checksums" }

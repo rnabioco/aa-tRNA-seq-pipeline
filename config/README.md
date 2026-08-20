@@ -137,6 +137,37 @@ CPU-hours — about 20 minutes at 32 cores, and most of a day at 1. Size
 `cpus_per_task` for `escapepod_demux` accordingly, and keep `ldx.threads` in
 step with it, since that is the value `escpod` is actually launched with.
 
+### Testing the LDX path
+
+`config-ldx-test.yml` runs the whole demux path end to end against a committed
+fixture — 415 reads of a real pooled barcoded run, in
+`.tests/fixtures/ldx-demux`:
+
+```bash
+pixi run dry-run-ldx    # DAG only; no GPU, no download
+pixi run test-ldx       # full run (dorado needs a GPU)
+```
+
+The fixture holds three claimed barcodes plus two populations that must *not*
+become samples — a barcode no sample claims, and reads the CRF could not call —
+and each filtered barcode deliberately carries wrong-adapter reads so
+`filter_{fastq,pod5}_by_edx` has something real to remove. See the README beside
+it for the full composition and how to rebuild it.
+
+Two things about this config are easy to get wrong when copying it:
+
+- **The `adapters.three_prime` override is load-bearing.** `config-base.yml`
+  also defines names `edx01`/`edx02`, but with the sacCer3 dual-adapter
+  *sequences* — same names, different molecules. Inherit those and every read
+  detects as `none`, which is exactly the failure mode of issue #120.
+- **All seven adapters are listed**, though only two are filtered on. Detection
+  can only assign a read to an adapter in the list, so omitting the rest would
+  collapse the off-target reads to `none` and make the concordance table
+  meaningless.
+
+`config-demux-test.yml` (WarpDemuX) is a **dry-run target only** and cannot
+complete a run; its header explains why, and there is no committed WDX fixture.
+
 ## Other Configuration Parameters
 
 - `base_calling_model`: Path to the dorado basecalling model to use for rebasecalling. We use `rna004_130bps_sup@v5.0.0` for now, will evaluate newer model soon.

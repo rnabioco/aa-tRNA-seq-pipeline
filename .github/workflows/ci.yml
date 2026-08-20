@@ -40,6 +40,15 @@ jobs:
       - name: Snakemake dry-run (syntax check)
         run: pixi run dry-run
 
+      # The LDX demux DAG is built from the committed fixture, so it needs no
+      # download and no GPU. This is the check that would have caught #120:
+      # config-demux-test.yml passed a dry-run while being unable to execute,
+      # because a dry-run never looks at the data. Here the fixture is real, so
+      # the tests in tests/integration/test_ldx_demux.py assert that the config
+      # and the data agree.
+      - name: Snakemake dry-run (LDX demux)
+        run: pixi run dry-run-ldx
+
   pipeline-test:
     name: Pipeline Integration Test
     runs-on: ubuntu-latest

@@ -1,7 +1,30 @@
-# Test config for WarpDemuX demultiplexing
+# WarpDemuX demultiplexing — DAG-ONLY test config.
 #
-# This config enables WarpDemuX barcode demultiplexing.
-# Use with: pixi run snakemake -n --configfile=config/config-demux-test.yml
+# ############################################################################
+# THIS CONFIG CANNOT COMPLETE A RUN, AND IS NOT MEANT TO. Use it for
+#     pixi run dry-run-demux
+# only. For an end-to-end demux test that actually executes, use
+#     config/config-ldx-test.yml
+# ############################################################################
+#
+# Why it cannot run (issue #120): it points at .tests/sample1, which is
+# UNBARCODED sacCer3 data relabelled as barcoded. Two independent things break:
+#
+#   1. No read carries an EDX 3' adapter, so every read detects as `none`,
+#      extract_edx_read_ids writes an empty list, and `escpod filter` errors —
+#      correctly, since a barcode matching zero reads should fail loudly rather
+#      than emit an empty POD5 that fails more confusingly downstream.
+#   2. Dropping the `edx:` keys does not rescue it: bwa maps NONE of the reads
+#      WarpDemuX routes to these barcodes, so the aligned BAM is empty and
+#      classify_charging exits with "no reads could be anchored".
+#
+# No edit to this file fixes that — the data would have to actually be
+# barcoded. The `edx:` keys are therefore kept deliberately: DAG construction
+# for the EDX branch is the remaining thing this config is good for, and
+# dropping them would only narrow that.
+#
+# There is no committed WarpDemuX fixture because the WDX path has no barcoded
+# test data; the LDX fixture covers the shared downstream machinery.
 
 # Sample file in YAML format with barcode assignments
 samples: config/samples-demux-test.yml

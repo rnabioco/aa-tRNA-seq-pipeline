@@ -180,6 +180,22 @@ see `config/README.md` for the LDX sample-file format, the self-describing model
 bundle, and its CPU cost. The vendored model lives in `resources/models/demux/`
 (see the README there for why it is committed rather than fetched).
 
+### Testing the demux path
+
+Only the LDX backend has an end-to-end test, because it is the only one with a
+committed barcoded fixture (`.tests/fixtures/ldx-demux`, 415 reads of a real
+pooled run — see the README there):
+
+```bash
+pixi run dry-run-ldx    # DAG only, no GPU, runs in CI
+pixi run test-ldx       # full run against the fixture (needs a GPU for dorado)
+```
+
+`config/config-demux-test.yml` (WarpDemuX) **cannot complete a run** and is a
+dry-run target only: it points at unbarcoded sacCer3 data relabelled as
+barcoded, so adapter detection finds nothing and bwa maps none of the reads
+WarpDemuX routes to those barcodes. See issue #120 and that file's header.
+
 The rest of this section describes the WarpDemuX backend.
 
 ### Enabling Demultiplexing
@@ -281,7 +297,18 @@ pixi run snakemake <rule_name> --configfile=config/config-test.yml
 
 # Force rerun of specific rule
 pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config-test.yml
+
+# Demultiplexing: dry-run the DAG, then run it against the committed fixture
+pixi run dry-run-ldx
+pixi run test-ldx
 ```
+
+A dry-run only builds the DAG — it never looks at the data, which is why
+`config-demux-test.yml` passed `dry-run-demux` for as long as it did while being
+unable to execute (#120). `tests/integration/test_ldx_demux.py` closes that gap:
+its fixture and config tests run without a GPU and assert that the configs and
+the fixture actually agree, while the output tests skip unless `.tests/outputs-ldx`
+exists from a real run.
 
 ### Cluster Resource Configuration
 
