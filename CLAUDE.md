@@ -328,7 +328,7 @@ Key outputs per sample:
 - `summary/tables/{sample}/{sample}.charging.cpm.tsv.gz` - CPM-normalized charging counts
 - `summary/tables/{sample}/{sample}.charging_prob.tsv.gz` - Per-read charging probabilities
 - `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` - Per-read calls, with a `reason` for every read the model did not score
-- `bam/final/{sample}/{sample}.bam` - Final BAM with cl (charging) and pt (adapter positions) tags, plus dorado's MM/ML modbase tags
+- `bam/final/{sample}/{sample}.bam` - Final BAM with cl (charging), pt (adapter positions) and BC (barcode, demux runs only) tags, plus dorado's MM/ML modbase tags and a valid @RG
 
 Pipeline-level outputs:
 - `squiggy-session.json` - Squiggy session file for loading samples in Positron

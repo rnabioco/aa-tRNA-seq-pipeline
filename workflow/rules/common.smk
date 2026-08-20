@@ -1,5 +1,6 @@
 import os
 import glob
+import re
 import sys
 import pysam
 import yaml
@@ -79,6 +80,37 @@ def is_warpdemux_enabled():
 def is_ldx_enabled():
     """Check if escapepod CRF (LDX/nbc) demultiplexing is enabled in config."""
     return config.get("ldx", {}).get("enabled", False)
+
+
+def get_sample_barcode_label(sample):
+    """The project-facing barcode name for a sample, or None if it has none.
+
+    `samples[s]["barcode"]` holds whatever the samples YAML said, and the two
+    backends speak different vocabularies there. WarpDemuX barcodes are already
+    ours (`barcode04`). LDX barcodes are not: escapepod-models names them
+    `nbc01`..`nbc16` and that is what the model bundle emits, what
+    classifications.csv records, and what demux_summary.tsv.gz tabulates — but
+    **LDX is the name this project uses for them**, so normalise here rather
+    than leaking upstream's naming into every BAM.
+
+    The mapping is a pure documented rename (nbcNN == LDX NN, see
+    config/README.md and resources/models/demux/README.md), so nothing is lost.
+    The upstream name is still recorded, in an @CO line on the BAM, so a reader
+    never has to guess which naming a file is using.
+    """
+    barcode = samples.get(sample, {}).get("barcode")
+    if not barcode:
+        return None
+    if is_ldx_enabled():
+        match = re.fullmatch(r"nbc(\d+)", barcode)
+        if match:
+            return f"ldx{match.group(1)}"
+    return barcode
+
+
+def get_sample_barcode_upstream(sample):
+    """The raw barcode name as configured, for provenance. None if unbarcoded."""
+    return samples.get(sample, {}).get("barcode") or None
 
 
 def is_demux_enabled():

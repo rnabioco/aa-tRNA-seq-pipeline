@@ -9,7 +9,7 @@ from array import array
 import pysam
 import pytest
 
-from transfer_tags import transfer_tags, parse_tag_items
+from transfer_tags import transfer_tags, parse_tag_items, parse_set_tags
 
 
 class TestParseTagItems:
@@ -380,3 +380,190 @@ class TestTransferTags:
             assert st_read.query_name == mt_read.query_name
             # Single-element arrays are unwrapped to scalar by transfer_tags
             assert st_read.get_tag("ML") == mt_read.get_tag("ML")
+
+
+class TestParseSetTags:
+    """Tests for parse_set_tags."""
+
+    def test_string_tag(self):
+        assert parse_set_tags(["BC:Z:ldx04"]) == [("BC", "ldx04", "Z")]
+
+    def test_integer_tag_is_typed(self):
+        """`i` values must become ints, or pysam writes them as strings."""
+        assert parse_set_tags(["nn:i:7"]) == [("nn", 7, "i")]
+
+    def test_value_may_contain_colons(self):
+        """Split on the first two colons only."""
+        assert parse_set_tags(["co:Z:a:b:c"]) == [("co", "a:b:c", "Z")]
+
+    def test_multiple(self):
+        assert parse_set_tags(["BC:Z:ldx04", "xx:Z:y"]) == [
+            ("BC", "ldx04", "Z"),
+            ("xx", "y", "Z"),
+        ]
+
+    def test_malformed_raises(self):
+        with pytest.raises(ValueError):
+            parse_set_tags(["BC:ldx04"])
+
+
+def _write_bam(path, header, tags_per_read, names=("read1",)):
+    """Write a minimal single-ref BAM with one read per name."""
+    with pysam.AlignmentFile(str(path), "wb", header=header) as outf:
+        for name in names:
+            read = pysam.AlignedSegment()
+            read.query_name = name
+            read.query_sequence = "A" * 100
+            read.flag = 0
+            read.reference_id = 0
+            read.reference_start = 0
+            read.cigartuples = [(0, 100)]
+            read.query_qualities = pysam.qualitystring_to_array("I" * 100)
+            for tag, val in tags_per_read.items():
+                read.set_tag(tag, val)
+            outf.write(read)
+
+
+class TestSetTag:
+    """Constant tags stamped onto every output read."""
+
+    HEADER = {"HD": {"VN": "1.0"}, "SQ": [{"SN": "ref", "LN": 100}]}
+
+    def test_set_tag_applied(self, temp_dir):
+        src, tgt, out = (temp_dir / f"{n}.bam" for n in ("s", "t", "o"))
+        _write_bam(src, self.HEADER, {"mv": "x"})
+        _write_bam(tgt, self.HEADER, {})
+
+        transfer_tags(
+            tags=[],
+            rename=[],
+            source_bam=str(src),
+            target_bam=str(tgt),
+            output_bam=str(out),
+            all_tags=True,
+            set_tags=["BC:Z:ldx04"],
+        )
+
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            read = next(bam)
+            assert read.get_tag("BC") == "ldx04"
+
+    def test_applied_to_reads_with_no_source_match(self, temp_dir):
+        """--all-tags emits unmatched target reads; they must be tagged too.
+
+        Otherwise a sample's BAM carries the barcode on only some of its reads,
+        which is worse than not carrying it at all.
+        """
+        src, tgt, out = (temp_dir / f"{n}.bam" for n in ("s", "t", "o"))
+        _write_bam(src, self.HEADER, {"mv": "x"}, names=("read1",))
+        _write_bam(tgt, self.HEADER, {}, names=("read1", "orphan"))
+
+        transfer_tags(
+            tags=[],
+            rename=[],
+            source_bam=str(src),
+            target_bam=str(tgt),
+            output_bam=str(out),
+            all_tags=True,
+            set_tags=["BC:Z:ldx04"],
+        )
+
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            tagged = {r.query_name: r.get_tag("BC") for r in bam}
+        assert tagged == {"read1": "ldx04", "orphan": "ldx04"}
+
+    def test_absent_when_not_requested(self, temp_dir):
+        """Unbarcoded samples must get no BC at all, not an empty one."""
+        src, tgt, out = (temp_dir / f"{n}.bam" for n in ("s", "t", "o"))
+        _write_bam(src, self.HEADER, {"mv": "x"})
+        _write_bam(tgt, self.HEADER, {})
+
+        transfer_tags(
+            tags=[],
+            rename=[],
+            source_bam=str(src),
+            target_bam=str(tgt),
+            output_bam=str(out),
+            all_tags=True,
+        )
+
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            assert not next(bam).has_tag("BC")
+
+
+class TestReadGroupRepair:
+    """The output header must declare the read groups its reads reference."""
+
+    SRC_HEADER = {
+        "HD": {"VN": "1.0"},
+        "SQ": [{"SN": "ref", "LN": 100}],
+        "RG": [
+            {
+                "ID": "runid_model",
+                "PL": "ONT",
+                "PU": "FLOW1",
+                "SM": "ont_run_name",
+                "LB": "ont_lib",
+            }
+        ],
+    }
+    TGT_HEADER = {"HD": {"VN": "1.0"}, "SQ": [{"SN": "ref", "LN": 100}]}
+
+    def _run(self, temp_dir, **kwargs):
+        src, tgt, out = (temp_dir / f"{n}.bam" for n in ("s", "t", "o"))
+        _write_bam(src, self.SRC_HEADER, {"RG": "runid_model"})
+        _write_bam(tgt, self.TGT_HEADER, {})
+        transfer_tags(
+            tags=[],
+            rename=[],
+            source_bam=str(src),
+            target_bam=str(tgt),
+            output_bam=str(out),
+            all_tags=True,
+            **kwargs,
+        )
+        return out
+
+    def test_rg_header_is_restored(self, temp_dir):
+        """Regression: bwa drops @RG, --all-tags copies RG:Z back -> invalid SAM."""
+        out = self._run(temp_dir)
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            declared = {rg["ID"] for rg in bam.header.to_dict().get("RG", [])}
+            used = {r.get_tag("RG") for r in bam}
+        assert used, "test setup: reads should carry RG"
+        assert used <= declared, f"reads reference undeclared @RG: {used - declared}"
+
+    def test_id_preserved_but_identity_overwritten(self, temp_dir):
+        """ID must survive (RG:Z points at it); SM/LB/BC become ours."""
+        out = self._run(
+            temp_dir, rg_sample="ldx04", rg_library="run123", rg_barcode="ldx04"
+        )
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            rg = bam.header.to_dict()["RG"][0]
+        assert rg["ID"] == "runid_model"
+        assert rg["PU"] == "FLOW1" and rg["PL"] == "ONT"  # provenance kept
+        assert rg["SM"] == "ldx04"
+        assert rg["LB"] == "run123"
+        assert rg["BC"] == "ldx04"
+
+    def test_comment_recorded(self, temp_dir):
+        out = self._run(temp_dir, comments=["aa-tRNA-seq:upstream_barcode=nbc04"])
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            assert "aa-tRNA-seq:upstream_barcode=nbc04" in bam.header.to_dict()["CO"]
+
+    def test_no_source_rg_is_not_an_error(self, temp_dir):
+        """Non-demux/older BAMs may have no @RG at all."""
+        src, tgt, out = (temp_dir / f"{n}.bam" for n in ("s", "t", "o"))
+        _write_bam(src, self.TGT_HEADER, {"mv": "x"})
+        _write_bam(tgt, self.TGT_HEADER, {})
+        transfer_tags(
+            tags=[],
+            rename=[],
+            source_bam=str(src),
+            target_bam=str(tgt),
+            output_bam=str(out),
+            all_tags=True,
+            rg_sample="s1",
+        )
+        with pysam.AlignmentFile(str(out), "rb") as bam:
+            assert "RG" not in bam.header.to_dict()

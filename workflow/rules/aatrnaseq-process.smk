@@ -158,7 +158,25 @@ rule bwa_align:
 
 
 rule inject_ubam_tags:
-    """Transfer all tags from unaligned BAM (dorado) to aligned BAM by read ID."""
+    """Transfer all tags from unaligned BAM (dorado) to aligned BAM by read ID.
+
+    Also the point where the sample's identity is written INTO the BAM, because
+    it is the first place both demux backends have converged (see the note at
+    the top of demux.smk). Two things happen:
+
+    - a constant `BC` tag on every read, so a read stays attributable to its
+      barcode after it leaves this directory. Until now the barcode lived only
+      in the output path, and the per-read record that could recover it
+      (demux/read_ids/) is deleted by the `clean` rule and, on the WarpDemuX
+      path, is temp() under the demux_scratch tier.
+    - a repaired @RG. bwa builds the aligned header fresh and drops dorado's
+      read group, but --all-tags copies the per-read RG:Z straight back, so
+      every read pointed at a header line that did not exist. transfer_tags.py
+      now splices the source's @RG in and stamps SM/LB/BC onto it.
+
+    Unbarcoded samples get neither BC nor a barcode on the @RG: absence means
+    "no demultiplexing", not "unknown barcode".
+    """
     input:
         source_bam=rules.rebasecall.output,
         target_bam=rules.bwa_align.output.bam,
@@ -179,6 +197,22 @@ rule inject_ubam_tags:
     threads: 4
     params:
         src=SCRIPT_DIR,
+        barcode_arg=lambda wildcards: (
+            f"--set-tag BC:Z:{get_sample_barcode_label(wildcards.sample)} "
+            f"--rg-barcode {get_sample_barcode_label(wildcards.sample)}"
+            if get_sample_barcode_label(wildcards.sample)
+            else ""
+        ),
+        # Records the upstream (escapepod-models) barcode name next to ours, so
+        # a BAM tagged `ldx04` still says which `nbc` it came from.
+        comment_arg=lambda wildcards: (
+            f'--comment "aa-tRNA-seq:upstream_barcode='
+            f'{get_sample_barcode_upstream(wildcards.sample)}"'
+            if get_sample_barcode_upstream(wildcards.sample)
+            != get_sample_barcode_label(wildcards.sample)
+            else ""
+        ),
+        rg_library=lambda wildcards: samples[wildcards.sample].get("run_id") or "",
     shell:
         """
         python {params.src}/transfer_tags.py \
@@ -186,7 +220,11 @@ rule inject_ubam_tags:
             --threads {threads} \
             --source {input.source_bam} \
             --target {input.target_bam} \
-            --output {output.bam}
+            --output {output.bam} \
+            --rg-sample {wildcards.sample} \
+            --rg-library "{params.rg_library}" \
+            {params.barcode_arg} \
+            {params.comment_arg}
 
         samtools index -@ {threads} {output.bam}
         """

@@ -52,6 +52,16 @@ config <- read_yaml(params$config_file)
 output_dir <- fs::path_abs(config$output_directory, start = dirname(params$config_file))
 ml_threshold <- params$ml_threshold
 
+# escapepod-models names the LDX barcodes `nbc01`..`nbc16`, and that is what the
+# model emits into classifications.csv and demux_summary.tsv.gz -- but LDX is the
+# name this project uses for them. Normalise both sides of every barcode
+# join/display so the report speaks our vocabulary and still matches the files.
+# Pure documented rename; WDX barcodes pass through untouched. Defined at top
+# level because the demux chunk below uses it regardless of the samples format.
+normalize_barcode <- function(x) {
+  ifelse(!is.na(x) & grepl("^nbc[0-9]+$", x), sub("^nbc", "ldx", x), x)
+}
+
 # Parse samples from config
 # Supports both YAML format (with runs) and TSV format
 if (!is.null(config$samples))
@@ -63,10 +73,12 @@ if (!is.null(config$samples))
       purrr::map_dfr(function(run) {
         purrr::imap_dfr(run$samples, function(val, name) {
           if (is.list(val)) {
-            # Dict format: wdx + edx
+            # Dict format: wdx/ldx + edx. `wdx:` and `ldx:` are alternative
+            # spellings of the same field -- the two demux backends are mutually
+            # exclusive -- so coalesce them rather than reading only wdx.
             tibble(
               sample = name,
-              barcode = val$wdx %||% NA_character_,
+              barcode = val$wdx %||% val$ldx %||% NA_character_,
               edx = val$edx %||% NA_character_,
               run_path = run$path,
               barcode_kit = run$barcode_kit %||% NA_character_
@@ -83,6 +95,8 @@ if (!is.null(config$samples))
           }
         })
       })
+    sample_metadata <- sample_metadata |>
+      mutate(barcode = normalize_barcode(barcode))
     sample_list <- sample_metadata$sample
   } else {
     # TSV format: first column is sample name, second is run directory
@@ -730,29 +744,41 @@ for (s in sample_list) {
 #| label: demux-data-load
 #| include: false
 
-# Check for WDX demux summary files
-has_demux <- isTRUE(config$warpdemux$enabled)
+# Check for demux summary files. Both backends write the same
+# demux_summary.tsv.gz schema (predicted_barcode / n_reads / pct), so
+# everything below is backend-neutral once the file is found.
+demux_backend <- if (isTRUE(config$ldx$enabled)) {
+  "LDX"
+} else if (isTRUE(config$warpdemux$enabled)) {
+  "WDX"
+} else {
+  NA_character_
+}
+has_demux <- !is.na(demux_backend)
 
-wdx_summary_all <- tibble()
+demux_summary_all <- tibble()
 if (has_demux) {
-  # Find run IDs from sample metadata
+  # Find run IDs from sample metadata. Keyed on having a barcode, NOT on
+  # barcode_kit: LDX deliberately configures no kit (the model bundle is
+  # self-describing), so filtering on it finds nothing on an LDX run.
   run_ids <- unique(
     sample_metadata |>
-      filter(!is.na(barcode_kit)) |>
+      filter(!is.na(barcode)) |>
       pull(run_path) |>
       basename()
   )
 
-  wdx_summary_all <- map_dfr(run_ids, function(rid) {
+  demux_summary_all <- map_dfr(run_ids, function(rid) {
     summary_path <- fs::path(output_dir, "demux", "read_ids", rid, "demux_summary.tsv.gz")
     if (fs::file_exists(summary_path)) {
-      read_tsv(summary_path, show_col_types = FALSE) |> mutate(run_id = rid)
+      read_tsv(summary_path, show_col_types = FALSE) |>
+        mutate(run_id = rid, predicted_barcode = normalize_barcode(predicted_barcode))
     } else {
       tibble()
     }
   })
 }
-has_wdx_summary <- nrow(wdx_summary_all) > 0
+has_demux_summary <- nrow(demux_summary_all) > 0
 
 # Check for EDX concordance
 has_edx <- "edx" %in% colnames(sample_metadata) && any(!is.na(sample_metadata$edx))
@@ -765,19 +791,19 @@ if (has_edx) {
 }
 has_edx_concordance <- nrow(edx_concordance) > 0
 
-has_any_demux <- has_wdx_summary || has_edx_concordance
+has_any_demux <- has_demux_summary || has_edx_concordance
 
 # --- Derived demux analysis tibbles ---
 
 # WDX on/off-target analysis
 wdx_on_off <- tibble()
-if (has_wdx_summary && "barcode" %in% colnames(sample_metadata)) {
+if (has_demux_summary && "barcode" %in% colnames(sample_metadata)) {
   expected_barcodes <- sample_metadata |>
     filter(!is.na(barcode)) |>
     distinct(run_path, barcode) |>
     mutate(run_id = basename(run_path))
 
-  wdx_on_off <- wdx_summary_all |>
+  wdx_on_off <- demux_summary_all |>
     left_join(
       expected_barcodes |> dplyr::select(run_id, barcode),
       by = c("run_id", "predicted_barcode" = "barcode")
@@ -845,9 +871,9 @@ if (has_any_demux) {
     sample_meta <- barcode_to_sample_map |> filter(sample == s)
 
     # Stage 1: Run Total (total reads in the run this sample came from)
-    if (nrow(sample_meta) > 0 && has_wdx_summary) {
+    if (nrow(sample_meta) > 0 && has_demux_summary) {
       rid <- sample_meta$run_id[1]
-      run_total <- wdx_summary_all |> filter(run_id == rid) |> pull(n_reads) |> sum()
+      run_total <- demux_summary_all |> filter(run_id == rid) |> pull(n_reads) |> sum()
       funnel_rows <- c(funnel_rows, list(tibble(
         sample = s, stage = "Run Total", stage_order = stage_order, reads = run_total
       )))
@@ -855,7 +881,7 @@ if (has_any_demux) {
 
       # Stage 2: WDX On-target
       bc <- sample_meta$barcode[1]
-      wdx_reads <- wdx_summary_all |>
+      wdx_reads <- demux_summary_all |>
         filter(run_id == rid, predicted_barcode == bc) |>
         pull(n_reads) |>
         sum()
@@ -914,7 +940,7 @@ cat("*Demultiplexing was not enabled for this run.*\n")
 
 ```{r}
 #| label: demux-wdx-on-off
-#| eval: !expr has_wdx_summary
+#| eval: !expr has_demux_summary
 #| results: asis
 
 cat("\n\n### WDX On/Off-Target Analysis\n\n")
@@ -959,7 +985,7 @@ cat(as_raw_html(tbl))
 
 ```{r}
 #| label: fig-wdx-on-off-bar
-#| eval: !expr has_wdx_summary
+#| eval: !expr has_demux_summary
 #| fig-width: 10
 #| fig-height: 5
 #| fig-cap: "Stacked bar chart of WDX barcode classification per run. Green = on-target, orange = off-target, grey = unclassified."
@@ -981,7 +1007,7 @@ ggplot(wdx_on_off, aes(x = run_id, y = reads, fill = category)) +
 
 ```{r}
 #| label: demux-wdx-detail
-#| eval: !expr has_wdx_summary
+#| eval: !expr has_demux_summary
 #| results: asis
 
 cat("\n\n::: {.callout-note collapse=\"true\"}\n")
@@ -992,7 +1018,7 @@ barcode_to_sample <- sample_metadata |>
   dplyr::select(sample, barcode) |>
   deframe()
 
-wdx_display <- wdx_summary_all |>
+wdx_display <- demux_summary_all |>
   mutate(
     assigned_sample = barcode_to_sample[predicted_barcode] %||% NA_character_,
     assigned_sample = if_else(is.na(assigned_sample), "\u2014", assigned_sample)
