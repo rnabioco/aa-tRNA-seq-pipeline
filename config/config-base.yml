@@ -259,14 +259,30 @@ ldx:
   #
   # 300 on the 415-read LDX fixture is worth 11 reads (379/415 -> 390/415).
   clamp_max_shift: 300
-  # Run the CRF encoder and boundary CNN on the GPU. Off by default because the
-  # RELEASED escpod binary is built without `crf-gpu`/`cnn-gpu` and rejects
-  # --gpu outright — enabling this requires an escpod built from source with
-  # those features, plus a CUDA-enabled libonnxruntime on ORT_DYLIB_PATH
-  # (`pixi install -e gpu` provides one; see the `gpu` feature in pixi.toml).
-  # When true, escapepod_demux must also be given a GPU in the cluster profile.
-  # The lattice decode stays on the CPU regardless, so threads still matter.
-  gpu: false
+  # Run the CRF encoder and boundary CNN on the GPU. Measured on the 2026-08-06
+  # flowcell (1,001,307 reads, --ref-scores on), one GPU + 8 cores against the
+  # released CPU binary on 32 cores:
+  #
+  #   CPU   ~2.6 h    108 reads/s   92.22% yield
+  #   GPU   458.9 s  2,182 reads/s  92.22% yield    <- 20.3x, quarter the cores
+  #
+  # Identical yield; the stage trace shows the device saturated (workers busy
+  # 94% of wall), so a second GPU would push further. The lattice decode stays
+  # on the CPU regardless, so `threads` still matters.
+  #
+  # THIS REQUIRES A SOURCE BUILD. The released escpod carries no GPU code and
+  # rejects --gpu as an unknown argument, so `escapepod_demux` resolves the
+  # locally built `<escpod_version>-gpu` binary instead (see get_escpod_bin in
+  # demux.smk) and fails loudly naming the build command if it is missing.
+  # `escpod_version` itself stays on the release — every other rule uses it.
+  #
+  # Also needs a CUDA libonnxruntime on ORT_DYLIB_PATH (`pixi run
+  # install-ort-gpu`) and cuDNN (`pixi install -e gpu`). Without cuDNN the CUDA
+  # provider fails to register and onnxruntime falls back to the CPU with only a
+  # warning — confirm the log says `CRF encoder: N worker(s) on GPU [0]`.
+  #
+  # Set false for a CPU-only host; the test configs do exactly that.
+  gpu: true
   # Call a read unclassified when its edit-distance margin to the second-best
   # reference is below this. RETIRED to 0 in favour of the lattice gate below;
   # what follows is why it was 12, and why that stopped being the right value.
