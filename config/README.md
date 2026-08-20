@@ -103,6 +103,7 @@ and enable the backend:
 ldx:
     enabled: true
     model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
+    gpu: true            # needs a source build; see Performance below
     min_margin: 0        # retired; the lattice gate supersedes it
     ref_scores: true     # record the lattice's own log P(barcode | signal)
     min_crf_margin: 1.0  # the false-positive control; swept, see below
@@ -166,12 +167,29 @@ same GPU-capable binary*; this compares what you would actually switch between.
 The stage trace shows the device saturated (workers busy 94% of wall, producer
 blocked on send 347.7 s), so a second GPU would push it further.
 
-It needs a source build — the released binary has no GPU code and does not carry
-the `--gpu` flag at all. `pixi run install-escpod-gpu` (with `ESCPOD_REF` set to
-the release you want) installs it as a distinct `<version>-gpu` that
-`escpod_version` selects, alongside `pixi install -e gpu` for cuDNN. Without
-cuDNN the CUDA provider fails to register and onnxruntime falls back to CPU with
-only a warning, so confirm the log says `CRF encoder: N worker(s) on GPU [0]`.
+**`ldx.gpu` now defaults to `true`**, which means an LDX run needs a source
+build: the released binary has no GPU code and does not carry the `--gpu` flag
+at all.
+
+```bash
+ESCPOD_REF=v0.12.0 pixi run install-escpod-gpu   # builds <version>-gpu
+pixi run install-ort-gpu                          # CUDA onnxruntime
+pixi install -e gpu                               # cuDNN
+```
+
+`escapepod_demux` resolves that `<escpod_version>-gpu` binary itself and fails
+loudly naming the build command if it is missing. **`escpod_version` stays on
+the release** — demux is the only rule with a GPU path, so pointing the global
+pin at `-gpu` would force a source build on everyone just to run `escpod merge`
+and `escpod signal classify`, and would break `pixi run setup`, which derives
+its download URL from that string.
+
+Without cuDNN the CUDA provider fails to register and onnxruntime falls back to
+CPU with **only a warning**, so confirm the log says
+`CRF encoder: N worker(s) on GPU [0]`.
+
+Set `ldx.gpu: false` on a CPU-only host — the test configs do exactly that,
+since `ldx.gpu: true` is resolved while the DAG is built and CI has no GPU.
 
 ### Testing the LDX path
 

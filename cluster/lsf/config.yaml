@@ -23,6 +23,12 @@ set-resources:
   - bwa_align:mem_mb=24
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48
+  # LDX demux runs the CRF encoder and boundary CNN on the GPU (ldx.gpu),
+  # so it needs one; the lattice decode stays on the CPU, hence the cores too.
+  - escapepod_demux:lsf_queue="gpu"
+  - escapepod_demux:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+  - escapepod_demux:ngpu=1
+  - escapepod_demux:mem_mb=48
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
 

@@ -14,6 +14,10 @@ output_directory: ".tests/outputs-ldx"
 # --- Demultiplexing -------------------------------------------------------
 ldx:
     enabled: true
+    # CPU, unlike the shipped default. CI has no GPU, no CUDA onnxruntime and
+    # no locally built `-gpu` escpod -- and `ldx.gpu: true` is resolved while
+    # the DAG is being built, so a dry-run would exit before drawing a job.
+    gpu: false
     # `model` is deliberately NOT set: the test must exercise whatever
     # config-base.yml ships as the default, so a model bump is covered here
     # rather than silently bypassed. Same for boundary_margin/clamp_max_shift.

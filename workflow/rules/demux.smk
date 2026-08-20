@@ -253,6 +253,36 @@ def get_ldx_model():
     return model
 
 
+def get_escpod_bin():
+    """The escpod binary `escapepod_demux` should run.
+
+    `--gpu` exists only in a build carrying the crf-gpu/cnn-gpu features, and the
+    published release does not — it has no GPU code at all and rejects the flag
+    as an unknown argument. So `ldx.gpu: true` needs the locally built
+    `<version>-gpu` variant that `pixi run install-escpod-gpu` produces.
+
+    Resolved HERE rather than by pointing `escpod_version` at `-gpu`, because
+    demux is the only rule with a GPU path. Moving the global pin would force a
+    source build on everyone just to run `escpod merge` and
+    `escpod signal classify`, and would break `pixi run setup`, which derives
+    its download URL from that same string and would ask GitHub for a
+    `v<version>-gpu` release that does not exist.
+    """
+    if not config.get("ldx", {}).get("gpu", False):
+        return "escpod"
+    version = config.get("escpod_version", ESCPOD_VERSION)
+    binary = os.path.join(
+        PIPELINE_DIR, "resources", "tools", "escpod", f"{version}-gpu", "bin", "escpod"
+    )
+    if not os.path.isfile(binary):
+        sys.exit(
+            f"ldx.gpu is true but no GPU-enabled escpod was found at {binary}.\n"
+            f"Build it with `ESCPOD_REF=v{version} pixi run install-escpod-gpu` "
+            "(and `pixi install -e gpu` for cuDNN), or set ldx.gpu: false."
+        )
+    return binary
+
+
 def get_ort_dylib():
     """Absolute path to the CUDA-enabled libonnxruntime for `ldx.gpu`.
 
@@ -323,6 +353,7 @@ rule escapepod_demux:
     threads: config.get("ldx", {}).get("threads", 16)
     params:
         model=get_ldx_model(),
+        escpod=get_escpod_bin(),
         min_margin=config.get("ldx", {}).get("min_margin", 0),
         # The CRF's own confidence. `--ref-scores` restricts the forward
         # recursion to the paths emitting each reference and normalises by the
@@ -408,7 +439,7 @@ rule escapepod_demux:
             $(dirname {output.summary}) \
             {output.outdir}
 
-        {params.ort_env}escpod demux {params.pod5_dirs} \
+        {params.ort_env}{params.escpod} demux {params.pod5_dirs} \
             --model {params.model} \
             --output-dir {output.outdir} \
             --classifications {output.classifications} \
