@@ -14,11 +14,11 @@ SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 # config key (see maybe_temp / _enabled_cleanup_tiers below).
 _CLEANUP_TIERS = {
     "cascade",  # bam/aln, tagged, charging, classified, adapter_tagged (redundant near-copies)
-    "basecall",  # bam/rebasecall (GPU-hours to regenerate)
+    "basecall",  # bam/rebasecall, bam/rebasecall_run (GPU-hours to regenerate)
     "fastq",  # fq/, demux/edx/fq
-    "merged_pod5",  # pod5/ (pre-demux merged per-sample)
+    "merged_pod5",  # pod5/ (pre-demux merged per-sample, or per-run for LDX)
     "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
-    "split_pod5",  # demux/pod5 (split; pre-EDX-filter). Only enable for all-EDX runs.
+    "split_pod5",  # demux/pod5 (WDX split; pre-EDX-filter). Only enable for all-EDX runs.
 }
 
 
@@ -636,12 +636,41 @@ def get_sample_edx(wildcards):
     return samples[wildcards.sample].get("edx")
 
 
+def sample_is_ldx(sample):
+    """Check if a sample is demultiplexed by the escapepod (LDX) backend."""
+    return is_ldx_enabled() and samples[sample].get("barcode") is not None
+
+
+def get_ldx_pod5_source(run_id):
+    """Return the one POD5 path to hand a classifier for an LDX run.
+
+    There is no per-sample POD5 on the LDX path — the whole run stays in its raw
+    POD5 and each sample is defined by its BAM. `escpod signal classify` takes a
+    single POD5 *or* a directory of them, so a run whose reads sit in one
+    directory can be pointed straight at the raw data. A run split across
+    pod5_pass/pod5_fail has to be merged first, since the CLI takes one path.
+    """
+    dirs = get_run_pod5_dirs(run_id)
+    if len(dirs) == 1:
+        return dirs[0]
+    return os.path.join(outdir, "pod5", "runs", run_id, f"{run_id}.pod5")
+
+
 def get_sample_pod5(wildcards):
     """
     Return the correct POD5 path for a sample.
-    If demux is enabled and sample has barcode, use split POD5.
+    LDX samples have no POD5 of their own: they resolve to the raw run.
+    If WDX demux is enabled and sample has barcode, use split POD5.
     Otherwise, use merged POD5 from merge_pods rule.
     """
+    if sample_is_ldx(wildcards.sample):
+        source = get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
+        # A directory would make this input's mtime move every time demux writes
+        # a sidecar into it, re-triggering classification for nothing. Track the
+        # POD5 files themselves.
+        return (
+            samples[wildcards.sample]["raw_files"] if os.path.isdir(source) else source
+        )
     if sample_needs_demux(wildcards.sample):
         return os.path.join(
             outdir, "demux", "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
@@ -674,10 +703,15 @@ def get_classification_pod5(wildcards):
     Return the correct POD5 path for classification/signal analysis.
     EDX samples use the EDX-filtered POD5; others use the WDX-split or merged POD5.
 
+    LDX samples take no EDX detour. The classifiers walk the BAM and look each
+    read's signal up by id, so reads the BAM does not name are never touched —
+    and an LDX sample's BAM is already EDX-filtered upstream of alignment. A
+    filtered POD5 would subset something that is not read in the first place.
+
     NOTE: Do NOT use this for rebasecall — rebasecall needs the pre-EDX POD5
     (use get_sample_pod5 instead).
     """
-    if sample_has_edx(wildcards.sample):
+    if sample_has_edx(wildcards.sample) and not sample_is_ldx(wildcards.sample):
         return os.path.join(
             outdir,
             "demux",
@@ -687,6 +721,18 @@ def get_classification_pod5(wildcards):
             f"{wildcards.sample}.pod5",
         )
     return get_sample_pod5(wildcards)
+
+
+def get_classification_pod5_arg(wildcards, input):
+    """Return the POD5 argument to pass a classifier on the command line.
+
+    Identical to `input.pod5` everywhere except the LDX path, where the input is
+    the raw run's POD5 files (for dependency tracking) but the tool must be
+    given the single directory holding them.
+    """
+    if sample_is_ldx(wildcards.sample):
+        return get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
+    return input.pod5
 
 
 def get_all_final_bams():
@@ -702,11 +748,18 @@ def get_all_merged_pod5s():
 
     For EDX samples, returns the EDX-filtered POD5 (subset matching the sample's adapter).
     For WDX-only samples, returns the WDX-split POD5.
+    For LDX samples, returns the raw run POD5 — they have no POD5 of their own.
     For non-demux samples, returns the merged POD5.
     """
     pod5_paths = []
     for sample in samples.keys():
-        if sample_has_edx(sample):
+        if sample_is_ldx(sample):
+            # Every sample of a run points at the same raw POD5s, so this is the
+            # one branch that can repeat a path.
+            pod5_paths.extend(
+                f for f in samples[sample]["raw_files"] if f not in pod5_paths
+            )
+        elif sample_has_edx(sample):
             pod5_paths.append(
                 os.path.join(outdir, "demux", "edx", "pod5", sample, f"{sample}.pod5")
             )

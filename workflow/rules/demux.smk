@@ -2,21 +2,31 @@
 Rules for signal-level barcode demultiplexing and EDX (3' adapter barcode)
 concordance. Loaded when either demux backend is enabled in config.
 
-Two backends converge on the same per-sample split POD5, by different routes:
+The two backends split the run at different points:
 
   warpdemux : WarpDemuX DTW/fingerprint classifier, WDX barcodes ("barcode04").
               Classifies into a table, which is then parsed into a read->barcode
-              mapping and applied with `pod5 filter` to cut the POD5 per sample.
+              mapping and applied with `escpod filter` to cut the POD5 per
+              sample. Each split POD5 is then basecalled on its own.
   ldx       : escapepod CTC-CRF barcode basecaller, LDX barcodes ("nbc01").
-              A single fused pass detects, basecalls, matches and routes each
-              read into its barcode's POD5, so the split already exists when the
-              command returns and only needs renaming barcode -> sample.
+              One fused pass detects, basecalls and matches each read, recording
+              the assignment in a `.p5s` sidecar beside the raw POD5. No POD5 is
+              written at all: the run is basecalled once, whole, and the split
+              happens on the resulting uBAM.
 
-Only one may be enabled (see is_demux_enabled); a ruleorder picks which rule
-supplies the split POD5.
+The LDX route exists to keep exactly one copy of the signal on disk. Routing
+reads into per-barcode POD5s duplicates the entire run for the life of the
+analysis; a sidecar is a few MB and leaves the raw POD5 untouched, which also
+lets a re-demux (new model, new margin) cost nothing but the pass itself.
+
+Both backends converge on the per-sample unaligned BAM
+(`bam/rebasecall/{sample}/{sample}.rbc.bam`), and everything downstream of that
+is identical. Only one may be enabled (see is_demux_enabled); a ruleorder picks
+which rule supplies it.
 """
 
 import pandas as pd
+import re
 from pathlib import Path
 from snakemake.exceptions import WorkflowError
 import gzip
@@ -319,29 +329,40 @@ rule escapepod_demux:
     """
     Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
 
-    One pass over the raw POD5 does detect -> prep -> basecall -> match -> route,
-    writing the per-barcode POD5 files directly. There is deliberately no follow-up
-    rule to derive the split or a read->barcode mapping: the WarpDemuX path needs
-    those because its classifier only emits a table, whereas here the routed POD5
-    *is* the product and re-deriving it would be a second full pass for an
-    identical result.
+    One pass over the raw POD5 does detect -> prep -> basecall -> match, and
+    `--annotate` records each read's barcode in a `.p5s` sidecar written beside the
+    POD5 it describes. With no -d/--output-dir this is the only routing output: no
+    per-barcode POD5 is written, so the run is never duplicated. The split is taken
+    later, on the basecalled uBAM (see split_ldx_ubam).
+
+    The sidecar lives next to the raw data rather than under this run's results
+    because escpod binds it to that POD5's footer UUID and size, and reads it from
+    the adjacent path. Two consequences worth knowing:
+
+      - Re-demuxing the same POD5 replaces the `barcode` column in place, so
+        changing the model or the margin is safe and needs no cleanup.
+      - A POD5 replaced under the same name leaves a sidecar describing reads that
+        are no longer there. escpod detects this from the footer and refuses to
+        read it; recover by deleting the `.p5s` and re-running. (Deleting a `.p5s`
+        by itself does not re-trigger this rule, since its outputs are still
+        present — force it with `--forcerun escapepod_demux`.)
 
     No --barcodes or --method is passed: the bundle carries its own references and
     pins the boundary detector it was calibrated against, and overriding either
     silently degrades the calls.
 
-    The classifications CSV is kept because it is the only per-read record of how
-    the call went — the POD5 routing preserves which barcode won, but not by how
-    much, and that is what separates a confident call from a near-tie when
-    auditing demux quality. Under `ldx.ref_scores` (on by default) it carries the
-    lattice's own log P(barcode | signal) as well, which is the score with enough
-    resolution to audit against; `confidence` alone is an edit-distance margin
-    that a designed panel pins to three values.
+    The classifications CSV is kept for two reasons. It is the read->barcode source
+    the basecall and split rules downstream read, so it must outlive the demux
+    pass -- there is no routed POD5 to recover it from any more. And it is the
+    only per-read record of how the call went: under `ldx.ref_scores` (on by
+    default) it carries the lattice's own log P(barcode | signal), which is the
+    score with enough resolution to audit against and the one `ldx.min_crf_margin`
+    gates on. `confidence` alone is an edit-distance margin that a designed panel
+    pins to three values.
     """
     input:
         get_run_raw_inputs,
     output:
-        outdir=directory(os.path.join(outdir, "demux", "escapepod", "{run_id}")),
         classifications=os.path.join(
             outdir, "demux", "read_ids", "{run_id}", "classifications.csv"
         ),
@@ -436,12 +457,11 @@ rule escapepod_demux:
         # the very first write. Creating them up front makes the rule
         # re-runnable after any failure.
         mkdir -p $(dirname {output.classifications}) \
-            $(dirname {output.summary}) \
-            {output.outdir}
+            $(dirname {output.summary})
 
         {params.ort_env}{params.escpod} demux {params.pod5_dirs} \
             --model {params.model} \
-            --output-dir {output.outdir} \
+            --annotate \
             --classifications {output.classifications} \
             --min-margin {params.min_margin} \
             {params.ref_scores} \
@@ -460,71 +480,264 @@ rule escapepod_demux:
         """
 
 
-def get_sample_escapepod_dir(wildcards):
-    """Locate the escapepod demux output directory for a sample's run."""
-    run_id = samples[wildcards.sample]["run_id"]
-    return os.path.join(outdir, "demux", "escapepod", run_id)
+def ldx_sample_constraint():
+    """Regex matching exactly the samples the LDX rules may claim.
 
-
-rule link_ldx_pod5:
+    The rules below produce the same per-sample paths as `rebasecall` and
+    `extract_sample_reads` and win them by ruleorder, which would otherwise also
+    capture the un-barcoded samples of a mixed run — samples with no barcode to
+    split on. Constraining the wildcard leaves those to `rebasecall`, and makes
+    these rules unmatchable on a WarpDemuX run rather than merely outranked.
     """
-    Adopt escapepod's per-barcode POD5 as the sample's split POD5.
+    if not is_ldx_enabled():
+        return r"$^"
+    names = [re.escape(s) for s, info in samples.items() if info.get("barcode")]
+    return "|".join(names) if names else r"$^"
 
-    escapepod already routed every read into its barcode's file with a block-level
-    copy during the demux pass, so re-deriving the same split with `pod5 filter`
-    would be a second full pass for an identical result. This rule only renames
-    barcode -> sample.
+
+def get_sample_run_classifications(wildcards):
+    """Locate the demux classifications CSV for a sample's run."""
+    run_id = samples[wildcards.sample]["run_id"]
+    return os.path.join(outdir, "demux", "read_ids", run_id, "classifications.csv")
+
+
+def get_sample_run_split_parents(wildcards):
+    """Locate the split-read parent map for a sample's run."""
+    run_id = samples[wildcards.sample]["run_id"]
+    return os.path.join(outdir, "demux", "read_ids", run_id, "split_parents.tsv")
+
+
+def get_sample_run_ubam(wildcards):
+    """Locate the run-level basecall for a sample's run."""
+    run_id = samples[wildcards.sample]["run_id"]
+    return os.path.join(outdir, "bam", "rebasecall_run", run_id, f"{run_id}.rbc.bam")
+
+
+rule rebasecall_ldx_run:
+    """
+    Basecall a whole LDX run in one dorado pass, straight off the raw POD5.
+
+    The WarpDemuX path basecalls each sample's split POD5 separately because that
+    split is what its `escpod filter` step produced. Here there is no split POD5 —
+    demux left only a sidecar — so the run is basecalled whole and cut up
+    afterwards, on the uBAM.
+
+    `-l` restricts the pass to reads that demux actually assigned to one of this
+    run's samples. That is the same read universe the per-barcode POD5s used to
+    cover: unclassified reads were never in any of them, and basecalling them here
+    would be GPU time spent on output nothing reads.
     """
     input:
-        demux_dir=get_sample_escapepod_dir,
+        pod5=get_run_raw_inputs,
+        classifications=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "classifications.csv"
+        ),
+        mod_models=rules.download_mod_models.output.sentinel,
     output:
-        pod5=maybe_temp(
-            os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
-            tier="split_pod5",
+        bam=maybe_temp(
+            os.path.join(
+                outdir, "bam", "rebasecall_run", "{run_id}", "{run_id}.rbc.bam"
+            ),
+            tier="basecall",
+        ),
+        read_ids=maybe_temp(
+            os.path.join(
+                outdir, "demux", "read_ids", "{run_id}", "assigned_read_ids.txt"
+            ),
+            tier="demux_scratch",
         ),
     log:
-        os.path.join(outdir, "logs", "link_ldx_pod5", "{sample}"),
+        os.path.join(outdir, "logs", "rebasecall_ldx_run", "{run_id}"),
+    params:
+        model=config["base_calling_model"],
+        dorado_opts=config["opts"]["dorado"],
+        models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
+        run_path=lambda wildcards: get_run_path(wildcards.run_id),
+        barcodes=lambda wildcards: ",".join(get_barcodes_for_run(wildcards.run_id)),
+    shell:
+        """
+        # Exact set membership rather than a regex: barcode names come from the
+        # model bundle, and matching them loosely is how nbc1 would swallow
+        # nbc16.
+        awk -F, -v bcs="{params.barcodes}" \
+            'BEGIN {{ n = split(bcs, a, ","); for (i = 1; i <= n; i++) keep[a[i]] = 1 }}
+             NR > 1 && ($2 in keep) {{ print $1 }}' \
+            {input.classifications} >{output.read_ids}
+
+        if [ ! -s {output.read_ids} ]; then
+            echo "ERROR: demux assigned no reads to any barcode of run {wildcards.run_id}." >&2
+            exit 1
+        fi
+
+        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
+            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
+            export CUDA_VISIBLE_DEVICES
+        fi
+
+        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} \
+            {params.model} {params.run_path} --recursive \
+            --read-ids {output.read_ids} >{output.bam}
+        """
+
+
+rule ldx_split_parent_map:
+    """
+    Record which basecalled reads are split children, and of whom.
+
+    dorado splits a concatenated signal read into several reads, each with a NEW
+    read id and its origin in the `pi` tag. Those ids appear in no classifications
+    row — demux only ever saw the parent — so a split that keyed on the CSV alone
+    would drop every split child on the floor, silently. (Measured on the 2026-08-06
+    run: 0.85% of a sample's reads.) One scan here lets the per-sample extraction
+    give each child its parent's barcode.
+    """
+    input:
+        bam=os.path.join(
+            outdir, "bam", "rebasecall_run", "{run_id}", "{run_id}.rbc.bam"
+        ),
+    output:
+        parents=maybe_temp(
+            os.path.join(outdir, "demux", "read_ids", "{run_id}", "split_parents.tsv"),
+            tier="demux_scratch",
+        ),
+    log:
+        os.path.join(outdir, "logs", "ldx_split_parent_map", "{run_id}"),
+    threads: 4
+    shell:
+        """
+        samtools view -@ {threads} {input.bam} \
+            | awk -v OFS='\\t' \
+                '{{ for (i = 12; i <= NF; i++) if ($i ~ /^pi:Z:/) {{ print $1, substr($i, 6); break }} }}' \
+                >{output.parents} 2>{log}
+        """
+
+
+rule extract_ldx_sample_reads:
+    """
+    List the reads belonging to one sample: its barcode's reads, plus any split
+    children of those reads.
+    """
+    input:
+        classifications=get_sample_run_classifications,
+        parents=get_sample_run_split_parents,
+    output:
+        read_ids=maybe_temp(
+            os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt"),
+            tier="demux_scratch",
+        ),
+    log:
+        os.path.join(outdir, "logs", "extract_ldx_sample_reads", "{sample}"),
+    wildcard_constraints:
+        sample=ldx_sample_constraint(),
     params:
         barcode=lambda wildcards: samples[wildcards.sample]["barcode"],
     run:
-        # escapepod names outputs <prefix>_<barcode>.pod5 and skips barcodes
-        # with no reads, so a missing file means this barcode got nothing.
-        src = Path(input.demux_dir) / f"barcode_{params.barcode}.pod5"
-        if not src.exists():
+        import csv
+
+        assigned = set()
+        with open(input.classifications, newline="") as f:
+            for row in csv.DictReader(f):
+                if row["barcode"] == params.barcode:
+                    assigned.add(row["read_id"])
+        if not assigned:
             raise WorkflowError(
                 f"No reads were assigned to barcode '{params.barcode}' "
-                f"(sample '{wildcards.sample}'): {src} was not written.\n"
+                f"(sample '{wildcards.sample}').\n"
                 f"Check the per-barcode counts in "
-                f"{Path(input.demux_dir).parent.parent}/read_ids/"
-                f"{samples[wildcards.sample]['run_id']}/demux_summary.tsv.gz"
+                f"{os.path.dirname(input.classifications)}/demux_summary.tsv.gz"
             )
-        dest = Path(output.pod5)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        if dest.exists() or dest.is_symlink():
-            dest.unlink()
-        # Hardlink rather than symlink: both are free, but a hardlink keeps the
-        # POD5 reachable if demux/escapepod is cleaned out from under it, which
-        # a symlink would turn into a dangling path that only fails much later
-        # at classify time. Falls back to a symlink across filesystems.
-        try:
-            os.link(src, dest)
-        except OSError:
-            os.symlink(os.path.relpath(src.resolve(), dest.parent), dest)
+        # A split child inherits its parent's barcode. The parent id itself is
+        # not in the BAM — dorado replaces the read with its children — so
+        # keeping it in the list is harmless and keeps this file a faithful
+        # record of what demux assigned.
+        children = set()
+        with open(input.parents) as f:
+            for line in f:
+                child, parent = line.rstrip("\n").split("\t")
+                if parent in assigned:
+                    children.add(child)
+        with open(output.read_ids, "w") as f:
+            for read_id in sorted(assigned | children):
+                f.write(f"{read_id}\n")
         with open(log[0], "w") as f:
-            f.write(f"{src} -> {dest}\n")
+            f.write(
+                f"{len(assigned)} assigned reads, {len(children)} split children\n"
+            )
 
 
-# Route the two backends. They overlap on exactly two outputs — the per-sample
-# split POD5 and the per-run demux summary — so each needs an explicit winner.
-# is_demux_enabled() has already rejected a config that turns on both backends.
+rule split_ldx_ubam:
+    """
+    Cut one sample's unaligned BAM out of the run-level basecall.
+
+    Emits the path `rebasecall` would have, so everything downstream — EDX adapter
+    detection, FASTQ extraction, alignment, tag transfer — is unchanged and cannot
+    tell which backend produced it.
+    """
+    input:
+        bam=get_sample_run_ubam,
+        read_ids=rules.extract_ldx_sample_reads.output.read_ids,
+    output:
+        maybe_temp(
+            os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
+            tier="basecall",
+        ),
+    log:
+        os.path.join(outdir, "logs", "split_ldx_ubam", "{sample}"),
+    wildcard_constraints:
+        sample=ldx_sample_constraint(),
+    threads: 4
+    shell:
+        """
+        samtools view -b -@ {threads} -N {input.read_ids} {input.bam} \
+            >{output} 2>{log}
+        """
+
+
+rule merge_run_pods:
+    """
+    Merge a run's POD5 directories into one file for the signal classifiers.
+
+    Only reached when a run's reads are spread over more than one directory
+    (pod5_pass and pod5_fail, say). `escpod signal classify` takes a single POD5
+    or a single directory, so there is nowhere to put the second path; a run that
+    keeps everything in one directory is handed that directory directly and never
+    builds this. Not a copy of the split — one file, the whole run, which the
+    per-sample BAMs then index into.
+    """
+    input:
+        get_run_raw_inputs,
+    output:
+        maybe_temp(
+            os.path.join(outdir, "pod5", "runs", "{run_id}", "{run_id}.pod5"),
+            tier="merged_pod5",
+        ),
+    log:
+        os.path.join(outdir, "logs", "merge_run_pods", "{run_id}"),
+    threads: 12
+    shell:
+        """
+        escpod merge -t {threads} --force -o {output} {input} 2>&1 | tee {log}
+        """
+
+
+# Route the two backends. They overlap on three outputs — the per-sample read-id
+# list, the per-sample uBAM and the per-run demux summary — so each needs an
+# explicit winner. is_demux_enabled() has already rejected a config that turns
+# on both backends.
+#
+# The LDX rules are additionally constrained to barcoded samples of an LDX run
+# (ldx_sample_constraint), so on the WarpDemuX path they cannot match at all and
+# these orderings are belt and braces.
 if is_ldx_enabled():
 
-    ruleorder: link_ldx_pod5 > split_pod5
+    ruleorder: extract_ldx_sample_reads > extract_sample_reads
+    ruleorder: split_ldx_ubam > rebasecall
     ruleorder: escapepod_demux > parse_warpdemux
 
 else:
 
-    ruleorder: split_pod5 > link_ldx_pod5
+    ruleorder: extract_sample_reads > extract_ldx_sample_reads
+    ruleorder: rebasecall > split_ldx_ubam
     ruleorder: parse_warpdemux > escapepod_demux
 
 

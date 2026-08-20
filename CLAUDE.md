@@ -99,6 +99,13 @@ POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_alig
 classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
 ```
 
+On an LDX run the first two steps are replaced (there is no per-sample POD5 to
+merge or basecall), and the flow rejoins at `ubam_to_fastq`:
+```
+raw POD5 → escapepod_demux (--annotate, writes .p5s) → rebasecall_ldx_run (whole run, one dorado pass)
+         → ldx_split_parent_map + extract_ldx_sample_reads → split_ldx_ubam → (as above)
+```
+
 For EDX samples (dual barcoding), 3' adapter detection and FASTQ/POD5 splitting happens before alignment:
 ```
 rebasecall → detect_edx_adapters → extract_edx_read_ids
@@ -162,7 +169,7 @@ After classification, generates (split across three rule files):
 - **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
 - **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
 - **ml-threshold**: Currently hardcoded in `get_cca_trna_cpm` rule (200-255 = charged, <200 = uncharged)
-- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `fastq`, `merged_pod5`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`. `bam/final` and `demux/edx/pod5` (the classification-input POD5) are always kept. Only enable `split_pod5` for all-EDX runs (where `demux/edx/pod5` is the leaf classification input); for non-EDX/mixed runs `demux/pod5` must be kept. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
+- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `fastq`, `merged_pod5`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`. `bam/final` and `demux/edx/pod5` (the classification-input POD5) are always kept. On the WarpDemuX path, only enable `split_pod5` for all-EDX runs (where `demux/edx/pod5` is the leaf classification input); for non-EDX/mixed runs `demux/pod5` must be kept. LDX runs produce no `demux/pod5`, so the tier is inert there. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
 ## Demultiplexing (Optional)
 
@@ -171,14 +178,22 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 
 | Backend | Config key | Barcodes | Tool | Shape |
 |---|---|---|---|---|
-| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `pod5 filter` per sample |
-| escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux` | One fused pass detects, basecalls, matches and routes each read into its barcode's POD5 |
+| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `escpod filter` per sample → basecall each split POD5 |
+| escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux --annotate` | One fused pass records each read's barcode in a `.p5s` sidecar beside the raw POD5 → basecall the run once → split the uBAM per sample |
 
-Both converge on the same per-sample split POD5, and everything downstream is
-identical. Enabling both is rejected at parse time. LDX is the successor path;
-see `config/README.md` for the LDX sample-file format, the self-describing model
-bundle, and its CPU cost. The vendored model lives in `resources/models/demux/`
-(see the README there for why it is committed rather than fetched).
+Both converge on the same per-sample uBAM (`bam/rebasecall/{sample}/`), and
+everything downstream is identical. Enabling both is rejected at parse time.
+
+LDX writes no POD5 of its own: the raw run plus a few-MB sidecar is the whole
+signal store, where the WarpDemuX path leaves a second full copy of every read.
+That is also why the LDX path basecalls per run rather than per sample — there
+is no per-sample POD5 to hand dorado — and why the signal classifiers are given
+the raw run and rely on the per-sample BAM to bound what they read.
+
+LDX is the successor path; see `config/README.md` for the LDX sample-file
+format, the self-describing model bundle, the sidecar's semantics, and its CPU
+cost. The vendored model lives in `resources/models/demux/` (see the README
+there for why it is committed rather than fetched).
 
 ### Testing the demux path
 

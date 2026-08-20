@@ -106,7 +106,7 @@ set-resources:
   # cpus_per_task stays high to feed it: POD5 decode, signal prep, the encoder
   # and the lattice decode all run CPU-side while the GPU does detection.
   #
-  # Needs an escpod built with crf-gpu/cnn-gpu (`pixi run install-escpod-gpu`)
+  # Needs an escpod built with the gpu feature (`pixi run install-escpod-gpu`)
   # plus the CUDA onnxruntime (`pixi run install-ort-gpu`); the stock release
   # binary rejects --gpu. With the stock binary, drop the gpu lines and set
   # ldx.gpu false.
@@ -118,10 +118,37 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 16
 
-  link_ldx_pod5:
-    runtime: "10m"
-    mem_mb: 2000
+  # The LDX run basecall. Same work as `rebasecall`, gathered into one job
+  # instead of one per sample, so it needs the same GPU and a runtime that
+  # covers the whole flowcell rather than a barcode's share of it. If it does
+  # run out of wall clock, dorado's --resume-from picks up from the partial BAM.
+  rebasecall_ldx_run:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+    runtime: "24h"
+    mem_mb: 48000
+    cpus_per_task: 8
+
+  ldx_split_parent_map:
+    runtime: "2h"
+    mem_mb: 8000
+    cpus_per_task: 4
+
+  extract_ldx_sample_reads:
+    runtime: "1h"
+    mem_mb: 16000
     cpus_per_task: 1
+
+  split_ldx_ubam:
+    runtime: "4h"
+    mem_mb: 8000
+    cpus_per_task: 4
+
+  merge_run_pods:
+    runtime: "4h"
+    mem_mb: 16000
+    cpus_per_task: 12
 
   compute_odds_ratios:
     mem_mb: 16000

@@ -132,13 +132,50 @@ Do not override the boundary detector. LLR boundaries cost 17.2 points of
 balanced recall against the same classifier and the failure is silent — it runs
 and produces plausible output.
 
-**This backend is fused.** A single pass detects, basecalls, matches and routes
-each read straight into its barcode's POD5, so unlike the WarpDemuX path there
-is no separate read-ID extraction or `pod5 filter` split; the per-sample POD5
-already exists when the command returns. The per-read classifications CSV
-(`demux/read_ids/<run>/classifications.csv`) is kept because it is the only
-record of how each call went: `confidence` always, and — under `ref_scores`, on
-by default — `crf_logp`, `crf_margin`, `crf_best` and `mean_logpost`.
+**This backend writes no POD5.** A single pass detects, basecalls and matches
+each read, and `--annotate` records the assignment in a `.p5s` sidecar written
+next to the POD5 it describes — in the raw data directory, not under
+`output_directory`. Nothing is copied: where the WarpDemuX path leaves a second
+full set of the run's reads on disk, an LDX run leaves a few MB.
+
+The split happens later and one level up, on the basecalled reads. The run is
+basecalled whole (`rebasecall_ldx_run`), restricted with dorado's `-l` to the
+reads demux actually assigned to a sample, and then cut into per-sample uBAMs
+(`split_ldx_ubam`) at `bam/rebasecall/<sample>/`. That is the same path the
+WarpDemuX path's `rebasecall` produces, so everything downstream is identical.
+
+The per-read classifications CSV (`demux/read_ids/<run>/classifications.csv`) is
+kept for both of its jobs: it is the read→barcode source those two rules read,
+and it is the only record of how each call went — `confidence` always, and,
+under `ref_scores` (on by default), `crf_logp`, `crf_margin`, `crf_best` and
+`mean_logpost`. The sidecar carries those same scores from escpod 0.12.0, which
+is when `.p5s` columns became numeric.
+
+Consequences worth knowing:
+
+- **No per-sample POD5 exists.** The signal consumers — `classify_charging` and
+  the signal-metrics QC — are pointed at the raw run instead; they walk the
+  sample's BAM and look each read's signal up by id, so reads outside the sample
+  are never touched. To get one anyway — for squiggy, or to inspect a barcode by
+  hand — cut it on demand:
+
+  ```bash
+  escpod filter <run>/pod5 --annotation barcode=ldx05 -o ldx05.pod5
+  ```
+
+- **Re-demuxing is cheap and safe.** Running demux again over the same POD5
+  replaces the sidecar's `barcode` column in place, so changing the model or a
+  gate costs one pass and no cleanup.
+
+- **A sidecar is bound to its POD5.** escpod checks the POD5's footer UUID and
+  size before reading one, so a POD5 replaced under the same name makes the
+  sidecar fail loudly rather than silently describe reads that are no longer
+  there. Recover by deleting the `.p5s` and re-running.
+
+- **One sidecar per POD5, one `barcode` column in it.** Two configs demuxing the
+  same run with different models would overwrite each other's assignments. If
+  you need to compare models on one run, copy the POD5 or compare the
+  classifications CSVs instead.
 
 **Performance.** The released `escpod` binary has no CUDA execution provider, so
 the CRF encoder runs on CPU. Measured on 20k RNA004 reads: **59 ms of CPU per
@@ -331,20 +368,23 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   - a list: only the named tiers are deleted. Tiers:
     - `cascade` — `bam/aln`, `bam/tagged`, `bam/charging`, `bam/classified`,
       `bam/adapter_tagged` (redundant near-copies; `bam/final` hardlinks the last one)
-    - `basecall` — `bam/rebasecall` (GPU-hours to regenerate)
+    - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
     - `fastq` — `fq/`, `demux/edx/fq`
-    - `merged_pod5` — `pod5/` (pre-demux merged)
+    - `merged_pod5` — `pod5/` (pre-demux merged per-sample, or per-run on an LDX
+      run whose reads span several POD5 directories)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
-    - `split_pod5` — `demux/pod5` (split, pre-EDX-filter)
+    - `split_pod5` — `demux/pod5` (WarpDemuX split, pre-EDX-filter)
 
   Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
   EDX-filtered POD5 used as the classification input — keeping it lets
   `classify_charging` be re-run without redoing rebasecall or demux), plus
   `summary/`, `reference/`, and `logs/`.
 
-  **Constraint:** only enable `split_pod5` for **all-EDX** runs. In non-EDX or
-  mixed runs, `demux/pod5` is the classification input for non-EDX samples and must
-  be kept. The on-demand `clean` rule remains the catch-all for reclaiming space on
+  **Constraint (WarpDemuX only):** only enable `split_pod5` for **all-EDX** runs.
+  In non-EDX or mixed runs, `demux/pod5` is the classification input for non-EDX
+  samples and must be kept. LDX runs produce no `demux/pod5` at all — their
+  classification input is the raw POD5 plus the sidecar — so the tier is inert
+  there. The on-demand `clean` rule remains the catch-all for reclaiming space on
   runs that completed with intermediates retained.
 
 - `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
