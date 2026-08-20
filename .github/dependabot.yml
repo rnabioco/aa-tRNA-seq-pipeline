@@ -3,7 +3,7 @@
 #
 # Note: pixi (pixi.toml / pixi.lock) is not a Dependabot-supported ecosystem,
 # so conda/PyPI tool versions there are not covered. Pipeline tools pinned in
-# config/config-base.yml (dorado, escpod, leech) are managed manually.
+# config/config-base.yml (dorado, escpod) are managed manually.
 version: 2
 updates:
   - package-ecosystem: "github-actions"

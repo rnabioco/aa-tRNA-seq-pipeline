@@ -75,11 +75,6 @@ charging:
   # cl >= 254 at f=0.05. Move it for a different precision, and say so.
   ml_threshold: 200
 
-# AA identity classification using leech one-vs-all bundle (optional)
-aa_identity:
-  enabled: false
-  bundle: ""
-
 # software tools (modkit managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
@@ -406,18 +401,3 @@ edx:
   # Crosstalk measured without a margin gate is inflated by near-ties, which is
   # why the upstream barcode training corpus gated on margin > 5.
   min_margin: 5
-
-# Amino acid identity classification (optional, disabled by default)
-# Uses leech multiclass models to predict which amino acid was charged
-# on each tRNA read. Requires a trained multiclass bundle (.pt file).
-# The bundle encodes the motif and model architecture; anchor/base_justify
-# must match training settings.
-classify_aa:
-  enabled: false
-  bundle: null            # path to multiclass_bundle.pt (required when enabled)
-  anchor: "reference"     # must match training: "reference" or "basecall"
-  base_justify: "end"     # must match training: "start", "center", or "end"
-  device: "cuda"          # "cuda" for GPU, "cpu" for CPU-only
-  batch_size: 1024        # chunks per forward pass
-  read_batch_size: 10000  # reads per mega-batch (controls peak memory)
-  copy_tags: "CL"         # BAM tags to include in TSV output

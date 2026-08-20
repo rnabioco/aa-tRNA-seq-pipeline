@@ -303,52 +303,6 @@ rule classify_charging:
         """
 
 
-rule classify_aa_identity:
-    """
-    Run leech one-vs-all bundle to predict amino acid identity per read.
-    Adds aa (predicted AA), ac (confidence), pn (pair names), pp (pair probs) tags.
-    """
-    input:
-        pod5=get_classification_pod5,
-        bam=rules.inject_ubam_tags.output.bam,
-    output:
-        bam=os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam"),
-        bai=os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam.bai"),
-        temp_sorted=temp(
-            os.path.join(
-                outdir, "bam", "aa_classified", "{sample}", "{sample}.bam.tmp"
-            )
-        ),
-    log:
-        os.path.join(outdir, "logs", "classify_aa_identity", "{sample}"),
-    threads: 4
-    params:
-        bundle=config.get("aa_identity", {}).get("bundle", ""),
-    shell:
-        """
-        if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
-            echo "CUDA_VISIBLE_DEVICES $CUDA_VISIBLE_DEVICES"
-            export CUDA_VISIBLE_DEVICES
-        fi
-
-        leech predict \
-            --bundle {params.bundle} \
-            --all \
-            --pod5 {input.pod5} \
-            --bam {input.bam} \
-            --output {output.bam} \
-            --device cuda \
-            --workers 4 \
-            --batch-size 512 \
-            --raw \
-            2>&1 | tee {log}
-
-        samtools sort -@ {threads} {output.bam} >{output.temp_sorted}
-        cp {output.temp_sorted} {output.bam}
-        samtools index {output.bam}
-        """
-
-
 rule add_adapter_tags:
     """
     Detect adapter positions in reads using parasail alignment

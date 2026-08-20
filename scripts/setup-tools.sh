@@ -240,43 +240,6 @@ else
 fi
 
 # ============================================================================
-# Leech Setup (via uv, from submodule)
-# ============================================================================
-# Only needed for amino-acid identity classification (`classify_aa` /
-# `aa_identity`), both disabled by default. Charging classification does NOT
-# use leech — it runs `escpod signal classify` against the vendored ONNX
-# bundle, so the default pipeline needs no torch at all.
-#
-# leech's own .pt bundles ARE torch, and it is installed --no-deps here (to
-# keep pip from overriding conda's pyarrow/numpy), so enabling AA
-# classification means installing torch yourself:
-#   uv pip install torch --index-url https://download.pytorch.org/whl/cu124
-echo "=== Checking leech ==="
-if python -c "import leech" 2>/dev/null; then
-    echo "Leech already installed"
-else
-    # Ensure the submodule is checked out. The directory exists as a mount
-    # point even when uninitialized, so test for actual contents and init if
-    # needed (requires access to the private rnabioco/leech repo).
-    if [ ! -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
-        echo "Initializing leech submodule..."
-        git -C "${REPO_ROOT}" submodule update --init --recursive resources/leech
-    fi
-    if [ -f "${REPO_ROOT}/resources/leech/rust/Cargo.toml" ]; then
-        echo "Installing leech-core (Rust, release build)..."
-        uv pip install "${REPO_ROOT}/resources/leech/rust"
-        echo "Installing leech (Python, editable)..."
-        uv pip install --no-deps -e "${REPO_ROOT}/resources/leech"
-        echo "Leech installed successfully"
-        echo "NOTE: pyarrow will be reconciled with conda in the next step"
-    else
-        echo "Leech submodule not found at resources/leech"
-        echo "Run 'git submodule update --init --recursive resources/leech' to clone it"
-        echo "(requires access to the private rnabioco/leech repository)"
-    fi
-fi
-
-# ============================================================================
 # Reconcile pyarrow: ensure pip hasn't overridden conda's version
 # ============================================================================
 echo "=== Reconciling pyarrow with conda ==="

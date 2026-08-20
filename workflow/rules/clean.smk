@@ -45,7 +45,6 @@ CLEAN_TARGETS = [
 # Directories intentionally preserved (listed for documentation / safety review):
 #   summary/          - bg, tsv, modkit pileups (the outputs you keep)
 #   bam/final/        - final tagged BAM (key output; hardlink survives adapter_tagged removal)
-#   bam/aa_classified/- AA-identity BAMs (key output when aa_identity enabled)
 #   reference/        - built + indexed reference
 #   logs/             - run logs
 #   *.json            - manifest.json, squiggy-session.json

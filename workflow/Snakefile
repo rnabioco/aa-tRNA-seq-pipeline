@@ -70,10 +70,6 @@ onstart:
         # the pod5 python package and installing it is what puts the CLI on
         # PATH -- so this still stands in for "warpdemux can read POD5s".
         tools_to_check.append(("pod5", [conda_prefix]))
-    if config.get("classify_aa", {}).get("enabled", False):
-        tools_to_check.append(
-            ("leech", [conda_prefix, os.path.join(repo_root, "resources")])
-        )
     for tool_name, allowed_prefixes in tools_to_check:
         tool_path = shutil.which(tool_name)
         if tool_path is None:
@@ -128,12 +124,6 @@ if config.get("warpdemux", {}).get("enabled", False) or config.get("ldx", {}).ge
 ):
 
     include: "rules/demux.smk"
-
-
-# Conditionally include amino acid classification rules
-if config.get("classify_aa", {}).get("enabled", False):
-
-    include: "rules/aatrnaseq-classify-aa.smk"
 
 
 # Add scripts directory to path for manifest generation
