@@ -321,8 +321,8 @@ complete a run; its header explains why, and there is no committed WDX fixture.
 
   Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
   EDX-filtered POD5 used as the classification input — keeping it lets
-  `classify_charging` / `classify_aa_identity` be re-run without redoing rebasecall
-  or demux), plus `summary/`, `bam/aa_classified/`, `reference/`, and `logs/`.
+  `classify_charging` be re-run without redoing rebasecall or demux), plus
+  `summary/`, `reference/`, and `logs/`.
 
   **Constraint:** only enable `split_pod5` for **all-EDX** runs. In non-EDX or
   mixed runs, `demux/pod5` is the classification input for non-EDX samples and must

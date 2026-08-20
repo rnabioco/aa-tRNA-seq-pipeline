@@ -502,29 +502,9 @@ def pipeline_outputs():
     if want_reference_similarity():
         outs.append(os.path.join(outdir, "summary", "qc", "reference_similarity.tsv"))
 
-    # Amino acid classification outputs (leech multiclass)
-    if config.get("classify_aa", {}).get("enabled", False):
-        outs += expand(
-            os.path.join(
-                outdir,
-                "summary",
-                "tables",
-                "{sample}",
-                "{sample}.aa_classify.tsv.gz",
-            ),
-            sample=samples.keys(),
-        )
-
     # EDX (3' adapter barcode) concordance table
     if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
-
-    # AA identity classification (one-vs-all bundle)
-    if config.get("aa_identity", {}).get("enabled", False):
-        outs += expand(
-            os.path.join(outdir, "bam", "aa_classified", "{sample}", "{sample}.bam"),
-            sample=samples.keys(),
-        )
 
     return outs
 

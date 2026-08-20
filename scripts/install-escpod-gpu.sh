@@ -19,7 +19,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
+# escapepod-rs source. Cloned standalone under resources/, NOT taken from a
+# submodule: it used to live nested inside resources/leech, which coupled the
+# GPU build to an unrelated dependency and broke when that was dropped. Override
+# with ESCPOD_SRC to build from a checkout you already have.
+SRC="${ESCPOD_SRC:-${REPO_ROOT}/resources/escapepod-rs}"
+ESCPOD_URL="${ESCPOD_URL:-https://github.com/rnabioco/escapepod-rs}"
 
 # The GPU features first exist in escapepod-rs 0.7.0; older checkouts build
 # fine and then silently lack --gpu, which is worse than failing here.
@@ -37,11 +42,19 @@ SRC="${REPO_ROOT}/resources/leech/escapepod-rs"
 # POD5s that dorado reads short, also silently.
 ESCPOD_REF="${ESCPOD_REF:-v0.8.1}"
 
+# Clone on demand rather than requiring a manual init step. Only the login node
+# needs this; compute nodes build from the checkout it leaves behind.
 if [ ! -f "${SRC}/Cargo.toml" ]; then
-    echo "escapepod-rs source not found at ${SRC}" >&2
-    echo "Initialize it with:" >&2
-    echo "  git -C ${REPO_ROOT} submodule update --init --recursive resources/leech" >&2
-    exit 1
+    if [ -n "${ESCPOD_SRC:-}" ]; then
+        echo "Error: ESCPOD_SRC=${SRC} has no Cargo.toml." >&2
+        exit 1
+    fi
+    echo "Cloning escapepod-rs into ${SRC}..."
+    git clone --quiet "${ESCPOD_URL}" "${SRC}" || {
+        echo "Error: could not clone ${ESCPOD_URL}." >&2
+        echo "It is private; clone it yourself and point ESCPOD_SRC at it." >&2
+        exit 1
+    }
 fi
 
 if ! command -v cargo >/dev/null; then
