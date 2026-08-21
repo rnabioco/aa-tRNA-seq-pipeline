@@ -82,7 +82,12 @@ rule render_combined_qc_report:
     params:
         template=os.path.join(SNAKEFILE_DIR, "report", "qc-report.qmd"),
         config_file=workflow.configfiles[0],
-        ml_threshold=config.get("ml-threshold", 200),
+        # `charging.ml_threshold`, NOT a top-level `ml-threshold` -- that key has
+        # never existed, so this silently fell back to the literal 200 and the QC
+        # report disagreed with the CPM tables for anyone who moved the
+        # threshold. The two must read the same value: get_cca_trna_cpm takes it
+        # from config["charging"]["ml_threshold"] (aatrnaseq-charging.smk).
+        ml_threshold=config.get("charging", {}).get("ml_threshold", 200),
         custom_include=config.get("report", {}).get("custom_include", ""),
     shell:
         """
