@@ -235,7 +235,7 @@ def write_matrix_tsv(matrix, names, output_path):
         f.write("\t" + "\t".join(names) + "\n")
 
         # Data rows; format in C rather than per-cell Python f-strings
-        for name, row in zip(names, np.asarray(matrix)):
+        for name, row in zip(names, np.asarray(matrix), strict=True):
             f.write(name + "\t")
             np.savetxt(f, row[None], fmt="%.2f", delimiter="\t")
 

@@ -82,10 +82,8 @@ def adapter_matches(expected, actual):
     """
     if len(expected) != len(actual):
         return False
-    for e, a in zip(expected, actual):
-        if e != "N" and e != a:
-            return False
-    return True
+    # strict=True is free here: the length guard above already returned.
+    return all(e == "N" or e == a for e, a in zip(expected, actual, strict=True))
 
 
 def deduplicate_sequences(sequences):
@@ -142,7 +140,7 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
     len_5p = len(adapter_5p)
 
     # All adapters must be the same length and start with GGC
-    adapter_lengths = set(len(a) for a in adapters_3p)
+    adapter_lengths = {len(a) for a in adapters_3p}
     if len(adapter_lengths) != 1:
         errors.append(
             f"All 3' adapters must have the same length. Got lengths: {sorted(adapter_lengths)}"
@@ -262,20 +260,20 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
 
         if collapsed_map:
             f.write(f"Collapsed duplicates ({n_collapsed} sequences removed):\n")
-            for kept, dropped in sorted(collapsed_map.items()):
-                f.write(f"  {kept} <- {', '.join(dropped)}\n")
+            f.writelines(
+                f"  {kept} <- {', '.join(dropped)}\n"
+                for kept, dropped in sorted(collapsed_map.items())
+            )
             f.write("\n")
 
         if warnings:
             f.write(f"WARNINGS ({len(warnings)}):\n")
-            for warn in warnings:
-                f.write(f"  - {warn}\n")
+            f.writelines(f"  - {warn}\n" for warn in warnings)
             f.write("\n")
 
         if errors:
             f.write(f"ERRORS ({len(errors)}):\n")
-            for err in errors:
-                f.write(f"  - {err}\n")
+            f.writelines(f"  - {err}\n" for err in errors)
             f.write("\n")
             f.write("VALIDATION FAILED\n")
         else:
@@ -403,20 +401,20 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
 
         if collapsed_map:
             f.write(f"Collapsed duplicates ({n_collapsed} sequences removed):\n")
-            for kept, dropped in sorted(collapsed_map.items()):
-                f.write(f"  {kept} <- {', '.join(dropped)}\n")
+            f.writelines(
+                f"  {kept} <- {', '.join(dropped)}\n"
+                for kept, dropped in sorted(collapsed_map.items())
+            )
             f.write("\n")
 
         if warnings:
             f.write(f"WARNINGS ({len(warnings)}):\n")
-            for warn in warnings:
-                f.write(f"  - {warn}\n")
+            f.writelines(f"  - {warn}\n" for warn in warnings)
             f.write("\n")
 
         if errors:
             f.write(f"ERRORS ({len(errors)}):\n")
-            for err in errors:
-                f.write(f"  - {err}\n")
+            f.writelines(f"  - {err}\n" for err in errors)
             f.write("\n")
             f.write("BUILD FAILED\n")
         else:

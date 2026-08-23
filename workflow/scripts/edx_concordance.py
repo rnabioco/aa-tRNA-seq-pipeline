@@ -62,7 +62,7 @@ def main():
 
     rows = []
 
-    for tsv_path, sample_name in zip(args.tsvs, args.samples):
+    for tsv_path, sample_name in zip(args.tsvs, args.samples, strict=True):
         counts = Counter()
         clean_counts = Counter()
 

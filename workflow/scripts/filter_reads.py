@@ -1,6 +1,7 @@
 import argparse
-import pysam
 import sys
+
+import pysam
 
 # Adapter lengths
 ADAPTER_5P_LEN = 24  # Total length of the 5' tRNA adapter
@@ -37,7 +38,7 @@ class FilterStats:
     n_filtered = 0
 
     def __init__(self):
-        self.filter_counts = {k: 0 for k in FILTER_CODES.keys()}
+        self.filter_counts = dict.fromkeys(FILTER_CODES, 0)
 
     def log(self, tag):
         """
@@ -216,14 +217,20 @@ def filter_bam(args):
             if read.mapping_quality < min_mapq:
                 tag |= FILTER_CODES["low_mapq"]
 
-            if (min_mapq == 0 and read.mapping_quality == 0) or (
+            # MAPQ 0 is not a bad read on a redundant tRNA reference -- it is a
+            # read that mapped equally well to two isodecoders -- so it is only
+            # an invalid multimapper if its secondary alignments disagree.
+            is_low_mapq = (min_mapq == 0 and read.mapping_quality == 0) or (
                 tag & FILTER_CODES["low_mapq"]
+            )
+            if (
+                is_low_mapq
+                and rescue_multi_mappers
+                and not compatible_secondary_alignments(
+                    read, trna_ref_dict, isodecoder_ref
+                )
             ):
-                if rescue_multi_mappers:
-                    if not compatible_secondary_alignments(
-                        read, trna_ref_dict, isodecoder_ref
-                    ):
-                        tag |= FILTER_CODES["invalid_multimapping"]
+                tag |= FILTER_CODES["invalid_multimapping"]
 
             if only_positive and read.is_reverse:
                 tag |= FILTER_CODES["negative_strand"]

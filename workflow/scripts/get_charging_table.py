@@ -4,11 +4,12 @@
 Generate table of read id, ref, value of charging tag
 """
 
-import pysam
 import argparse
 import csv
 import gzip
 import sys
+
+import pysam
 
 
 def extract_tag(bam_file, output_tsv, tag):
@@ -27,14 +28,14 @@ def extract_tag(bam_file, output_tsv, tag):
 
         for read in bam.fetch():
             read_id = read.query_name
-            reference = read.reference_name if read.reference_name else "*"
+            reference = read.reference_name or "*"
             tags_dict = dict(read.tags)
-            tag_raw = tags_dict.get(tag, None)
+            tag_raw = tags_dict.get(tag)
 
             # Fallback to uppercase tag for backward compat with older BAMs
             # TODO: remove fallback once all BAMs have been reprocessed
             if tag_raw is None and tag.islower():
-                tag_raw = tags_dict.get(tag.upper(), None)
+                tag_raw = tags_dict.get(tag.upper())
 
             if tag_raw is None:
                 continue
