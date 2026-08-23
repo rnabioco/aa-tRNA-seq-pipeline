@@ -58,7 +58,9 @@ def parse_pixi_lock_version(lock_path, package_name):
         return None
 
     # Pattern to match package-version-build in conda URLs
-    pattern = rf"/{re.escape(package_name)}-([0-9][0-9a-zA-Z\.\-]*)-[^/]+\.(?:conda|tar\.bz2)"
+    pattern = (
+        rf"/{re.escape(package_name)}-([0-9][0-9a-zA-Z\.\-]*)-[^/]+\.(?:conda|tar\.bz2)"
+    )
 
     with open(lock_path) as f:
         for line in f:

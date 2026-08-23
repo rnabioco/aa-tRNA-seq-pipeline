@@ -81,10 +81,16 @@ def main() -> None:
                 bc, n, _ = line.rstrip("\n").split("\t")
                 counts[bc] = int(n)
         sequenced = (sequenced or 0) + sum(counts.values())
-        assigned = (assigned or 0) + sum(v for k, v in counts.items() if k != "unclassified")
+        assigned = (assigned or 0) + sum(
+            v for k, v in counts.items() if k != "unclassified"
+        )
 
-    anchor = {"scored": 0, "covers_anchor": 0, "ends_before_anchor": 0,
-              "starts_after_anchor": 0}
+    anchor = {
+        "scored": 0,
+        "covers_anchor": 0,
+        "ends_before_anchor": 0,
+        "starts_after_anchor": 0,
+    }
     for p in args.anchor_coverage:
         df = _read_tsv(p)
         for k in anchor:
@@ -107,20 +113,54 @@ def main() -> None:
 
     rows = []
     if sequenced is not None:
-        rows.append(("sequenced", "barcode assigned", sequenced, assigned,
-                     sequenced - assigned, "no barcode decoded"))
-        rows.append(("barcode assigned", "basecalled", assigned, totals["basecalled"],
-                     max(0, assigned - totals["basecalled"]),
-                     "basecaller could not read the signal"))
-    rows.append(("basecalled", "aligned", totals["basecalled"], totals["aligned"],
-                 totals["basecalled"] - totals["aligned"], "no alignment to the reference"))
-    rows.append(("aligned", "charge-called", totals["aligned"], totals["classified"],
-                 totals["aligned"] - totals["classified"],
-                 "not emitted by the charging model"))
+        rows.append(
+            (
+                "sequenced",
+                "barcode assigned",
+                sequenced,
+                assigned,
+                sequenced - assigned,
+                "no barcode decoded",
+            )
+        )
+        rows.append(
+            (
+                "barcode assigned",
+                "basecalled",
+                assigned,
+                totals["basecalled"],
+                max(0, assigned - totals["basecalled"]),
+                "basecaller could not read the signal",
+            )
+        )
+    rows.append(
+        (
+            "basecalled",
+            "aligned",
+            totals["basecalled"],
+            totals["aligned"],
+            totals["basecalled"] - totals["aligned"],
+            "no alignment to the reference",
+        )
+    )
+    rows.append(
+        (
+            "aligned",
+            "charge-called",
+            totals["aligned"],
+            totals["classified"],
+            totals["aligned"] - totals["classified"],
+            "not emitted by the charging model",
+        )
+    )
 
-    cascade = pd.DataFrame(rows, columns=["from_stage", "to_stage", "entered",
-                                          "retained", "lost", "reason"])
-    cascade["pct_lost"] = 100 * cascade["lost"] / cascade["entered"].where(cascade["entered"] > 0)
+    cascade = pd.DataFrame(
+        rows,
+        columns=["from_stage", "to_stage", "entered", "retained", "lost", "reason"],
+    )
+    cascade["pct_lost"] = (
+        100 * cascade["lost"] / cascade["entered"].where(cascade["entered"] > 0)
+    )
 
     # What the charging model itself reports, where it reported anything. This
     # is measured rather than inferred, so it takes precedence over the
@@ -162,27 +202,37 @@ def main() -> None:
 
     print("read attrition")
     for _, r in cascade.iterrows():
-        print(f"  {r.from_stage:>18} -> {r.to_stage:<16} "
-              f"lost {r.lost:>9,} ({r.pct_lost:5.2f}%)")
+        print(
+            f"  {r.from_stage:>18} -> {r.to_stage:<16} "
+            f"lost {r.lost:>9,} ({r.pct_lost:5.2f}%)"
+        )
     if sequenced is not None:
         gain = totals["basecalled"] - assigned
         if gain > 0:
             print(f"  basecalling emitted {gain:+,} sub-reads from split concatemers")
         elif gain < 0:
-            print(f"  WARNING basecalling LOST {-gain:,} reads outright — check the "
-                  f"input POD5s for non-uniform signal batches (escapepod-rs#195)")
+            print(
+                f"  WARNING basecalling LOST {-gain:,} reads outright — check the "
+                f"input POD5s for non-uniform signal batches (escapepod-rs#195)"
+            )
     if pct_uncallable is not None:
-        print(f"  of the {pct_drop:.2f}% dropped at charge-calling, {pct_uncallable:.2f}% "
-              f"of aligned reads are structurally uncallable (no CCA in the alignment)")
+        print(
+            f"  of the {pct_drop:.2f}% dropped at charge-calling, {pct_uncallable:.2f}% "
+            f"of aligned reads are structurally uncallable (no CCA in the alignment)"
+        )
     if n_anchored:
-        print(f"  charging model: {n_called:,} of {n_anchored:,} anchored reads "
-              f"scored, {n_no_call:,} no-called "
-              f"({100 * n_no_call / n_anchored:.2f}%)")
+        print(
+            f"  charging model: {n_called:,} of {n_anchored:,} anchored reads "
+            f"scored, {n_no_call:,} no-called "
+            f"({100 * n_no_call / n_anchored:.2f}%)"
+        )
         for reason, n in sorted(no_call.items(), key=lambda kv: -kv[1]):
             print(f"    {reason:<18} {n:>9,} ({100 * n / n_anchored:5.2f}%)")
         if n_no_call:
-            print("  NOTE no-calls are charging-correlated: report this rate beside "
-                  "any charging fraction, which is otherwise biased LOW")
+            print(
+                "  NOTE no-calls are charging-correlated: report this rate beside "
+                "any charging fraction, which is otherwise biased LOW"
+            )
 
 
 if __name__ == "__main__":

@@ -318,7 +318,10 @@ def process_bam(
 
                 # Fallback: infer 5' adapter from alignment position for truncated reads
                 if result_5p is None and infer_5p_from_alignment:
-                    if not read.is_unmapped and read.reference_start < max_ref_start_for_5p:
+                    if (
+                        not read.is_unmapped
+                        and read.reference_start < max_ref_start_for_5p
+                    ):
                         # Adapter end position in read = adapter_len - ref_start
                         adapter_end_in_read = adapter_5p_len - read.reference_start
                         if adapter_end_in_read > 0:
@@ -328,7 +331,9 @@ def process_bam(
 
                 # Update stats (extract adapter name if present)
                 adapter_3p_name = result_3p[3] if result_3p else None
-                stats.update(result_5p is not None, result_3p is not None, adapter_3p_name)
+                stats.update(
+                    result_5p is not None, result_3p is not None, adapter_3p_name
+                )
 
                 # Add PT tag if any adapter found
                 pt_value = format_pt_tag(result_5p, result_3p)

@@ -42,8 +42,7 @@ def main():
     ):
         total += len(chunk)
         filtered = chunk[
-            (chunk["total_obs"] >= args.min_obs)
-            & (chunk["p_adjusted"] < args.max_p)
+            (chunk["total_obs"] >= args.min_obs) & (chunk["p_adjusted"] < args.max_p)
         ]
         kept += len(filtered)
         filtered.to_csv(
