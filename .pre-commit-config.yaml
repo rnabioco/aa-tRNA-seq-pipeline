@@ -1,6 +1,17 @@
 # Pre-commit hooks for aa-tRNA-seq-pipeline
 # Install: pip install pre-commit && pre-commit install
 # Run manually: pre-commit run --all-files
+#
+# These hooks run the SAME tools as `pixi run lint-python` / `lint-yaml` /
+# `lint-snakefmt`, so a clean commit here is a green Lint workflow.
+#
+# This file previously declared black (line length 88) and flake8
+# (--max-line-length=100) over workflow/scripts/, while CI formatted the same
+# files with ruff at 88 -- three opinions about one directory. Nothing caught it
+# because pre-commit is opt-in and no hook was installed, so black and flake8
+# had in fact never run. Ruff replaces both: `ruff format` is a black-compatible
+# formatter, and `ruff check` covers the pyflakes/pycodestyle rules flake8 was
+# there for. The rule set is in ruff.toml, so hook and CI cannot disagree.
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -15,22 +26,25 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
 
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
+  # Every rev below is the version pixi actually installs, so the hook and CI
+  # run the same tool. Bump them together. (snakefmt was pinned here at
+  # v0.10.0 against pixi's 2.0.3 -- two major versions apart.)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
     hooks:
-      - id: black
-        language_version: python3
+      - id: ruff-check
+        files: ^workflow/scripts/.*\.py$
+      - id: ruff-format
         files: ^workflow/scripts/.*\.py$
 
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
     hooks:
-      - id: flake8
-        args: ['--max-line-length=100', '--ignore=E203,W503']
-        files: ^workflow/scripts/.*\.py$
+      - id: yamllint
+        files: ^(config|\.github)/.*\.(yml|yaml)$
 
   - repo: https://github.com/snakemake/snakefmt
-    rev: v0.10.0
+    rev: v2.0.3
     hooks:
       - id: snakefmt
         files: ^workflow/.*\.(smk|Snakefile)$
