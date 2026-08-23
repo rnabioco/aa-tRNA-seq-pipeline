@@ -162,7 +162,9 @@ def main():
             "modkit_calls": process_modkit_tsv,
             "modkit_full": process_modkit_tsv,
         }
-        processors[args.format](infile, outfile, args.offset_5p, args.offset_3p, ref_lengths)
+        processors[args.format](
+            infile, outfile, args.offset_5p, args.offset_3p, ref_lengths
+        )
     finally:
         outfile.close()
         if infile is not sys.stdin:

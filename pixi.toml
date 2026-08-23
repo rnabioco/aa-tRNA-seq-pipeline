@@ -30,7 +30,12 @@ snakemake-executor-plugin-cluster-generic = "*"
 libstdcxx-ng = ">=12"
 ont-modkit = ">=0.6.1"
 # Linting tools
-ruff = "*"
+# Pinned to a minor: ruff's formatter style is only guaranteed stable within
+# one, and `lint-python` gates CI now, so an unpinned bump could turn a green
+# main red on style alone. The lint RULE SET is pinned separately and
+# explicitly in ruff.toml, for the same reason. Was "*", which had resolved to
+# three different ruff versions across the environments in pixi.lock.
+ruff = "0.16.*"
 yamllint = "*"
 nvitop = ">=1.6.2,<2"
 rich-click = ">=1.7.0"

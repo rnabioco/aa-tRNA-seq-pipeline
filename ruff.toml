@@ -1,0 +1,20 @@
+# Ruff configuration for aa-tRNA-seq-pipeline.
+#
+# The rule set is declared EXPLICITLY rather than inherited from ruff's
+# defaults. Those defaults are not a stable contract: ruff 0.16 widened them
+# (adding B, SIM, FURB, EXE and others), which took `ruff check` from clean to
+# 49 findings on code that had not changed. `lint-python` gates CI, so an
+# implicit rule set means a ruff release can turn a green main red on its own.
+#
+# E4/E7/E9 + F is what the repo was already passing under ruff 0.15 defaults --
+# pyflakes plus the import, statement and syntax subsets of pycodestyle.
+# Widening this is a deliberate, reviewable change: run
+# `ruff check workflow/scripts/ --select <RULE>` first and clear the findings in
+# the same commit that adds the rule.
+#
+# Formatting is ruff's default style at line-length 88; `ruff = "0.16.*"` in
+# pixi.toml holds it there, since the formatter is only guaranteed stable
+# within a minor.
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

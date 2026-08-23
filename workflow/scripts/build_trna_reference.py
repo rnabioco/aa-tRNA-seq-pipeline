@@ -298,7 +298,9 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
 
     print(f"Validation PASSED: {stats['total_sequences']} sequences validated")
     if n_collapsed > 0:
-        print(f"  Deduplicated: {stats['total_sequences']} -> {stats['unique_sequences']} unique sequences")
+        print(
+            f"  Deduplicated: {stats['total_sequences']} -> {stats['unique_sequences']} unique sequences"
+        )
     print(f"Report written to: {report_path}")
     print(f"Validated reference written to: {output_fasta}")
 
@@ -365,9 +367,7 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
         junction_start = len(adapter_5p) + 1 + len(trna_seq) - 3
         junction = adapted_seq[junction_start : junction_start + 6]
         if junction != "CCAGGC":
-            errors.append(
-                f"{name}: Failed to create CCAGGC junction. Got: {junction}"
-            )
+            errors.append(f"{name}: Failed to create CCAGGC junction. Got: {junction}")
             continue
 
         adapted_sequences.append((name, adapted_seq))
@@ -439,7 +439,9 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
 
     print(f"Build SUCCESSFUL: {stats['sequences_built']} sequences created")
     if n_collapsed > 0:
-        print(f"  Deduplicated: {stats['sequences_built']} -> {stats['unique_sequences']} unique sequences")
+        print(
+            f"  Deduplicated: {stats['sequences_built']} -> {stats['unique_sequences']} unique sequences"
+        )
     if stats["cca_added"] > 0:
         print(f"  Note: CCA was added to {stats['cca_added']} sequences")
     print(f"Output written to: {output_fasta}")

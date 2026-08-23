@@ -250,9 +250,7 @@ def main():
     charging_df = load_charging(args.charging, args.ml_threshold)
 
     if not trna_dfs:
-        print(
-            "WARNING: No modkit calls found. Writing empty output.", file=sys.stderr
-        )
+        print("WARNING: No modkit calls found. Writing empty output.", file=sys.stderr)
         pd.DataFrame(columns=EMPTY_COLUMNS).to_csv(
             args.output, sep="\t", index=False, compression="gzip"
         )
