@@ -1,0 +1,21 @@
+# yamllint configuration for aa-tRNA-seq-pipeline.
+#
+# This lived inline in pixi.toml's `lint-yaml` command as a -d "{...}" blob,
+# which meant the rules were unreadable and un-diffable. `lint-yaml` gates CI
+# now, so they belong in a file like ruff.toml's.
+
+extends: default
+
+rules:
+  line-length:
+    max: 120
+  # Snakemake/GitHub YAML here is single-document; the --- prefix adds nothing.
+  document-start: disable
+  # GitHub Actions REQUIRES the key `on:`, which YAML 1.1 reads as the boolean
+  # true, so yamllint's truthy rule flags all three workflow files at 3:1.
+  # Quoting it to '"on":' would silence yamllint at the cost of making the
+  # workflows odd to read, and Actions is the consumer that matters. Keep the
+  # rule for VALUES, where a bare yes/no is a genuine footgun, and drop it for
+  # keys.
+  truthy:
+    check-keys: false

@@ -215,19 +215,19 @@ def format_pt_tag(adapter_5p_result, adapter_3p_result):
     annotations = []
 
     if adapter_5p_result:
-        start, end, score = adapter_5p_result
+        start, end, _score = adapter_5p_result
         annotations.append(f"{start};{end};+;5p_adapter")
 
     if adapter_3p_result:
         # Handle both old format (start, end, score) and new format (start, end, score, name)
         if len(adapter_3p_result) == 4:
-            start, end, score, name = adapter_3p_result
+            start, end, _score, name = adapter_3p_result
             if name == "default":
                 annotations.append(f"{start};{end};+;3p_adapter")
             else:
                 annotations.append(f"{start};{end};+;3p_adapter_{name}")
         else:
-            start, end, score = adapter_3p_result
+            start, end, _score = adapter_3p_result
             annotations.append(f"{start};{end};+;3p_adapter")
 
     if not annotations:
@@ -298,49 +298,50 @@ def process_bam(
     stats = Stats()
     adapter_5p_len = len(adapter_5p)
 
-    with pysam.AlignmentFile(input_bam, "rb") as inbam:
-        with pysam.AlignmentFile(output_bam, "wb", header=inbam.header) as outbam:
-            for read in inbam:
-                seq = read.query_sequence
+    with (
+        pysam.AlignmentFile(input_bam, "rb") as inbam,
+        pysam.AlignmentFile(output_bam, "wb", header=inbam.header) as outbam,
+    ):
+        for read in inbam:
+            seq = read.query_sequence
 
-                if seq is None:
-                    # Unmapped read without sequence
-                    outbam.write(read)
-                    continue
-
-                # Find adapters using sequence-based detection
-                result_5p = find_5p_adapter(
-                    seq, adapter_5p, matrix, gap_open, gap_extend, min_score_5p
-                )
-                result_3p = find_best_3p_adapter(
-                    seq, adapter_3p_list, matrix, gap_open, gap_extend, min_score_3p
-                )
-
-                # Fallback: infer 5' adapter from alignment position for truncated reads
-                if result_5p is None and infer_5p_from_alignment:
-                    if (
-                        not read.is_unmapped
-                        and read.reference_start < max_ref_start_for_5p
-                    ):
-                        # Adapter end position in read = adapter_len - ref_start
-                        adapter_end_in_read = adapter_5p_len - read.reference_start
-                        if adapter_end_in_read > 0:
-                            # Estimate score based on how much adapter is present
-                            estimated_score = int(adapter_end_in_read * match * 0.85)
-                            result_5p = (0, adapter_end_in_read, estimated_score)
-
-                # Update stats (extract adapter name if present)
-                adapter_3p_name = result_3p[3] if result_3p else None
-                stats.update(
-                    result_5p is not None, result_3p is not None, adapter_3p_name
-                )
-
-                # Add PT tag if any adapter found
-                pt_value = format_pt_tag(result_5p, result_3p)
-                if pt_value:
-                    read.set_tag("pt", pt_value, "Z")
-
+            if seq is None:
+                # Unmapped read without sequence
                 outbam.write(read)
+                continue
+
+            # Find adapters using sequence-based detection
+            result_5p = find_5p_adapter(
+                seq, adapter_5p, matrix, gap_open, gap_extend, min_score_5p
+            )
+            result_3p = find_best_3p_adapter(
+                seq, adapter_3p_list, matrix, gap_open, gap_extend, min_score_3p
+            )
+
+            # Fallback: infer 5' adapter from alignment position for truncated reads
+            if (
+                result_5p is None
+                and infer_5p_from_alignment
+                and not read.is_unmapped
+                and read.reference_start < max_ref_start_for_5p
+            ):
+                # Adapter end position in read = adapter_len - ref_start
+                adapter_end_in_read = adapter_5p_len - read.reference_start
+                if adapter_end_in_read > 0:
+                    # Estimate score based on how much adapter is present
+                    estimated_score = int(adapter_end_in_read * match * 0.85)
+                    result_5p = (0, adapter_end_in_read, estimated_score)
+
+            # Update stats (extract adapter name if present)
+            adapter_3p_name = result_3p[3] if result_3p else None
+            stats.update(result_5p is not None, result_3p is not None, adapter_3p_name)
+
+            # Add PT tag if any adapter found
+            pt_value = format_pt_tag(result_5p, result_3p)
+            if pt_value:
+                read.set_tag("pt", pt_value, "Z")
+
+            outbam.write(read)
 
     return stats
 

@@ -108,4 +108,3 @@ jobs:
             fi
           done
           echo "All required directories exist"
-

@@ -19,8 +19,9 @@ CPM normalization reflects counts per million reads that passed alignment and
 the filtering parameters for charging classification; these are full length tRNA
 """
 
-import pandas as pd
 import gzip
+
+import pandas as pd
 
 
 def per_read_charging(input, output, threshold):
@@ -48,13 +49,11 @@ def per_read_charging(input, output, threshold):
     count_data["cpm_charged"] = (count_data["counts_charged"] / total_reads) * 1e6
     count_data["cpm_uncharged"] = (count_data["counts_uncharged"] / total_reads) * 1e6
 
-    if output.endswith(".gz"):
-        output_file = gzip.open(output, "wt")
-    else:
-        output_file = open(output, "w")
-
-    # Write the results to a new file
-    count_data.to_csv(output_file, sep="\t")
+    # Was opened and never closed: on the gzip branch that risks a truncated
+    # file, since the trailer is only written on close.
+    open_output = gzip.open if output.endswith(".gz") else open
+    with open_output(output, "wt") as output_file:
+        count_data.to_csv(output_file, sep="\t")
 
 
 if __name__ == "__main__":

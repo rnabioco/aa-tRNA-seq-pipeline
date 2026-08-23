@@ -24,9 +24,8 @@ import gzip
 import sys
 from collections import Counter
 
-from add_adapter_tags import create_scoring_matrix, find_3p_adapter
-
 import pysam
+from add_adapter_tags import create_scoring_matrix, find_3p_adapter
 
 
 def main():
@@ -70,44 +69,45 @@ def main():
     counts = Counter()
     total = 0
 
-    with pysam.AlignmentFile(args.bam, "rb", check_sq=False) as bam_in:
-        with gzip.open(args.output, "wt") as out:
-            out.write("read_id\tadapter_3p\tscore_best\tscore_second\tmargin\n")
-            for read in bam_in.fetch(until_eof=True):
-                total += 1
-                seq = read.query_sequence
-                if seq is None:
-                    out.write(f"{read.query_name}\tnone\t\t\t\n")
-                    counts["none"] += 1
-                    continue
+    with (
+        pysam.AlignmentFile(args.bam, "rb", check_sq=False) as bam_in,
+        gzip.open(args.output, "wt") as out,
+    ):
+        out.write("read_id\tadapter_3p\tscore_best\tscore_second\tmargin\n")
+        for read in bam_in.fetch(until_eof=True):
+            total += 1
+            seq = read.query_sequence
+            if seq is None:
+                out.write(f"{read.query_name}\tnone\t\t\t\n")
+                counts["none"] += 1
+                continue
 
-                # Score every adapter rather than short-circuiting on the best,
-                # so the runner-up is available for the margin.
-                scores = []
-                for name, adapter_seq in adapters:
-                    hit = find_3p_adapter(
-                        seq, adapter_seq, matrix, gap_open, gap_extend, min_score
-                    )
-                    if hit:
-                        scores.append((hit[2], name))  # (start, end, score)
-                # Stable sort on score alone: ties keep config order, which is
-                # what the previous first-wins comparison did. Sorting on the
-                # tuple would break ties by adapter name instead.
-                scores.sort(key=lambda s: -s[0])
-
-                if not scores:
-                    out.write(f"{read.query_name}\tnone\t\t\t\n")
-                    counts["none"] += 1
-                    continue
-
-                best_score, adapter_name = scores[0]
-                second = f"{scores[1][0]}" if len(scores) > 1 else ""
-                margin = f"{best_score - scores[1][0]}" if len(scores) > 1 else ""
-                out.write(
-                    f"{read.query_name}\t{adapter_name}\t{best_score}"
-                    f"\t{second}\t{margin}\n"
+            # Score every adapter rather than short-circuiting on the best,
+            # so the runner-up is available for the margin.
+            scores = []
+            for name, adapter_seq in adapters:
+                hit = find_3p_adapter(
+                    seq, adapter_seq, matrix, gap_open, gap_extend, min_score
                 )
-                counts[adapter_name] += 1
+                if hit:
+                    scores.append((hit[2], name))  # (start, end, score)
+            # Stable sort on score alone: ties keep config order, which is
+            # what the previous first-wins comparison did. Sorting on the
+            # tuple would break ties by adapter name instead.
+            scores.sort(key=lambda s: -s[0])
+
+            if not scores:
+                out.write(f"{read.query_name}\tnone\t\t\t\n")
+                counts["none"] += 1
+                continue
+
+            best_score, adapter_name = scores[0]
+            second = f"{scores[1][0]}" if len(scores) > 1 else ""
+            margin = f"{best_score - scores[1][0]}" if len(scores) > 1 else ""
+            out.write(
+                f"{read.query_name}\t{adapter_name}\t{best_score}\t{second}\t{margin}\n"
+            )
+            counts[adapter_name] += 1
 
     # Summary to stderr
     print(f"total_reads\t{total}", file=sys.stderr)

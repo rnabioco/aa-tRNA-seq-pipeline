@@ -1,9 +1,26 @@
 import argparse
-import pysam
-import sys
+import contextlib
 import gzip
+import sys
+
+import pysam
 
 MAX_ARRAY_LENGTH = 100000
+
+
+@contextlib.contextmanager
+def open_output(path):
+    """Yield a writable handle for `path`, or stdout when `path` is falsy.
+
+    stdout is BORROWED: the previous code called `fout.close()` unconditionally,
+    which closed the interpreter's stdout on every run that wrote to it.
+    """
+    if not path:
+        yield sys.stdout
+        return
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "wt") as handle:
+        yield handle
 
 
 class CountArray:
@@ -184,9 +201,14 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=
     read_summary["bam_file"] = "stdin" if fn == "-" else fn
     read_summary["pct_mapped"] = 0  # to fill in later
 
-    first_col_order = ["bam_file", "id", "info", "n_reads", "pct_mapped"] + list(
-        read_stat_keys
-    )
+    first_col_order = [
+        "bam_file",
+        "id",
+        "info",
+        "n_reads",
+        "pct_mapped",
+        *read_stat_keys,
+    ]
     read_summary = {k: read_summary[k] for k in first_col_order}
 
     fo.close()
@@ -249,44 +271,37 @@ if __name__ == "__main__":
 
     bam_fls = args.bam
     flag = args.flag
-    if args.out:
-        if args.out.endswith(".gz"):
-            fout = gzip.open(args.out, "wt")
-        else:
-            fout = open(args.out, "w")
-    else:
-        fout = sys.stdout
+    with open_output(args.out) as fout:
+        if args.info and len(args.info) != len(bam_fls):
+            sys.exit("Number of info fields must match number of BAM files")
 
-    if args.info and len(args.info) != len(bam_fls):
-        sys.exit("Number of info fields must match number of BAM files")
+        if args.require_tag and len(args.require_tag) != len(bam_fls):
+            sys.exit("Number of --require-tag values must match number of BAM files")
 
-    if args.require_tag and len(args.require_tag) != len(bam_fls):
-        sys.exit("Number of --require-tag values must match number of BAM files")
+        total_reads = 0
 
-    total_reads = 0
+        for i, bam in enumerate(bam_fls):
+            sample_info = None
+            if args.info:
+                sample_info = args.info[i]
 
-    for i, bam in enumerate(bam_fls):
-        sample_info = None
-        if args.info:
-            sample_info = args.info[i]
+            require_tag = None
+            if args.require_tag and args.require_tag[i] != "-":
+                require_tag = args.require_tag[i]
 
-        require_tag = None
-        if args.require_tag and args.require_tag[i] != "-":
-            require_tag = args.require_tag[i]
-
-        read_summaries = get_read_stats(bam, flag, args.id, sample_info, require_tag)
-
-        if i == 0:
-            total_reads = read_summaries["n_reads"]
-            cols = list(read_summaries.keys())
-            fout.write("\t".join(cols) + "\n")
-
-        if read_summaries["mapped_reads"] > 0:
-            read_summaries["pct_mapped"] = round(
-                read_summaries["mapped_reads"] / total_reads * 100, 2
+            read_summaries = get_read_stats(
+                bam, flag, args.id, sample_info, require_tag
             )
 
-        out = "\t".join([str(x) for x in read_summaries.values()])
-        fout.write(out + "\n")
+            if i == 0:
+                total_reads = read_summaries["n_reads"]
+                cols = list(read_summaries.keys())
+                fout.write("\t".join(cols) + "\n")
 
-    fout.close()
+            if read_summaries["mapped_reads"] > 0:
+                read_summaries["pct_mapped"] = round(
+                    read_summaries["mapped_reads"] / total_reads * 100, 2
+                )
+
+            out = "\t".join([str(x) for x in read_summaries.values()])
+            fout.write(out + "\n")

@@ -36,7 +36,12 @@ def get_pipeline_version(pipeline_dir):
             "git_branch": branch,
             "git_dirty": repo.is_dirty(),
         }
-    except Exception:
+    # Deliberately broad. GitPython raises across a wide surface
+    # (InvalidGitRepositoryError, NoSuchPathError, GitCommandError, and OSError
+    # from the git binary itself), and this is provenance metadata: a manifest
+    # with null git fields is a fine outcome, a pipeline that dies because the
+    # run happened outside a checkout is not.
+    except Exception:  # noqa: BLE001
         return {
             "git_commit": None,
             "git_tag": None,
@@ -82,6 +87,10 @@ def get_command_version(cmd, version_flag="--version"):
             capture_output=True,
             text=True,
             timeout=30,
+            # A tool that exits non-zero on --version (bwa does) still prints the
+            # version, and the caller falls back to None. Never raise: a missing
+            # version must not fail the manifest.
+            check=False,
         )
         output = result.stdout.strip() or result.stderr.strip()
         # Extract version from common patterns

@@ -1,6 +1,7 @@
 import argparse
-import pysam
+
 import pandas as pd
+import pysam
 
 """
 This script processes a BAM file to calculate per-nucleotide error frequencies,
@@ -85,9 +86,10 @@ def calculate_error_frequencies(bam_file, fasta_file, trim_5p=0, trim_3p=0):
                         if read_base in base_counts:
                             base_counts[read_base][ref_pos + i] += 1
 
-                        if read_base != ref_base or cigar_op == 8:
-                            if ins_pos != (ref_pos + i):
-                                mismatches[ref_pos + i] += 1
+                        if (read_base != ref_base or cigar_op == 8) and ins_pos != (
+                            ref_pos + i
+                        ):
+                            mismatches[ref_pos + i] += 1
 
                     ref_pos += cigar_len
                     read_pos += cigar_len

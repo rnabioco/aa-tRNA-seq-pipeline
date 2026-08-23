@@ -13,6 +13,7 @@ Supports four output formats via --format:
 """
 
 import argparse
+import contextlib
 import gzip
 import sys
 
@@ -148,14 +149,15 @@ def main():
 
     ref_lengths = read_fasta_lengths(args.reference)
 
-    if args.input == "-":
-        infile = sys.stdin
-    else:
-        infile = open(args.input, "r")
+    with contextlib.ExitStack() as stack:
+        # stdin is borrowed, not owned -- only a real file goes on the stack.
+        infile = (
+            sys.stdin
+            if args.input == "-"
+            else stack.enter_context(open(args.input, "r"))
+        )
+        outfile = stack.enter_context(gzip.open(args.output, "wb"))
 
-    outfile = gzip.open(args.output, "wb")
-
-    try:
         processors = {
             "bedgraph": process_bedgraph,
             "bedmethyl": process_bedmethyl,
@@ -165,10 +167,6 @@ def main():
         processors[args.format](
             infile, outfile, args.offset_5p, args.offset_3p, ref_lengths
         )
-    finally:
-        outfile.close()
-        if infile is not sys.stdin:
-            infile.close()
 
 
 if __name__ == "__main__":

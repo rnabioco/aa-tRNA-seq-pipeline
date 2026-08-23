@@ -1,6 +1,8 @@
 import argparse
-import pysam
+import contextlib
 import sys
+
+import pysam
 
 
 def get_charging_stats(fn):
@@ -42,11 +44,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     bam_fl = args.bam
 
-    if args.out:
-        fout = open(args.out, "w")
-    else:
-        fout = sys.stdout
-
     trna_ref_dict = {}
 
     with open(args.table, "r") as f:
@@ -78,23 +75,27 @@ if __name__ == "__main__":
 
         charged_counts[gene][chrg] += count
 
-    print(
-        "tRNA-gene",
-        "charged_read_counts",
-        "uncharged_read_counts",
-        "percent_charged",
-        sep="\t",
-        file=fout,
-    )
-    for gene, counts in charged_counts.items():
-        total = counts["charged"] + counts["uncharged"]
-        pct_charged = 100 * counts["charged"] / total
+    # stdout is borrowed, not owned -- the old code closed it unconditionally.
+    # Opening here also means a run that dies earlier leaves no empty output.
+    with contextlib.ExitStack() as stack:
+        fout = stack.enter_context(open(args.out, "w")) if args.out else sys.stdout
+
         print(
-            gene,
-            counts["charged"],
-            counts["uncharged"],
-            pct_charged,
+            "tRNA-gene",
+            "charged_read_counts",
+            "uncharged_read_counts",
+            "percent_charged",
             sep="\t",
             file=fout,
         )
-    fout.close()
+        for gene, counts in charged_counts.items():
+            total = counts["charged"] + counts["uncharged"]
+            pct_charged = 100 * counts["charged"] / total
+            print(
+                gene,
+                counts["charged"],
+                counts["uncharged"],
+                pct_charged,
+                sep="\t",
+                file=fout,
+            )

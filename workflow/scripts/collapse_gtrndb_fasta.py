@@ -20,6 +20,19 @@ import re
 import sys
 
 
+def uf_find(parent, x):
+    """Union-find root of `x`, path-compressing `parent` in place.
+
+    Takes `parent` as an argument rather than closing over it: the map is
+    rebuilt per group, and a closure over a rebound loop variable is the B023
+    footgun even when -- as here -- every call happens in the same iteration.
+    """
+    while parent[x] != x:
+        parent[x] = parent[parent[x]]
+        x = parent[x]
+    return x
+
+
 TRNA_NAME_RE = re.compile(
     r"((?:pre)?tRNA)"  # group 1: tRNA or pretRNA
     r"-([A-Za-z0-9]+)"  # group 2: amino acid (Ala, Ile2, fMet, SeC, etc.)
@@ -80,8 +93,7 @@ def parse_trna_name(header):
 
     short_name = f"{trna_type}-{amino_acid}-{anticodon}-{family_num}-{copy_num}"
     prefix = header[: m.start()]
-    if prefix.endswith("_"):
-        prefix = prefix[:-1]
+    prefix = prefix.removesuffix("_")
 
     return {
         "trna_type": trna_type,
@@ -108,7 +120,7 @@ def hamming_distance(s1, s2):
     """
     if len(s1) != len(s2):
         return None
-    return sum(a != b for a, b in zip(s1, s2))
+    return sum(a != b for a, b in zip(s1, s2, strict=True))
 
 
 def collapse_sequences(records, keep_unparsed=False, max_hamming=0):
@@ -177,17 +189,12 @@ def collapse_sequences(records, keep_unparsed=False, max_hamming=0):
             # Union-find for transitive merges
             parent = {s: s for s in seqs}
 
-            def find(x):
-                while parent[x] != x:
-                    parent[x] = parent[parent[x]]
-                    x = parent[x]
-                return x
-
             for i in range(len(seqs)):
                 for j in range(i + 1, len(seqs)):
                     dist = hamming_distance(seqs[i], seqs[j])
                     if dist is not None and dist <= max_hamming:
-                        ri, rj = find(seqs[i]), find(seqs[j])
+                        ri = uf_find(parent, seqs[i])
+                        rj = uf_find(parent, seqs[j])
                         if ri != rj:
                             # Merge later into earlier (by first appearance)
                             parent[rj] = ri
@@ -195,13 +202,13 @@ def collapse_sequences(records, keep_unparsed=False, max_hamming=0):
             # Rebuild seq_groups by merging
             merged = {}
             for s in seqs:
-                root = find(s)
+                root = uf_find(parent, s)
                 if root not in merged:
                     merged[root] = []
                 merged[root].extend(seq_groups[s])
             seq_groups = merged
 
-        for norm_seq, group in seq_groups.items():
+        for group in seq_groups.values():
             # First encountered is the representative
             rep_header, rep_seq, rep_parsed = group[0]
             rep_short = rep_parsed["short_name"]
