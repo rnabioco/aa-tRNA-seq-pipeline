@@ -31,5 +31,19 @@ __pycache__/
 model_best/
 resources/models/.mod_models_ready
 
+# Loose files dropped into the demux model dir by `escpod demux models fetch`.
+# What is vendored here is a bundle DIRECTORY -- that is what
+# `pixi run verify-demux-model` iterates and what the README documents -- so a
+# bare .onnx/.json beside them is a fetch cache, not a tracked artifact.
+resources/models/demux/*.onnx
+resources/models/demux/*.json
+
+# Parsed-and-pickled form of the k-mer level table, written beside the .txt on
+# first use. Derived; the .txt is the vendored file the charging bundle pins.
+resources/kmers/*.pkl
+
+# Worktrees created by Claude Code live inside the repo.
+.claude/worktrees/
+
 # generated at render time by Snakemake rule
 workflow/report/_custom.qmd

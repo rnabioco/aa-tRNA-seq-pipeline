@@ -14,16 +14,34 @@ The pipeline is designed for *Saccharomyces cerevisiae* tRNAs by default. To use
 
 ### What is the charging threshold?
 
-The default threshold is **ML ≥ 200 = charged**. This is currently hardcoded in the `get_cca_trna_cpm` rule. Values range from 0-255.
+The default is **`cl` >= 200 = charged**, on a 0-255 scale. It is the operating
+point the charging bundle itself declares, characterised against ligation
+chemistry: **FPR 1.74%** on a library that is 0% charged by construction (1 false
+call in 58) and **TPR 0.939** on one that is 100% charged.
 
 ### Can I change the charging threshold?
 
-Yes, but requires editing the rule. In `workflow/rules/aatrnaseq-charging.smk`:
+Yes — it is config, not code:
 
-```python
-params:
-    ml_thresh=200,  # Change this value
+```yaml
+charging:
+  ml_threshold: 200
 ```
+
+Whether you *should* depends on your sample, not on the model. Precision falls as
+the true charged fraction falls, because the false positives come from a pool
+that grows as the real signal shrinks:
+
+| true charged fraction | precision at `cl >= 200` | `cl` needed for 95% |
+|---|---|---|
+| 0.50 | 0.98 | 128 |
+| 0.25 | 0.95 | 205 |
+| 0.10 | 0.86 | 248 |
+| 0.05 | 0.74 | 254 |
+
+At 10% charged, roughly one in seven "charged" calls at the default is a molecule
+that cannot be charged. The bundle's own guidance is that a caller wanting
+different precision should move the threshold **and say so**.
 
 ### What modifications are detected?
 
