@@ -4,6 +4,13 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **`get_align_stats` and `get_charging_summary` closed the interpreter's stdout.** Both called `fout.close()` unconditionally, but `fout` is `sys.stdout` whenever `--out` is not given. Harmless in the pipeline, which always passes `--out` and where the process was exiting anyway, but wrong for any interactive or piped use. Both now borrow stdout through a context manager and only close a handle they opened.
+- **`get_trna_charging_cpm` never closed its output file.** It relied on CPython refcounting to close the handle at function exit, which happens to work and would not under a different interpreter, or if an exception kept the frame alive. On the gzip branch that is a truncated file, since the trailer is only written on close. Now a `with` block.
+
+### Changed
+- Lint gates for real. All three jobs in the `Lint` workflow (`python-lint`, `yaml-lint`, `snakemake-lint`) now fail the build; the first two were `continue-on-error: true` and had been reporting success over 7 unformatted files and a genuine `empty-lines` error in `ci.yml`. Ruff's rule set is declared explicitly in `ruff.toml` (`target-version = "py310"`, plus `I`/`B`/`SIM`/`FURB`/`C4`/`BLE`/`EXE`/`RUF`) and yamllint's in `.yamllint.yml`, because tool defaults are not a stable contract — ruff 0.16 widened its own and took `ruff check` from clean to 49 findings on unchanged code. `ruff` is pinned `0.16.*` (it was `"*"`, resolving to three different versions across environments in `pixi.lock`), and `.pre-commit-config.yaml` now runs the same tools at the same versions CI does: black and flake8 are gone, having been a third and fourth opinion about `workflow/scripts/` that no installed hook had ever actually run.
+
 ## [v0.2.0] - 2026-08-23
 
 ### Changed
