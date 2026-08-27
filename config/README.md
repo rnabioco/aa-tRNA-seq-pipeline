@@ -103,7 +103,7 @@ and enable the backend:
 ldx:
     enabled: true
     model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
-    gpu: true            # needs a source build; see Performance below
+    gpu: true            # needs the published GPU build; see Performance below
     min_margin: 0        # retired; the lattice gate supersedes it
     ref_scores: true     # record the lattice's own log P(barcode | signal)
     min_crf_margin: 1.0  # the false-positive control; swept, see below
@@ -204,22 +204,30 @@ same GPU-capable binary*; this compares what you would actually switch between.
 The stage trace shows the device saturated (workers busy 94% of wall, producer
 blocked on send 347.7 s), so a second GPU would push it further.
 
-**`ldx.gpu` now defaults to `true`**, which means an LDX run needs a source
-build: the released binary has no GPU code and does not carry the `--gpu` flag
-at all.
+**`ldx.gpu` defaults to `true`**, which needs the GPU build of escpod. Since
+escapepod-rs 0.17.1 that is a published artifact rather than a source build, so
+`pixi run setup` installs it along with everything else:
 
 ```bash
-ESCPOD_REF=v0.12.0 pixi run install-escpod-gpu   # builds <version>-gpu
-pixi run install-ort-gpu                          # CUDA onnxruntime
-pixi install -e gpu                               # cuDNN
+pixi run setup             # musl default + <version>-gpu, both checksum-pinned
+pixi run install-ort-gpu   # CUDA onnxruntime (not on conda-forge; see pixi.toml)
+pixi install -e gpu        # cuDNN
 ```
 
+The GPU artifact is x86_64 Linux only, and is the one **dynamically linked**
+build (glibc >= 2.28) because the CUDA runtimes are dlopened — so `ldx.gpu:
+true` is simply unavailable on macOS and aarch64. `pixi run setup` skips it
+there rather than failing.
+
 `escapepod_demux` resolves that `<escpod_version>-gpu` binary itself and fails
-loudly naming the build command if it is missing. **`escpod_version` stays on
-the release** — demux is the only rule with a GPU path, so pointing the global
-pin at `-gpu` would force a source build on everyone just to run `escpod merge`
-and `escpod signal classify`, and would break `pixi run setup`, which derives
-its download URL from that string.
+loudly if it is missing. **`escpod_version` is shared with the musl default** —
+demux is the only rule with a GPU path, so pointing the global pin at `-gpu`
+would hand every other rule a dynamically linked, single-platform binary just
+to run `escpod merge` and `escpod signal classify`, and would break `pixi run
+setup`, which derives its download URL from that string.
+
+`scripts/install-escpod-gpu.sh` still exists for building an unreleased ref out
+of the private repo, but is no longer on anyone's normal path.
 
 Without cuDNN the CUDA provider fails to register and onnxruntime falls back to
 CPU with **only a warning**, so confirm the log says

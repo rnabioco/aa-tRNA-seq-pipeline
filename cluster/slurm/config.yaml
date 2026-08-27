@@ -97,19 +97,24 @@ set-resources:
   #
   # Memory scales with the number of barcodes, not the input: the router keeps
   # a bounded pool of queued reads per barcode writer.
-  # GPU: the fused pipeline runs boundary detection through onnxruntime's CUDA
-  # provider when given `--method cnn --gpu`. The method has to be passed
-  # EXPLICITLY — a detector merely pinned by the model bundle leaves detection
-  # on the CPU and makes --gpu inert (escpod warns "--gpu has no effect here").
+  # GPU: the fused pipeline runs boundary detection AND the CTC-CRF encoder
+  # through onnxruntime's CUDA provider when given `--device gpu --method cnn`.
+  # Confirmed on an A30: `CRF encoder: N worker(s) on GPU [0]`.
   #
-  # The CRF encoder itself stays on the CPU in the fused path regardless, so
-  # cpus_per_task stays high to feed it: POD5 decode, signal prep, the encoder
-  # and the lattice decode all run CPU-side while the GPU does detection.
+  # `--device gpu` replaced `--gpu` in escapepod-rs 0.17.1, and is a
+  # REQUIREMENT rather than a preference: it fails when no device is visible or
+  # onnxruntime cannot register its CUDA provider, where `--gpu` quietly
+  # continued on the CPU. That is deliberate — the silent fallback is a 20x
+  # slowdown that still produces correct output.
   #
-  # Needs an escpod built with the gpu feature (`pixi run install-escpod-gpu`)
-  # plus the CUDA onnxruntime (`pixi run install-ort-gpu`); the stock release
-  # binary rejects --gpu. With the stock binary, drop the gpu lines and set
-  # ldx.gpu false.
+  # The LATTICE DECODE stays on the CPU regardless, so cpus_per_task stays high
+  # to feed the device: POD5 decode, signal prep and the decode all run
+  # CPU-side.
+  #
+  # Needs the GPU build of escpod, which `pixi run setup` downloads since
+  # 0.17.1 (it was a source build before), plus the CUDA onnxruntime
+  # (`pixi run install-ort-gpu`) and cuDNN (`pixi install -e gpu`). On a host
+  # without a GPU, drop the gpu lines here and set ldx.gpu false.
   escapepod_demux:
     slurm_partition: gpu
     slurm_account: gpu_rbi

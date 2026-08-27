@@ -95,10 +95,10 @@ verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_
 # onnxruntime GitHub release. The cuda13 variant matches the CUDA 13 on the gpu
 # nodes and bundles its own CUDA deps.
 #
-# Only needed for `ldx.gpu: true`, which additionally needs an escpod built with
-# --features gpu (see install-escpod-gpu).
-install-ort-gpu = { cmd = "bash scripts/install-ort-gpu.sh", description = "Download the CUDA onnxruntime that escpod --gpu needs" }
-install-escpod-gpu = { cmd = "bash scripts/install-escpod-gpu.sh", description = "Build escpod with GPU features from the escapepod-rs submodule" }
+# Only needed for `ldx.gpu: true`, which additionally needs the GPU build of
+# escpod — downloaded by `pixi run setup` since escapepod-rs 0.17.1.
+install-ort-gpu = { cmd = "bash scripts/install-ort-gpu.sh", description = "Download the CUDA onnxruntime that escpod --device gpu needs" }
+install-escpod-gpu = { cmd = "bash scripts/install-escpod-gpu.sh", description = "Build escpod with GPU features from source (only for an unreleased ref; pixi run setup downloads the released one)" }
 
 # Testing feature
 [feature.test]
@@ -152,7 +152,7 @@ zensical = "*"
 docs-build = "zensical build"
 docs-serve = "zensical serve"
 
-# CUDA runtime libraries for `escpod demux --gpu`.
+# CUDA runtime libraries for `escpod demux --device gpu`.
 #
 # onnxruntime itself is NOT here — `ort 2.0.0-rc.13` needs 1.27.x and
 # conda-forge stops at 1.26, so it comes from a release tarball via
