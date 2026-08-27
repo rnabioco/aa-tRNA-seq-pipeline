@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download the CUDA-enabled ONNX Runtime that `escpod demux --gpu` needs.
+# Download the CUDA-enabled ONNX Runtime that `escpod demux --device gpu` needs.
 #
 # Why this is not a conda/pixi dependency:
 #

@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Build escpod with the GPU features and install it as a distinct version.
 #
-# The published escpod release is built with the default `cli` feature set,
+# NOT NEEDED FOR A RELEASED VERSION since escapepod-rs 0.17.1, which publishes
+# a GPU artifact (`escpod-v<ver>-x86_64-unknown-linux-gnu-gpu.tar.gz`) that
+# `pixi run setup` downloads into the same `<version>-gpu` path this script
+# writes. Use setup unless you need a ref that has no release — an unmerged
+# branch, or a tag whose GPU artifact failed to build (as v0.17.0's did).
+#
+# The PORTABLE musl release is still built with the default `cli` feature set,
 # which includes the CPU paths (cnn-detect, crf-decode via tract) but NOT the
-# `gpu` feature. That needs onnxruntime's CUDA execution provider, which
-# a portable static musl binary cannot assume, so the release binary has no GPU
-# code at all and rejects `--gpu` outright. Running demux on a GPU therefore
-# requires building from source.
+# `gpu` feature. That needs onnxruntime's CUDA execution provider, which a
+# static musl binary cannot dlopen — which is why the GPU artifact is a
+# separate, dynamically linked, x86_64-Linux-only build rather than a flag on
+# the usual one.
 #
 # Installed under a `-gpu` version suffix rather than overwriting the release
 # build, so both remain available and `escpod_version` in the config selects
@@ -27,7 +33,7 @@ SRC="${ESCPOD_SRC:-${REPO_ROOT}/resources/escapepod-rs}"
 ESCPOD_URL="${ESCPOD_URL:-https://github.com/rnabioco/escapepod-rs}"
 
 # The GPU features first exist in escapepod-rs 0.7.0; older checkouts build
-# fine and then silently lack --gpu, which is worse than failing here.
+# fine and then silently lack any GPU path, which is worse than failing here.
 #
 # 0.8.0 is the floor for *full* GPU support: 0.7.0 runs the boundary CNN and the
 # CRF encoder on the device but drops back to the CPU for the lattice decode,
@@ -92,8 +98,15 @@ dest="${REPO_ROOT}/resources/tools/escpod/${version}-gpu/bin"
 mkdir -p "${dest}"
 install -m 0755 "${SRC}/target/release/escpod" "${dest}/escpod"
 
-if ! "${dest}/escpod" demux --help 2>&1 | grep -q -- '--gpu'; then
-    echo "Error: built binary has no --gpu flag; the features did not take." >&2
+# Verified against the BINARY, not `--help`. Since 0.17.1 device placement is
+# spelled `--device <auto|cpu|gpu>`, which clap renders identically whether or
+# not the gpu features are compiled in — `escpod demux --help` is byte-for-byte
+# the same for the musl release and the GPU build, so no amount of grepping the
+# help text can tell them apart. The CUDA execution provider string is only
+# linked in when the features actually took.
+if ! grep -qa 'CUDAExecutionProvider' "${dest}/escpod"; then
+    echo "Error: built binary has no CUDA execution provider;" >&2
+    echo "       the gpu features did not take." >&2
     exit 1
 fi
 

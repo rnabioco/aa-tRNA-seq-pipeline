@@ -22,10 +22,17 @@ ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 # Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
 # Pinned rather than fetched alongside the tarball so that re-tagging the
 # release upstream is caught here instead of being silently trusted.
-ESCPOD_SHA256_x86_64_linux="091a85a9f5cae6b2fcc8715ae759f58d32d8e60d559b879204a74b151598c3fb"
-ESCPOD_SHA256_aarch64_linux="8d89005f430992b3c3103924c93f82f9ff61e291d6ac8700884ae84c76c80dfc"
-ESCPOD_SHA256_x86_64_darwin="f1acef00e2a781a642f120d244544593836c8aef2403e5c7d5d8fdefe0450582"
-ESCPOD_SHA256_aarch64_darwin="20123b015a86cfb18122bb5c752da51137e8257cea7299aee7e340470ed02274"
+ESCPOD_SHA256_x86_64_linux="bc0ea7090974cc74517ad378e8f54901b84b4279637030d8c9fdea5fcf08c676"
+ESCPOD_SHA256_aarch64_linux="b13851083962fe606f4fd98f30deb3fbbe4f9772047d0d477ec310038adfb08f"
+ESCPOD_SHA256_x86_64_darwin="41f578913d5fc59bc02abcce58e3c3aa2d99f816511b52e3f968b7a19ba1c54d"
+ESCPOD_SHA256_aarch64_darwin="e5c4046beeeb9535b25da8cf0472839ab89255f2951dbff6c3472e52cc70acb8"
+# The GPU build, for `ldx.gpu: true`. It is a SEPARATE artifact and the only
+# dynamically linked one (glibc >= 2.28), because the CUDA runtimes are
+# dlopened and so cannot be static-musl. x86_64 Linux only — upstream publishes
+# no other GPU target.
+ESCPOD_SHA256_x86_64_linux_gpu="685587b19e9c42b1ccdeb91a0af8573bda7409ac5caefd7a9c7836e2e2798740"
+ESCPOD_GPU_TARGET="x86_64-unknown-linux-gnu-gpu"
+ESCPOD_GPU_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}-gpu"
 
 # ============================================================================
 # Helper Functions
@@ -140,6 +147,46 @@ download_escpod() {
     echo "escpod installed to ${ESCPOD_DIR}"
 }
 
+download_escpod_gpu() {
+    # The `ldx.gpu: true` binary. Kept separate from download_escpod because it
+    # is a different target triple, a different linkage, and optional: a run
+    # with `ldx.gpu: false`, or on any host that is not x86_64 Linux, never
+    # touches it. Skipping is therefore not an error here — get_escpod_bin in
+    # demux.smk is what fails, and only if a run actually asks for the GPU.
+    local url tmpfile actual
+    if [ "$(uname -s)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+        echo "Skipping escpod GPU build: published for x86_64 Linux only"
+        return 0
+    fi
+
+    url="https://github.com/rnabioco/escapepod-rs/releases/download/v${ESCPOD_VERSION}/escpod-v${ESCPOD_VERSION}-${ESCPOD_GPU_TARGET}.tar.gz"
+    tmpfile="$(mktemp -t escpod-gpu.XXXXXX.tar.gz)"
+
+    echo "Downloading escpod ${ESCPOD_VERSION} (GPU) for ${ESCPOD_GPU_TARGET}..."
+    if ! curl -fL -o "${tmpfile}" "${url}"; then
+        echo "Error: Failed to download escpod GPU build from ${url}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    actual=$(sha256sum "${tmpfile}" | awk '{print $1}')
+    if [ "${actual}" != "${ESCPOD_SHA256_x86_64_linux_gpu}" ]; then
+        echo "Error: escpod GPU checksum mismatch" >&2
+        echo "  expected ${ESCPOD_SHA256_x86_64_linux_gpu}" >&2
+        echo "  actual   ${actual}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    mkdir -p "${ESCPOD_GPU_DIR}/bin"
+    tar -xzf "${tmpfile}" -C "${ESCPOD_GPU_DIR}/bin"
+    rm -f "${tmpfile}"
+    chmod +x "${ESCPOD_GPU_DIR}/bin/escpod"
+    echo "escpod (GPU) installed to ${ESCPOD_GPU_DIR}"
+    echo "  ldx.gpu: true additionally needs a CUDA libonnxruntime"
+    echo "  (pixi run install-ort-gpu) and cuDNN (pixi install -e gpu)."
+}
+
 download_model() {
     local model_path="${MODEL_DIR}/${DORADO_MODEL}"
     echo "Downloading dorado model ${DORADO_MODEL}..."
@@ -223,6 +270,15 @@ if [ -x "${ESCPOD_DIR}/bin/escpod" ]; then
     echo "escpod already installed at ${ESCPOD_DIR}"
 else
     download_escpod
+fi
+
+# The GPU build is fetched alongside it, so that `ldx.gpu: true` (the default)
+# works straight out of setup. Since escapepod-rs 0.17.1 this is a download
+# rather than a source build of a private repo.
+if [ -x "${ESCPOD_GPU_DIR}/bin/escpod" ]; then
+    echo "escpod (GPU) already installed at ${ESCPOD_GPU_DIR}"
+else
+    download_escpod_gpu
 fi
 
 # ============================================================================

@@ -266,14 +266,17 @@ def get_ldx_model():
 def get_escpod_bin():
     """The escpod binary `escapepod_demux` should run.
 
-    `--gpu` exists only in a build carrying the crf-gpu/cnn-gpu features, and the
-    published release does not — it has no GPU code at all and rejects the flag
-    as an unknown argument. So `ldx.gpu: true` needs the locally built
-    `<version>-gpu` variant that `pixi run install-escpod-gpu` produces.
+    GPU placement needs a build carrying the crf-gpu/cnn-gpu features, which
+    the portable musl artifact does not have. Since escapepod-rs 0.17.1 that
+    build is PUBLISHED (`...-x86_64-unknown-linux-gnu-gpu.tar.gz`) and
+    `pixi run setup` downloads it into `<version>-gpu/`; before 0.17.1 the same
+    path had to be produced by a source build of the private repo. The path
+    convention is unchanged, so only the remediation in the error below moved.
 
     Resolved HERE rather than by pointing `escpod_version` at `-gpu`, because
-    demux is the only rule with a GPU path. Moving the global pin would force a
-    source build on everyone just to run `escpod merge` and
+    demux is the only rule with a GPU path and the GPU artifact is x86_64 Linux
+    only. Moving the global pin would hand every other rule a dynamically
+    linked, single-platform binary just to run `escpod merge` and
     `escpod signal classify`, and would break `pixi run setup`, which derives
     its download URL from that same string and would ask GitHub for a
     `v<version>-gpu` release that does not exist.
@@ -287,8 +290,11 @@ def get_escpod_bin():
     if not os.path.isfile(binary):
         sys.exit(
             f"ldx.gpu is true but no GPU-enabled escpod was found at {binary}.\n"
-            f"Build it with `ESCPOD_REF=v{version} pixi run install-escpod-gpu` "
-            "(and `pixi install -e gpu` for cuDNN), or set ldx.gpu: false."
+            "Install it with `pixi run setup`, which downloads the published "
+            f"GPU artifact for escpod {version} (x86_64 Linux only).\n"
+            "It also needs a CUDA libonnxruntime (`pixi run install-ort-gpu`) "
+            "and cuDNN (`pixi install -e gpu`).\n"
+            "Set ldx.gpu: false to run demux on the CPU instead."
         )
     return binary
 
@@ -418,17 +424,33 @@ rule escapepod_demux:
             if config.get("ldx", {}).get("clamp_max_shift") is not None
             else ""
         ),
-        # --gpu runs the CRF encoder and the boundary CNN through onnxruntime's
-        # CUDA provider; the lattice decode stays on the CPU either way. It is
-        # opt-in because the *released* escpod has neither GPU feature compiled
-        # in and would reject the flag — see config-base.yml `ldx.gpu`.
-        # `--method cnn` is passed alongside --gpu on purpose. The bundle already
-        # pins cnn, but a pinned detector runs on the CPU and makes --gpu a
-        # no-op; only an explicit --method engages the CUDA detection path.
-        # Naming the same detector the bundle pins is not an override, so this
-        # cannot silently downgrade to LLR.
+        # Device placement. `--device gpu` runs the CRF encoder and the
+        # boundary CNN through onnxruntime's CUDA provider; the lattice decode
+        # stays on the CPU either way.
+        #
+        # Passed EXPLICITLY in both directions rather than leaning on the
+        # `auto` default, because the two failure modes are not symmetric.
+        # `--device gpu` is a requirement: it fails when the feature is
+        # missing, no device is visible, or onnxruntime cannot register its
+        # CUDA provider. `auto` would quietly run on the CPU instead — a 20x
+        # slowdown (2.6 h against 458.9 s on our own flowcell) that still
+        # produces correct output, so it looks like success and is caught only
+        # by noticing the wall clock. Under `ldx.gpu: false` the explicit
+        # `--device cpu` likewise stops a GPU binary from opportunistically
+        # using a device the config said not to.
+        #
+        # Replaces `--gpu`, deprecated in escapepod-rs 0.17.1. That spelling
+        # still runs (it warns and continues as `--device gpu`), so this is a
+        # migration rather than a break — but the meaning changed underneath
+        # it: `--gpu` fell back to the CPU where `--device gpu` fails.
+        #
+        # `--method cnn` is passed alongside on purpose. The bundle already
+        # pins cnn, and naming the same detector the bundle pins is not an
+        # override, so this cannot silently downgrade to LLR.
         gpu=lambda wildcards: (
-            "--gpu --method cnn" if config.get("ldx", {}).get("gpu", False) else ""
+            "--device gpu --method cnn"
+            if config.get("ldx", {}).get("gpu", False)
+            else "--device cpu"
         ),
         # ort dlopens onnxruntime at run time from ORT_DYLIB_PATH, and the CUDA
         # execution provider sits beside it, so its directory must also be on

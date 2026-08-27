@@ -101,11 +101,38 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.12.0 is what we run, for the demux side. `--ref-scores` computes
-# log P(barcode | signal) from the CRF lattice itself, so a demux call finally
-# carries a continuous per-read confidence instead of only the edit-distance
-# margin a designed panel pins to three values (escapepod-rs#241). See
-# `ldx.ref_scores` below for what that buys and what it still does not.
+# 0.17.1 is what we run. Two things make it the version to be on:
+#   - it is the first release to ship a GPU BINARY
+#     (`escpod-v<ver>-x86_64-unknown-linux-gnu-gpu.tar.gz`), so `ldx.gpu: true`
+#     no longer needs a source build of the private repo. `pixi run setup`
+#     downloads it alongside the musl default. See `ldx.gpu` below.
+#   - `--device <auto|cpu|gpu>` replaces `--gpu`, which is now deprecated. The
+#     rename carries a change in MEANING: `--device gpu` fails when the GPU is
+#     unusable, where `--gpu` quietly continued on the CPU. That is the
+#     behaviour we want — a silent CPU fallback on this path is a 20x slowdown
+#     that looks like success — so demux.smk passes `--device` explicitly in
+#     both directions rather than relying on the `auto` default.
+#
+# 0.17.0 DOES NOT EXIST as a download. Its GPU artifact failed to build, which
+# skipped the release job, so it reached PyPI with no GitHub release and no
+# binaries; upstream superseded rather than corrected it. Do not pin 0.17.0 —
+# `pixi run setup` would 404.
+#
+# 0.13.0 is a correctness floor for the LDX path specifically, and is the one
+# in this list that was silently wrong rather than merely absent. A `.p5s`
+# sidecar's `(batch_idx, row_idx)` locators were dereferenced unchecked, so an
+# index that passed the file-level identity guard but held wrong offsets
+# returned a DIFFERENT REAL READ, correctly self-labelled. The signal paths
+# were worse: they projected `read_id` and never read it, stamping the queried
+# UUID onto whatever row they landed on. Nothing downstream could detect it.
+# Every indexed lookup now confirms the row's `read_id` before using it. Our
+# demux --annotate -> sidecar -> `signal classify` flow is exactly that path.
+#
+# 0.12.0 brought `--ref-scores`, which computes log P(barcode | signal) from the
+# CRF lattice itself, so a demux call finally carries a continuous per-read
+# confidence instead of only the edit-distance margin a designed panel pins to
+# three values (escapepod-rs#241). See `ldx.ref_scores` below for what that buys
+# and what it still does not.
 #
 # 0.12.0 is ALSO the floor for scoring on the sidecar path: it made `.p5s`
 # columns numeric. Before it a sidecar held dictionary-encoded labels only, so
@@ -123,7 +150,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
 #     vendored nbc16 model declares.
-escpod_version: 0.12.0
+escpod_version: 0.17.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -279,11 +306,20 @@ ldx:
   # 94% of wall), so a second GPU would push further. The lattice decode stays
   # on the CPU regardless, so `threads` still matters.
   #
-  # THIS REQUIRES A SOURCE BUILD. The released escpod carries no GPU code and
-  # rejects --gpu as an unknown argument, so `escapepod_demux` resolves the
-  # locally built `<escpod_version>-gpu` binary instead (see get_escpod_bin in
-  # demux.smk) and fails loudly naming the build command if it is missing.
-  # `escpod_version` itself stays on the release — every other rule uses it.
+  # This needs the GPU BUILD of escpod, which since 0.17.1 ships as a release
+  # artifact (`...-x86_64-unknown-linux-gnu-gpu.tar.gz`) and is downloaded by
+  # `pixi run setup`; before that it required building the private repo from
+  # source. `escapepod_demux` still resolves it out of
+  # `resources/tools/escpod/<escpod_version>-gpu/` (see get_escpod_bin in
+  # demux.smk) and fails loudly if it is missing — only the provenance changed,
+  # not the path. `scripts/install-escpod-gpu.sh` remains for building an
+  # unreleased ref, but is no longer on anyone's normal path.
+  #
+  # The GPU artifact is the one DYNAMICALLY linked build (glibc >= 2.28; RHEL 9
+  # here is 2.34) because the CUDA runtimes are dlopened. It is x86_64 Linux
+  # only, so `ldx.gpu: true` is unavailable on macOS and aarch64 regardless.
+  # `escpod_version` is shared with the musl default — every other rule uses
+  # that one — and both are installed under the same version string.
   #
   # Also needs a CUDA libonnxruntime on ORT_DYLIB_PATH (`pixi run
   # install-ort-gpu`) and cuDNN (`pixi install -e gpu`). Without cuDNN the CUDA
