@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.2.1] - 2026-08-26
+
 ### Fixed
 - **`get_align_stats` and `get_charging_summary` closed the interpreter's stdout.** Both called `fout.close()` unconditionally, but `fout` is `sys.stdout` whenever `--out` is not given. Harmless in the pipeline, which always passes `--out` and where the process was exiting anyway, but wrong for any interactive or piped use. Both now borrow stdout through a context manager and only close a handle they opened.
 - **`get_trna_charging_cpm` never closed its output file.** It relied on CPython refcounting to close the handle at function exit, which happens to work and would not under a different interpreter, or if an exception kept the frame alive. On the gzip branch that is a truncated file, since the trailer is only written on close. Now a `with` block.
