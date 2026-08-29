@@ -171,7 +171,23 @@ set-resources:
     slurm_account: gpu_rbi
     gres: "gpu:4"
     runtime: "285m"   # 4h45 -- see note above
-    mem_mb: 128000
+    # 192 GB, and DO NOT TRIM THIS ON THE BENCHMARK. A single-POD5 `dorado
+    # basecaller` run peaks around 16 GiB, which makes any number here look
+    # absurd -- but that benchmark passes no --read-ids and reads one file.
+    # This rule runs --recursive across every POD5 of a run while filtering a
+    # read-id set, and its host memory CLIMBS THROUGHOUT: measured 2026-08-29
+    # on the Watt pus4 flowcell (72 POD5, 4,889,538 of 32,541,382 reads kept),
+    # RSS was 81 GiB half an hour in and 124.9 GiB at the end -- against a
+    # 125 GiB request. It completed with roughly 130 MB to spare, which is not
+    # a margin, it is luck.
+    #
+    # So the old 128000 was accidentally almost right and is now raised, not
+    # lowered. It scales with the reads kept, so a bigger sample set needs
+    # more again; re-measure with `sacct -j <id>.0 --format=MaxRSS` rather than
+    # assuming this covers it. There is no resume, so an OOM kill costs the
+    # whole basecall -- the same asymmetry as the walltime above. compgpu
+    # nodes have 251 GB, so 192 still co-schedules.
+    mem_mb: 192000
     cpus_per_task: 32
 
   ldx_split_parent_map:
