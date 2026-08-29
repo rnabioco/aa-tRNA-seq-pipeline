@@ -101,7 +101,21 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.17.1 is what we run. Two things make it the version to be on:
+# 0.17.2 is what we run. It is a patch on 0.17.1 and changes nothing this
+# pipeline calls: the fix is that every POD5-consuming command resolves its
+# inputs the same way, so a DIRECTORY expands to the `*.pod5` under it, a
+# missing path says `Path does not exist:`, and an empty directory says so.
+# `demux basecall` and `demux fingerprint` were the bad cases — given a
+# directory they warned, wrote a header-only table and EXITED 0, which is
+# indistinguishable from a run where no read passed. We never hit that: the
+# only escpod subcommand this pipeline invokes is the fused `demux`, and
+# demux.smk passes shell globs (`<dir>/*.pod5`), never a bare directory. What
+# we gain is the failure mode of an unmatched glob -- previously a bare
+# `No such device (os error 19)` out of the mmap, now a named missing path.
+# Taken because it is a strict patch on the floor below, not because it fixes
+# something seen here.
+#
+# 0.17.1 is the floor, and two things put it there:
 #   - it is the first release to ship a GPU BINARY
 #     (`escpod-v<ver>-x86_64-unknown-linux-gnu-gpu.tar.gz`), so `ldx.gpu: true`
 #     no longer needs a source build of the private repo. `pixi run setup`
@@ -150,7 +164,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
 #     vendored nbc16 model declares.
-escpod_version: 0.17.1
+escpod_version: 0.17.2
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)

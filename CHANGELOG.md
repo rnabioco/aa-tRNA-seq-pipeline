@@ -4,6 +4,10 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **`escpod` repinned 0.17.1 -> 0.17.2**, all five release tarballs rechecksummed from the release's `SHA256SUMS.txt`. 0.17.2 makes every POD5-consuming command resolve its inputs through `resolve_pod5_inputs`, so a directory expands to the `*.pod5` under it, a missing path reports `Path does not exist:`, and an empty directory says so (escapepod-rs#293). The bad cases were `demux basecall` and `demux fingerprint`: handed a directory they logged one WARN, wrote a header-only table and **exited 0** — indistinguishable downstream from a run where no read passed. **We were not exposed to that.** The only escpod subcommand this pipeline invokes is the fused `demux`, and `demux.smk` passes shell globs (`<dir>/*.pod5`), never a bare directory; the fused pipeline additionally died loudly on a directory rather than exiting 0. What actually improves here is the failure mode of an unmatched glob — previously a bare `No such device (os error 19)` out of the mmap, now a named missing path. Taken as a strict patch on the 0.17.1 floor, not as a fix for anything observed on this pipeline.
+- Verified before pinning, because 0.17.0 taught us not to trust a version number: the `v0.17.2` GitHub Release exists with all five binary artifacts **including the GPU build** (0.17.0's failure was precisely that the GPU artifact failed to build, skipping the release job and leaving a PyPI-only phantom). The two x86_64 Linux tarballs were downloaded and hashed independently against `SHA256SUMS.txt`, and the GPU binary was checked the way `install-escpod-gpu.sh` checks its own builds — `CUDAExecutionProvider` is present in the GPU tarball and absent from the musl one — so the GPU features genuinely took.
+
 ## [v0.2.1] - 2026-08-26
 
 ### Fixed
