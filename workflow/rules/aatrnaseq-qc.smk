@@ -74,6 +74,83 @@ rule base_calling_error:
         """
 
 
+rule bcerror_sites:
+    """
+    Select candidate modification sites from base-calling error rates.
+
+    Sites are chosen once across all samples so that the per-read calls below
+    cover the same positions in every sample and can be compared directly.
+    """
+    input:
+        tsv=expand(
+            os.path.join(
+                outdir, "summary", "tables", "{sample}", "{sample}.bcerror.tsv.gz"
+            ),
+            sample=samples.keys(),
+        ),
+    output:
+        tsv=os.path.join(outdir, "summary", "tables", "bcerror_sites.tsv.gz"),
+    log:
+        os.path.join(outdir, "logs", "mismatch_calls", "bcerror_sites"),
+    params:
+        src=SCRIPT_DIR,
+        min_error=config.get("mismatch_calls", {}).get("min_error", 0.1),
+        min_cov=config.get("mismatch_calls", {}).get("min_coverage", 20),
+        min_samples=config.get("mismatch_calls", {}).get("min_samples", 1),
+    shell:
+        """
+        python {params.src}/select_bcerror_sites.py \
+            {input.tsv} \
+            --output {output.tsv} \
+            --min-error {params.min_error} \
+            --min-cov {params.min_cov} \
+            --min-samples {params.min_samples} \
+            2>&1 | tee {log}
+        """
+
+
+rule mismatch_calls:
+    """
+    Emit per-read base-calling error calls at the selected sites.
+
+    This is the read-level counterpart of the base_calling_error rule, and gives
+    downstream co-occurrence analysis (for example modification against charging)
+    a per-read signal that does not depend on the modification caller.
+    """
+    input:
+        bam=rules.finalize_bam.output.bam,
+        bai=rules.finalize_bam.output.bai,
+        sites=rules.bcerror_sites.output.tsv,
+    output:
+        tsv=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.mismatch_calls.tsv.gz"
+        ),
+        counts=os.path.join(
+            outdir, "summary", "tables", "{sample}", "{sample}.charging_error.tsv.gz"
+        ),
+    log:
+        os.path.join(outdir, "logs", "mismatch_calls", "{sample}"),
+    params:
+        src=SCRIPT_DIR,
+        fa=get_validated_reference(),
+        offset_5p=get_5p_offset(),
+        offset_3p=get_3p_offset(),
+        ml_thresh=config.get("mismatch_calls", {}).get("ml_threshold", 200),
+    shell:
+        """
+        python {params.src}/get_mismatch_calls.py \
+            {input.bam} \
+            {params.fa} \
+            {output.tsv} \
+            --counts {output.counts} \
+            --sites {input.sites} \
+            --offset-5p {params.offset_5p} \
+            --offset-3p {params.offset_3p} \
+            --ml-threshold {params.ml_thresh} \
+            2>&1 | tee {log}
+        """
+
+
 rule align_stats:
     """
     extract alignment stats
