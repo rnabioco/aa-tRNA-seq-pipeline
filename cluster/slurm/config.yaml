@@ -119,7 +119,18 @@ set-resources:
     slurm_partition: gpu
     slurm_account: gpu_rbi
     gres: "gpu:1"
-    runtime: "8h"
+    # 12h, not 8. Like rebasecall_ldx_run below this rule has NO RESUME -- it is
+    # one `escpod demux` writing its sidecars and --classifications in a single
+    # pass, so a job killed on wall clock loses the whole thing rather than a
+    # tail of it. Measured 2026-08-26 on 4x A30 (one device; escpod is
+    # single-GPU): 422 GB of POD5 in 283 min = 1.49 GB/min, INCLUDING the ~50
+    # onnxruntime arena OOM retries that run hit. The complete 2026-08-21 Watt
+    # pus4 flowcell is 559 GB, so ~375 min -- which left the old 8h just 105 min
+    # of margin on a 6.2h job, from a single measurement. Overrunning destroys
+    # ~6 h of GPU; asking for more only risks not starting, and only when a
+    # maintenance reservation is pending. Check `scontrol show reservation`
+    # before trusting a number this large.
+    runtime: "12h"
     mem_mb: 48000
     # escpod is SINGLE-GPU: `--device` takes auto|cpu|gpu with no index or
     # count, and the encoder logs `worker(s) on GPU [0]`. gres above stays 1 --
