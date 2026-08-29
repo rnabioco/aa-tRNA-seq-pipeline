@@ -121,19 +121,47 @@ set-resources:
     gres: "gpu:1"
     runtime: "8h"
     mem_mb: 48000
-    cpus_per_task: 16
+    # escpod is SINGLE-GPU: `--device` takes auto|cpu|gpu with no index or
+    # count, and the encoder logs `worker(s) on GPU [0]`. gres above stays 1 --
+    # asking for more allocates devices it cannot address. The only lever here
+    # is threads, and the GPU is ~94% of wall, so it is worth a few percent.
+    # 32 to match `ldx.threads` in the project config; at 16 this silently
+    # halved what the config asked for, since cpus_per_task overrides `threads`.
+    cpus_per_task: 32
 
   # The LDX run basecall. Same work as `rebasecall`, gathered into one job
-  # instead of one per sample, so it needs the same GPU and a runtime that
-  # covers the whole flowcell rather than a barcode's share of it. If it does
-  # run out of wall clock, dorado's --resume-from picks up from the partial BAM.
+  # instead of one per sample, so it needs a runtime that covers the whole
+  # flowcell rather than a barcode's share of it.
+  #
+  # THERE IS NO RESUME. This rule is a plain `dorado basecaller ... >{output}`;
+  # nothing passes --resume-from, and the output is a shell redirect, so a job
+  # killed on wall clock loses the entire basecall rather than a tail of it.
+  # Size `runtime` to finish, not to be generous -- and when a maintenance
+  # reservation is pending, remember Slurm will not START a job whose walltime
+  # crosses into it, so an over-large request means the job simply never runs.
+  #
+  # dorado is not pinned to a device (`opts.dorado` passes no -x), so it uses
+  # every visible GPU and scales across all four on a node. Measured here on
+  # 2026-08-26, 4x A30, rna004_130bps_sup@v5.3.0 with the four mod models:
+  # 928,690 reads in 569 s = 1,632 reads/s wall (1,789 steady, the difference
+  # being dorado's batch-size benchmarking at startup). The 2026-08-21 Watt
+  # pus4 flowcell is 27.7M reads, ~92% of which demux assigns, so ~25.5M reads
+  # => ~4.3 h (260 min).
+  #
+  # 4h45 rather than a round 5h, and the asymmetry is the reason. Overrunning
+  # the walltime destroys the whole basecall, since there is no resume; failing
+  # to START only costs the attempt, because demux's output is already on disk.
+  # So margin belongs on the job, not on the deadline: 285 min is 25 min over
+  # the measured need, and still lets Slurm start it as late as 01:15 against
+  # the 06:00 reservation. Re-derive this against the next reservation rather
+  # than inheriting it -- it encodes a date, not a property of the data.
   rebasecall_ldx_run:
     slurm_partition: gpu
     slurm_account: gpu_rbi
-    gres: "gpu:1"
-    runtime: "24h"
-    mem_mb: 48000
-    cpus_per_task: 8
+    gres: "gpu:4"
+    runtime: "285m"   # 4h45 -- see note above
+    mem_mb: 128000
+    cpus_per_task: 32
 
   ldx_split_parent_map:
     runtime: "2h"
