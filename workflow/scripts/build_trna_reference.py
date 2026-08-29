@@ -125,7 +125,7 @@ def _within_mismatches(seq_a, seq_b, max_mismatch):
     within the first few bases.
     """
     mismatches = 0
-    for a, b in zip(seq_a, seq_b):
+    for a, b in zip(seq_a, seq_b, strict=True):
         if a != b:
             mismatches += 1
             if mismatches > max_mismatch:
