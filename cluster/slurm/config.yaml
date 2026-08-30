@@ -185,23 +185,26 @@ set-resources:
     slurm_account: gpu_rbi
     gres: "gpu:4"
     runtime: "285m"   # 4h45 -- see note above
-    # 192 GB, and DO NOT TRIM THIS ON THE BENCHMARK. A single-POD5 `dorado
-    # basecaller` run peaks around 16 GiB, which makes any number here look
-    # absurd -- but that benchmark passes no --read-ids and reads one file.
-    # This rule runs --recursive across every POD5 of a run while filtering a
-    # read-id set, and its host memory CLIMBS THROUGHOUT: measured 2026-08-29
-    # on the Watt pus4 flowcell (72 POD5, 4,889,538 of 32,541,382 reads kept),
-    # RSS was 81 GiB half an hour in and 124.9 GiB at the end -- against a
-    # 125 GiB request. It completed with roughly 130 MB to spare, which is not
-    # a margin, it is luck.
+    # 128 GB, and this number is a BUDGET, not a requirement -- dorado expands
+    # to whatever the cgroup allows. Two runs of this rule over the identical
+    # 4,889,538 reads, same node, same GPUs:
     #
-    # So the old 128000 was accidentally almost right and is now raised, not
-    # lowered. It scales with the reads kept, so a bigger sample set needs
-    # more again; re-measure with `sacct -j <id>.0 --format=MaxRSS` rather than
-    # assuming this covers it. There is no resume, so an OOM kill costs the
-    # whole basecall -- the same asymmetry as the walltime above. compgpu
-    # nodes have 251 GB, so 192 still co-schedules.
-    mem_mb: 192000
+    #   request 125.0 GiB -> peak 124.9 GiB, elapsed 01:02:39
+    #   request 187.5 GiB -> peak 187.4 GiB, elapsed 01:02:38
+    #
+    # The peak tracks the LIMIT at 99.9%, twice, and the extra 62.5 GiB bought
+    # one second. So a run "finishing with 130 MB to spare" is not a near miss
+    # and is not evidence the ceiling is too low; it is what adaptive sizing
+    # looks like from the outside. Raising this on that reading -- which is
+    # what took it to 192000 -- cost 62 GiB of a 251 GB node for nothing and
+    # made the job harder to co-schedule.
+    #
+    # 125 GiB is the smallest figure PROVEN here, so that is what it is set to.
+    # Lower is likely fine and is worth measuring; if you test it, watch the
+    # elapsed time rather than MaxRSS, because MaxRSS will simply follow
+    # whatever you set. Note the single-POD5 `dorado basecaller` benchmark
+    # (~16 GiB, no --read-ids, one file) is not comparable to this rule either.
+    mem_mb: 128000
     cpus_per_task: 32
 
   ldx_split_parent_map:
