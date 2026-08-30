@@ -109,7 +109,38 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.17.1 is what we run. Two things make it the version to be on:
+# 0.18.1 is what we run, and it is the first version this pipeline can run
+# `classify_charging` on at all.
+#
+# escapepod-rs#298: `signal classify` located the CCA|adapter junction by
+# requiring the motif `CCAGGC` to occur exactly once per reference record, and
+# checked that BEFORE the common arm that actually identifies the junction. The
+# motif is only CCA plus the adapter's opening bases, so a tRNA body carries it
+# by chance in ~1.5% of records -- 4 of 282 in hg38, 51 of 3315 in danRer11 --
+# and ONE such record aborted the whole run for that sample. Pruning them is not
+# an option: 48 of danRer11's 51 are Glu. Fixed in escapepod-rs#299, which is in
+# 0.18.1 and NOT in 0.18.0 (0.18.0 was tagged 02:17:02Z, the fix merged
+# 02:18:55Z). Do not pin 0.18.0 for this pipeline.
+#
+# 0.18.0 also brings three things that matter to `escapepod_demux`, which is why
+# cluster/slurm/config.yaml now asks for two GPUs:
+#   - the CRF encoder pool uses every visible GPU instead of reserving one for
+#     adapter detection, which is ~5% of device time. Two GPUs go from 1.19x to
+#     2.01x against one (upstream measurement, 1.3M reads).
+#   - `--ref-scores`, which `ldx.ref_scores: true` turns on below, finally has a
+#     GPU decode path: 38.7 s -> 31.5 s and 5.9 cores -> 1.3 on 100k reads.
+#   - the encoder's onnxruntime sessions no longer spin. Each worker built an
+#     intra-op pool `--threads` wide, so our `--threads 32` with two workers put
+#     64 spinning threads on a 32-core allocation.
+# Barcode calls are unchanged by all three (identical on 100,654 reads upstream;
+# crf_logp/crf_margin/mean_logpost agree to 2e-4).
+#
+# 0.17.2 made every POD5-consuming command resolve inputs the same way, so a
+# directory expands and a missing path is named. We were never exposed: the only
+# subcommand invoked here is the fused `demux`, and demux.smk passes shell globs
+# (`<dir>/*.pod5`), never a bare directory.
+#
+# 0.17.1 is the floor, and two things put it there:
 #   - it is the first release to ship a GPU BINARY
 #     (`escpod-v<ver>-x86_64-unknown-linux-gnu-gpu.tar.gz`), so `ldx.gpu: true`
 #     no longer needs a source build of the private repo. `pixi run setup`
@@ -158,7 +189,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
 #     vendored nbc16 model declares.
-escpod_version: 0.17.1
+escpod_version: 0.18.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
