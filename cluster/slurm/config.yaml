@@ -66,15 +66,22 @@ set-resources:
     # What drives it is `bwa mem -k 6` on a small, dense reference: a 6-mer
     # recurs ~55 times in the 1246-record danRer11 build, so seed chaining
     # dominates. `samtools sort -m 2G -@ 4` is only 8 GB of the total.
-    # Measured 2026-08-29 on the Watt pus4 flowcell:
+    # Measured 2026-08-29 on the Watt pus4 flowcell, and note the ORDER:
     #
-    #   633,582 reads    78.6 GiB   completed
-    #   1,429,498 reads  90.1 GiB   OOM-KILLED at 96000 (so it wanted more)
+    #     633,582 reads   78.6 GiB   completed
+    #   1,429,498 reads   90.1 GiB   OOM-KILLED at 96000
+    #   1,937,960 reads   87.2 GiB   completed
     #
-    # That is a large fixed cost plus a modest per-read term -- roughly 61 GiB
-    # + 27 GiB per million reads -- which puts the deepest sample here
-    # (1,937,960 reads) near 114 GiB. 160000 covers that with ~40% margin and
-    # still co-schedules on a 251 GB node.
+    # The DEEPEST sample used less than the one that died, so this does not
+    # scale with read count and cannot be sized from it. The usage sits in a
+    # 78-90 GiB band whose position within it is not explained by depth --
+    # most likely a few reads with pathological seed fan-out, which is a
+    # property of the sequences, not of how many there are. Treat 96000 as
+    # inside the noise rather than as a limit that was merely a little too low.
+    #
+    # 160000 is roughly 1.8x the top of the observed band. It is chosen for
+    # margin against variance, not against a trend, and still co-schedules on
+    # a 251 GB node.
     #
     # Memory also scales with `-t`, so cutting cpus_per_task is the other lever
     # if a future reference is denser still. Raising max_mismatch in the project
