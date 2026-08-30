@@ -6,7 +6,7 @@ platforms:
   - __linux=4.18
   - __glibc=2.28
   - __archspec=0=x86_64
-- name: p1
+- name: linux-64-cuda-13
   subdir: linux-64
   virtual-packages:
   - __cuda=13
@@ -712,7 +712,7 @@ environments:
     - url: https://conda.anaconda.org/conda-forge/
     - url: https://conda.anaconda.org/bioconda/
     packages:
-      p1:
+      linux-64-cuda-13:
       - conda: https://conda.anaconda.org/bioconda/linux-64/bedtools-2.31.1-h13024bc_3.tar.bz2
       - conda: https://conda.anaconda.org/bioconda/linux-64/bwa-0.7.19-h577a1d6_1.tar.bz2
       - conda: https://conda.anaconda.org/bioconda/linux-64/deeptoolsintervals-0.1.9-py312h9639c01_12.conda
