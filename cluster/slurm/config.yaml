@@ -118,7 +118,13 @@ set-resources:
   escapepod_demux:
     slurm_partition: gpu
     slurm_account: gpu_rbi
-    gres: "gpu:1"
+    # 2 GPUs. Through escpod 0.17.x this was correctly 1: `--device` took only
+    # auto|cpu|gpu, with no index or count, and the encoder logged
+    # `worker(s) on GPU [0]`, so a second device would be allocated and left
+    # idle. That is no longer the constraint -- raised on the author's word that
+    # two are usable. If a run still logs a single device, put this back to 1
+    # rather than holding a GPU nothing addresses.
+    gres: "gpu:2"
     # 12h, not 8. Like rebasecall_ldx_run below this rule has NO RESUME -- it is
     # one `escpod demux` writing its sidecars and --classifications in a single
     # pass, so a job killed on wall clock loses the whole thing rather than a
@@ -130,14 +136,22 @@ set-resources:
     # ~6 h of GPU; asking for more only risks not starting, and only when a
     # maintenance reservation is pending. Check `scontrol show reservation`
     # before trusting a number this large.
+    #
+    # The 2026-08-29 rerun then did 559 GB / 32.5M reads in 3h22 -- 1.65x the
+    # reads per minute of the 4h43 run, on an IDENTICAL allocation: same node,
+    # 32 cpu, 1 GPU, same escpod 0.17.1. The cause is NOT established. It is not
+    # the thread count and not the version, and the faster run had more
+    # competing GPU work, not less; warm page cache on the re-read POD5 is the
+    # obvious candidate and is untested. Keep the headroom until the throughput
+    # is understood, rather than sizing to the good run.
     runtime: "12h"
     mem_mb: 48000
-    # escpod is SINGLE-GPU: `--device` takes auto|cpu|gpu with no index or
-    # count, and the encoder logs `worker(s) on GPU [0]`. gres above stays 1 --
-    # asking for more allocates devices it cannot address. The only lever here
-    # is threads, and the GPU is ~94% of wall, so it is worth a few percent.
-    # 32 to match `ldx.threads` in the project config; at 16 this silently
-    # halved what the config asked for, since cpus_per_task overrides `threads`.
+    # 32 to match `ldx.threads` in the project config. The committed default was
+    # 16, which silently halves what the config asks for, since the profile's
+    # default-resources overrides a rule's own `threads:`. That is a real bug,
+    # but NEITHER Watt pus4 run hit it -- both ran at 32, the first from an
+    # uncommitted working tree -- so the speed value of this bump is UNMEASURED
+    # here. Do not cite either run as evidence for it.
     cpus_per_task: 32
 
   # The LDX run basecall. Same work as `rebasecall`, gathered into one job
