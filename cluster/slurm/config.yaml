@@ -58,7 +58,29 @@ set-resources:
   # CPU-intensive rules
   bwa_align:
     runtime: "12h"
-    mem_mb: 96000
+    # 160 GB. Unlike rebasecall_ldx_run below, this number IS a requirement:
+    # bwa does not expand to the cgroup limit. MUT_rep1 used 78.6 of the
+    # 93.75 GiB available and stopped there, so MaxRSS here is a real
+    # measurement rather than a reflection of the budget.
+    #
+    # What drives it is `bwa mem -k 6` on a small, dense reference: a 6-mer
+    # recurs ~55 times in the 1246-record danRer11 build, so seed chaining
+    # dominates. `samtools sort -m 2G -@ 4` is only 8 GB of the total.
+    # Measured 2026-08-29 on the Watt pus4 flowcell:
+    #
+    #   633,582 reads    78.6 GiB   completed
+    #   1,429,498 reads  90.1 GiB   OOM-KILLED at 96000 (so it wanted more)
+    #
+    # That is a large fixed cost plus a modest per-read term -- roughly 61 GiB
+    # + 27 GiB per million reads -- which puts the deepest sample here
+    # (1,937,960 reads) near 114 GiB. 160000 covers that with ~40% margin and
+    # still co-schedules on a 251 GB node.
+    #
+    # Memory also scales with `-t`, so cutting cpus_per_task is the other lever
+    # if a future reference is denser still. Raising max_mismatch in the project
+    # config is a third: it shrinks the reference and with it the 6-mer hit
+    # density that causes this.
+    mem_mb: 160000
     cpus_per_task: 16
 
   modkit_extract_calls:
