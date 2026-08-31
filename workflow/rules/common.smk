@@ -464,6 +464,34 @@ def pipeline_outputs():
     #     sample=samples.keys(),
     # )
 
+    # Per-read base-calling error calls, for co-occurrence analysis that does
+    # not depend on the modification caller. Off by default: the BAM walk is
+    # expensive and only some projects need read-level calls.
+    if config.get("mismatch_calls", {}).get("enabled", False):
+        outs.append(os.path.join(outdir, "summary", "tables", "bcerror_sites.tsv.gz"))
+
+        outs += expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.mismatch_calls.tsv.gz",
+            ),
+            sample=samples.keys(),
+        )
+
+        outs += expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.charging_error.tsv.gz",
+            ),
+            sample=samples.keys(),
+        )
+
     # outs += expand(
     #     os.path.join(
     #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
