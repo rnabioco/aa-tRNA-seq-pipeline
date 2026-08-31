@@ -9,6 +9,11 @@ logs
 .vscode
 results/
 resources/tools/*
+# Sibling source repos cloned in here to build against -- escapepod-rs is the
+# GPU build the escpod pin is cut from, leech is left over from before #124
+# retired it. Checkouts of other repositories, not content of this one.
+resources/escapepod-rs/
+resources/leech/
 *.bam
 *.pod5
 # ...except the checked-in LDX demux fixture, which is deliberately
@@ -21,7 +26,10 @@ resources/tools/*
 # i.e. into the raw data directory, which for the committed fixture is inside this
 # repo. Derived from a run, never vendored.
 *.p5s
-.tmp_pod5_v3_v4_migration_*/
+# pod5 writes these while migrating a run to a newer file version, and names
+# them after the version pair -- so a v3->v4 pattern stops matching the moment
+# pod5 ships v5. Match any pair.
+.tmp_pod5_v?_v?_migration_*/
 
 # python testing
 __pycache__/

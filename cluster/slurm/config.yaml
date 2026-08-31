@@ -58,7 +58,36 @@ set-resources:
   # CPU-intensive rules
   bwa_align:
     runtime: "12h"
-    mem_mb: 96000
+    # 160 GB. Unlike rebasecall_ldx_run below, this number IS a requirement:
+    # bwa does not expand to the cgroup limit. MUT_rep1 used 78.6 of the
+    # 93.75 GiB available and stopped there, so MaxRSS here is a real
+    # measurement rather than a reflection of the budget.
+    #
+    # What drives it is `bwa mem -k 6` on a small, dense reference: a 6-mer
+    # recurs ~55 times in the 1246-record danRer11 build, so seed chaining
+    # dominates. `samtools sort -m 2G -@ 4` is only 8 GB of the total.
+    # Measured 2026-08-29 on the Watt pus4 flowcell, and note the ORDER:
+    #
+    #     633,582 reads   78.6 GiB   completed
+    #   1,429,498 reads   90.1 GiB   OOM-KILLED at 96000
+    #   1,937,960 reads   87.2 GiB   completed
+    #
+    # The DEEPEST sample used less than the one that died, so this does not
+    # scale with read count and cannot be sized from it. The usage sits in a
+    # 78-90 GiB band whose position within it is not explained by depth --
+    # most likely a few reads with pathological seed fan-out, which is a
+    # property of the sequences, not of how many there are. Treat 96000 as
+    # inside the noise rather than as a limit that was merely a little too low.
+    #
+    # 160000 is roughly 1.8x the top of the observed band. It is chosen for
+    # margin against variance, not against a trend, and still co-schedules on
+    # a 251 GB node.
+    #
+    # Memory also scales with `-t`, so cutting cpus_per_task is the other lever
+    # if a future reference is denser still. Raising max_mismatch in the project
+    # config is a third: it shrinks the reference and with it the 6-mer hit
+    # density that causes this.
+    mem_mb: 160000
     cpus_per_task: 16
 
   modkit_extract_calls:
@@ -118,22 +147,94 @@ set-resources:
   escapepod_demux:
     slurm_partition: gpu
     slurm_account: gpu_rbi
-    gres: "gpu:1"
-    runtime: "8h"
+    # 2 GPUs. Through escpod 0.17.x this was correctly 1: `--device` took only
+    # auto|cpu|gpu, with no index or count, and the encoder logged
+    # `worker(s) on GPU [0]`, so a second device would be allocated and left
+    # idle. That is no longer the constraint -- raised on the author's word that
+    # two are usable. If a run still logs a single device, put this back to 1
+    # rather than holding a GPU nothing addresses.
+    gres: "gpu:2"
+    # 12h, not 8. Like rebasecall_ldx_run below this rule has NO RESUME -- it is
+    # one `escpod demux` writing its sidecars and --classifications in a single
+    # pass, so a job killed on wall clock loses the whole thing rather than a
+    # tail of it. Measured 2026-08-26 on 4x A30 (one device; escpod is
+    # single-GPU): 422 GB of POD5 in 283 min = 1.49 GB/min, INCLUDING the ~50
+    # onnxruntime arena OOM retries that run hit. The complete 2026-08-21 Watt
+    # pus4 flowcell is 559 GB, so ~375 min -- which left the old 8h just 105 min
+    # of margin on a 6.2h job, from a single measurement. Overrunning destroys
+    # ~6 h of GPU; asking for more only risks not starting, and only when a
+    # maintenance reservation is pending. Check `scontrol show reservation`
+    # before trusting a number this large.
+    #
+    # The 2026-08-29 rerun then did 559 GB / 32.5M reads in 3h22 -- 1.65x the
+    # reads per minute of the 4h43 run, on an IDENTICAL allocation: same node,
+    # 32 cpu, 1 GPU, same escpod 0.17.1. The cause is NOT established. It is not
+    # the thread count and not the version, and the faster run had more
+    # competing GPU work, not less; warm page cache on the re-read POD5 is the
+    # obvious candidate and is untested. Keep the headroom until the throughput
+    # is understood, rather than sizing to the good run.
+    runtime: "12h"
     mem_mb: 48000
-    cpus_per_task: 16
+    # 32 to match `ldx.threads` in the project config. The committed default was
+    # 16, which silently halves what the config asks for, since the profile's
+    # default-resources overrides a rule's own `threads:`. That is a real bug,
+    # but NEITHER Watt pus4 run hit it -- both ran at 32, the first from an
+    # uncommitted working tree -- so the speed value of this bump is UNMEASURED
+    # here. Do not cite either run as evidence for it.
+    cpus_per_task: 32
 
   # The LDX run basecall. Same work as `rebasecall`, gathered into one job
-  # instead of one per sample, so it needs the same GPU and a runtime that
-  # covers the whole flowcell rather than a barcode's share of it. If it does
-  # run out of wall clock, dorado's --resume-from picks up from the partial BAM.
+  # instead of one per sample, so it needs a runtime that covers the whole
+  # flowcell rather than a barcode's share of it.
+  #
+  # THERE IS NO RESUME. This rule is a plain `dorado basecaller ... >{output}`;
+  # nothing passes --resume-from, and the output is a shell redirect, so a job
+  # killed on wall clock loses the entire basecall rather than a tail of it.
+  # Size `runtime` to finish, not to be generous -- and when a maintenance
+  # reservation is pending, remember Slurm will not START a job whose walltime
+  # crosses into it, so an over-large request means the job simply never runs.
+  #
+  # dorado is not pinned to a device (`opts.dorado` passes no -x), so it uses
+  # every visible GPU and scales across all four on a node. Measured here on
+  # 2026-08-26, 4x A30, rna004_130bps_sup@v5.3.0 with the four mod models:
+  # 928,690 reads in 569 s = 1,632 reads/s wall (1,789 steady, the difference
+  # being dorado's batch-size benchmarking at startup). The 2026-08-21 Watt
+  # pus4 flowcell is 27.7M reads, ~92% of which demux assigns, so ~25.5M reads
+  # => ~4.3 h (260 min).
+  #
+  # 4h45 rather than a round 5h, and the asymmetry is the reason. Overrunning
+  # the walltime destroys the whole basecall, since there is no resume; failing
+  # to START only costs the attempt, because demux's output is already on disk.
+  # So margin belongs on the job, not on the deadline: 285 min is 25 min over
+  # the measured need, and still lets Slurm start it as late as 01:15 against
+  # the 06:00 reservation. Re-derive this against the next reservation rather
+  # than inheriting it -- it encodes a date, not a property of the data.
   rebasecall_ldx_run:
     slurm_partition: gpu
     slurm_account: gpu_rbi
-    gres: "gpu:1"
-    runtime: "24h"
-    mem_mb: 48000
-    cpus_per_task: 8
+    gres: "gpu:4"
+    runtime: "285m"   # 4h45 -- see note above
+    # 128 GB, and this number is a BUDGET, not a requirement -- dorado expands
+    # to whatever the cgroup allows. Two runs of this rule over the identical
+    # 4,889,538 reads, same node, same GPUs:
+    #
+    #   request 125.0 GiB -> peak 124.9 GiB, elapsed 01:02:39
+    #   request 187.5 GiB -> peak 187.4 GiB, elapsed 01:02:38
+    #
+    # The peak tracks the LIMIT at 99.9%, twice, and the extra 62.5 GiB bought
+    # one second. So a run "finishing with 130 MB to spare" is not a near miss
+    # and is not evidence the ceiling is too low; it is what adaptive sizing
+    # looks like from the outside. Raising this on that reading -- which is
+    # what took it to 192000 -- cost 62 GiB of a 251 GB node for nothing and
+    # made the job harder to co-schedule.
+    #
+    # 125 GiB is the smallest figure PROVEN here, so that is what it is set to.
+    # Lower is likely fine and is worth measuring; if you test it, watch the
+    # elapsed time rather than MaxRSS, because MaxRSS will simply follow
+    # whatever you set. Note the single-POD5 `dorado basecaller` benchmark
+    # (~16 GiB, no --read-ids, one file) is not comparable to this rule either.
+    mem_mb: 128000
+    cpus_per_task: 32
 
   ldx_split_parent_map:
     runtime: "2h"
