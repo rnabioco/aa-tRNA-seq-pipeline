@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Find a `--min-crf-margin` operating point for the WDX4 CTC-CRF bundle.
 
-The concordance study left the CRF close to usable but not there: on the
-held-out run it agreed with WarpDemuX on 98.85% of the teacher's confident
-calls, with 0.51% cross-barcode -- against a gate of 99.0% and 0.20%. Its
+The concordance study left the CRF close to usable but not there: it agreed
+with WarpDemuX on 98.85% of the teacher's confident calls, with 0.51%
+cross-barcode -- against a gate of 99.0% and 0.20%. (That run is IN the CRF's
+training corpus, so the figure is optimistic; the v0.2.0 split is a random
+read-level 10%, not leave-one-run-out, and every WDX4 run in the project is in
+it. Re-derive on a genuinely held-out run before shipping a value.) Its
 failure is not uniform, though, and the CRF emits a per-read lattice score, so
 the question is whether a confidence gate buys the remaining distance at an
 acceptable cost in yield.
