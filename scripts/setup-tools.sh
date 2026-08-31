@@ -22,15 +22,15 @@ ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 # Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
 # Pinned rather than fetched alongside the tarball so that re-tagging the
 # release upstream is caught here instead of being silently trusted.
-ESCPOD_SHA256_x86_64_linux="bc0ea7090974cc74517ad378e8f54901b84b4279637030d8c9fdea5fcf08c676"
-ESCPOD_SHA256_aarch64_linux="b13851083962fe606f4fd98f30deb3fbbe4f9772047d0d477ec310038adfb08f"
-ESCPOD_SHA256_x86_64_darwin="41f578913d5fc59bc02abcce58e3c3aa2d99f816511b52e3f968b7a19ba1c54d"
-ESCPOD_SHA256_aarch64_darwin="e5c4046beeeb9535b25da8cf0472839ab89255f2951dbff6c3472e52cc70acb8"
+ESCPOD_SHA256_x86_64_linux="185b92ecd890ed0044120e79d15a8b627eede92aab927668a381996833e4ca3b"
+ESCPOD_SHA256_aarch64_linux="7ccd1f09a966d766ff1920f63a3daa11384c734040d85751251253119472796b"
+ESCPOD_SHA256_x86_64_darwin="c0c1843bfe45408b18c6b59dbbf25b364699cbdb20b339342b7fe0f9c81cde04"
+ESCPOD_SHA256_aarch64_darwin="392847d096532353c9a08bc33d2d2a7a8c7287c0ae6eccf24374b24f5492248e"
 # The GPU build, for `ldx.gpu: true`. It is a SEPARATE artifact and the only
 # dynamically linked one (glibc >= 2.28), because the CUDA runtimes are
 # dlopened and so cannot be static-musl. x86_64 Linux only — upstream publishes
 # no other GPU target.
-ESCPOD_SHA256_x86_64_linux_gpu="685587b19e9c42b1ccdeb91a0af8573bda7409ac5caefd7a9c7836e2e2798740"
+ESCPOD_SHA256_x86_64_linux_gpu="51fff5e8f9e482c468b4efe06d0b186561b5fede929f2a69403c8750180b91a0"
 ESCPOD_GPU_TARGET="x86_64-unknown-linux-gnu-gpu"
 ESCPOD_GPU_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}-gpu"
 

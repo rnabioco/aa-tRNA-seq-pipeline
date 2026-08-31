@@ -101,7 +101,35 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.17.1 is what we run. Two things make it the version to be on:
+# 0.18.1 is what we run, and it is a CORRECTNESS floor for `signal classify`
+# against any reference whose tRNA bodies are not sacCer3's. The CCA|adapter
+# junction was located by requiring `CCAGGC` to occur exactly once per reference
+# record, and that check ran BEFORE the common-arm check that actually
+# identifies the junction. But the motif is just CCA plus the adapter's opening
+# bases, and a 6-mer collides over ~75 nt of tRNA body in ~1.5% of records — 4
+# of 282 in hg38, 51 of 3315 in danRer11. One such record aborted the entire run
+# for that sample. Dropping the offenders is NOT a neutral workaround: 48 of
+# danRer11's 51 are Glu, so it would remove most of one amino-acid family from a
+# charging analysis. Candidates are now filtered by the arm first and uniqueness
+# required of what survives.
+#
+# 0.18.0 fixed the reads table being written as ONE Arrow record batch however
+# large it was — `read_batch_size` was declared, defaulted and never read, so
+# `escpod filter` asking for 10,000 rows per batch wrote 40,000 reads as one.
+# It is not cosmetic for anything that reads escpod's output back: `demux`
+# shards its reader threads by batch index, so a single-batch file is decoded by
+# exactly one thread and nothing reaches the GPU until the whole file is done.
+# Every default is now 1,000, which is the geometry MinKNOW and the pod5 Python
+# package already write.
+#
+# 0.17.2 made every command that takes POD5 input accept a DIRECTORY, and refuse
+# a path that does not exist. Before it, `escpod demux basecall <run>/pod5`
+# logged one WARN, wrote a header-only CSV and exited 0 — a result nothing
+# downstream can distinguish from a run where no read passed. That matters here
+# because `get_ldx_pod5_source` hands `signal classify` a directory whenever a
+# run keeps its reads in one place.
+#
+# 0.17.1 remains a floor for two reasons of its own:
 #   - it is the first release to ship a GPU BINARY
 #     (`escpod-v<ver>-x86_64-unknown-linux-gnu-gpu.tar.gz`), so `ldx.gpu: true`
 #     no longer needs a source build of the private repo. `pixi run setup`
@@ -150,7 +178,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
 #     vendored nbc16 model declares.
-escpod_version: 0.17.1
+escpod_version: 0.18.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
