@@ -80,6 +80,7 @@ dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml"
 dry-run-ldx = { cmd = "snakemake -n --configfile=config/config-ldx-test.yml", description = "Dry run the LDX demux test DAG" }
 test-ldx = { cmd = "snakemake --configfile=config/config-ldx-test.yml --cores 8", description = "Run the LDX demux test end-to-end on the committed fixture (needs a GPU)" }
 escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0 --info", description = "Describe the vendored LDX (ldx16) CRF demux bundle" }
+escpod-model-info-wdx = { cmd = "escpod demux --model resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0 --info", description = "Describe the vendored WDX4 CRF demux bundle" }
 # Verifies vendored demux bundles against the hashes UPSTREAM declares, not
 # against any checksum file we could have written. Catches a locally patched
 # bundle, which is what #107/#108 left behind for eleven days.
