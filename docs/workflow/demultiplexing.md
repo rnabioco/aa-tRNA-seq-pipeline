@@ -34,10 +34,14 @@ Do **not** use when:
 ### 1. Install WarpDemuX
 
 ```bash
-pixi run setup
+pixi install -e warpdemux
+pixi run -e warpdemux install-warpdemux
 ```
 
-This installs WarpDemuX along with other pipeline tools (dorado, escpod).
+WarpDemuX is **opt-in since v0.3.0**: `pixi run setup` installs dorado and
+escpod but not WarpDemuX, because the escpod CRF now serves the same WDX4
+panel on the sidecar path without leaving a second copy of the run's POD5.
+Installing it is two commands, and nothing about the backend itself changed.
 
 ### 2. Create YAML Sample File
 

@@ -284,15 +284,20 @@ fi
 # ============================================================================
 # WarpDemuX Setup (via uv)
 # ============================================================================
-echo "=== Checking WarpDemuX ==="
+# Opt-in since v0.3.0, and deliberately NOT installed here. The escpod CRF now
+# serves the WDX4 panel on the sidecar path, so the default setup should not
+# clone a repo and build six compiled packages for a backend most runs no
+# longer use. Nothing about WarpDemuX itself changed; it is two commands away:
+#
+#     pixi install -e warpdemux
+#     pixi run -e warpdemux install-warpdemux
+#
+# An existing install is left alone -- this script never removed it, and a
+# machine set up before v0.3.0 keeps working.
 if python -c "import warpdemux" 2>/dev/null; then
-    echo "WarpDemuX already installed"
+    echo "=== WarpDemuX already installed (left as is) ==="
 else
-    echo "Cloning WarpDemuX..."
-    [ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX
-    echo "Installing WarpDemuX..."
-    uv pip install -e resources/tools/WarpDemuX
-    echo "WarpDemuX installed successfully"
+    echo "=== Skipping WarpDemuX (opt-in: pixi run -e warpdemux install-warpdemux) ==="
 fi
 
 # ============================================================================

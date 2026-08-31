@@ -39,14 +39,11 @@ ruff = "0.16.*"
 yamllint = "*"
 nvitop = ">=1.6.2,<2"
 rich-click = ">=1.7.0"
-# WarpDemuX dependencies (compiled packages best from conda)
-dtaidistance = "*"
-scikit-learn = "*"
+# Used by workflow/scripts/compute_odds_ratios.py (false_discovery_control,
+# fisher_exact). It sat in the WarpDemuX block for a long time, which made it
+# look optional; it is not, and moving that block out would have taken odds
+# ratios with it.
 scipy = "*"
-cython = "*"
-catboost = "*"
-ruptures = "*"
-bottleneck = "*"
 
 [activation]
 scripts = ["scripts/setup-env.sh"]
@@ -71,8 +68,6 @@ lint-python = { cmd = "ruff check workflow/scripts/ && ruff format --check workf
 lint-yaml = { cmd = "yamllint config/ .github/", description = "Lint YAML files (rules in .yamllint.yml)" }
 # Leech tasks (amino-acid identity classification only; charging uses escpod)
 # WarpDemuX tasks
-install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX" }
-dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run WDX demux DAG (this config cannot execute — see its header and issue #120)" }
 # escapepod (LDX) demux tasks
 # The LDX path is the one with a real barcoded fixture, so it is the only
 # demux config that runs end to end. dry-run-ldx is cheap enough for CI;
@@ -186,6 +181,37 @@ libcublas = "*"
 libcufft = "*"
 cuda-cudart = "*"
 
+# WarpDemuX, the legacy demux backend.
+#
+# Opt-in since v0.3.0. The escpod CRF now serves the WDX4 panel on the sidecar
+# path (`ldx.model: resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0`),
+# which is the same panel without a second full copy of the run's POD5, so the
+# default environment should not carry six compiled packages for a backend most
+# runs no longer use. WarpDemuX itself is unchanged and still supported —
+# `warpdemux.enabled: true` works exactly as before once this environment is
+# installed:
+#
+#     pixi install -e warpdemux
+#     pixi run -e warpdemux install-warpdemux
+#
+# `scipy` is deliberately NOT here. It lived in this block, which made it look
+# like a WarpDemuX dependency, but `compute_odds_ratios.py` imports it and
+# moving the block wholesale would have quietly broken odds ratios.
+[feature.warpdemux]
+platforms = ["linux-64"]
+
+[feature.warpdemux.dependencies]
+dtaidistance = "*"
+scikit-learn = "*"
+cython = "*"
+catboost = "*"
+ruptures = "*"
+bottleneck = "*"
+
+[feature.warpdemux.tasks]
+install-warpdemux = { cmd = "bash -c '[ -d resources/tools/WarpDemuX ] || git clone --recursive https://github.com/KleistLab/WarpDemuX.git resources/tools/WarpDemuX' && uv pip install -e resources/tools/WarpDemuX", description = "Clone and install WarpDemuX (needs -e warpdemux)" }
+dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml", description = "Dry run WDX demux DAG (this config cannot execute — see its header and issue #120)" }
+
 [environments]
 default = []
 test = ["test"]
@@ -195,3 +221,5 @@ docs = { features = ["docs"], solve-group = "default" }
 # dependency, which makes pixi fetch a conda-pypi mapping from a host the
 # compute nodes cannot reach.
 gpu = ["gpu"]
+# Legacy demux backend; see the feature block above for why it is opt-in.
+warpdemux = ["warpdemux"]

@@ -14,7 +14,8 @@ This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) a
 # Install all dependencies
 pixi install
 
-# One-time setup: downloads dorado, basecalling models, escpod, and WarpDemuX
+# One-time setup: downloads dorado, basecalling models and escpod
+# (WarpDemuX is opt-in since v0.3.0 -- see the demultiplexing section)
 # IMPORTANT: Run this once before using the pipeline, from a single node only
 pixi run setup
 
@@ -215,7 +216,10 @@ The rest of this section describes the WarpDemuX backend.
 
 ### Enabling Demultiplexing
 
-1. **Install WarpDemuX**: `pixi run setup` (installs WarpDemuX along with other tools)
+1. **Install WarpDemuX** (opt-in since v0.3.0; `pixi run setup` no longer does it):
+   `pixi install -e warpdemux && pixi run -e warpdemux install-warpdemux`.
+   The escpod CRF now serves the same WDX4 panel on the sidecar path, so the
+   default environment does not carry WarpDemuX's six compiled dependencies.
 2. **Create YAML sample file** with barcode assignments (see `config/samples-demux-example.yml`)
 3. **Enable in config**: Set `warpdemux.enabled: true`
 
