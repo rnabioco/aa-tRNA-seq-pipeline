@@ -51,6 +51,14 @@ reference:
   # perturbation from the aminoacyl group on charged tRNAs.
   # Default "" = no spacer (backward compatible). Set to e.g. "T" to enable.
   cca_spacer: ""
+  # For build mode only: also merge sequences within this many substitutions of
+  # a cluster representative. 0 (default) collapses exact duplicates only, which
+  # is lossless. Above 0 is lossy and reduces the reference: merged tRNAs share
+  # one name, so charging and CPM can no longer be resolved between them. See
+  # reference/build_report.txt for exactly what was merged. Distance is measured
+  # on the raw input sequences, before CCA is appended, and only between
+  # equal-length sequences, so molecules differing by an indel never merge.
+  max_mismatch: 0
 
 # Charged vs uncharged tRNA classification, via `escpod signal classify`.
 charging:

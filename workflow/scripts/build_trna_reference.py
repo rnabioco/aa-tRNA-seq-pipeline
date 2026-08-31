@@ -117,6 +117,74 @@ def deduplicate_sequences(sequences):
     return deduped, collapsed
 
 
+def _within_mismatches(seq_a, seq_b, max_mismatch):
+    """Whether two equal-length sequences differ by at most max_mismatch bases.
+
+    Counts incrementally and gives up as soon as the budget is exceeded, which
+    is what keeps the all-against-leaders scan cheap: unrelated tRNAs diverge
+    within the first few bases.
+    """
+    mismatches = 0
+    for a, b in zip(seq_a, seq_b, strict=True):
+        if a != b:
+            mismatches += 1
+            if mismatches > max_mismatch:
+                return False
+    return True
+
+
+def collapse_similar_sequences(keys, max_mismatch):
+    """
+    Merge near-identical sequences by Hamming distance.
+
+    Uses greedy leader clustering: each sequence joins the first leader it is
+    within max_mismatch substitutions of, otherwise becomes a new leader. Unlike
+    single-linkage this bounds the cluster radius, so every member is within
+    max_mismatch of its leader rather than merely chained to it.
+
+    Hamming distance is only defined for equal-length sequences, so molecules
+    differing by an indel are never merged regardless of max_mismatch.
+
+    Args:
+        keys: List of (name, sequence) tuples to cluster on.
+        max_mismatch: Maximum substitutions between a member and its leader.
+
+    Returns:
+        Tuple of (kept_names, collapsed_map) where:
+          - kept_names: List of leader names, in input order
+          - collapsed_map: Dict mapping leader_name -> [merged_name, ...]
+    """
+    if max_mismatch <= 0:
+        return [name for name, _ in keys], {}
+
+    # Only equal-length sequences are comparable, so bucket by length first
+    by_length = defaultdict(list)
+    for name, seq in keys:
+        by_length[len(seq)].append((name, seq))
+
+    leaders = {}  # name -> sequence, for leaders only
+    collapsed = {}
+    order = []
+
+    for bucket in by_length.values():
+        bucket_leaders = []  # (name, seq)
+        for name, seq in bucket:
+            for leader_name, leader_seq in bucket_leaders:
+                if _within_mismatches(seq, leader_seq, max_mismatch):
+                    collapsed.setdefault(leader_name, []).append(name)
+                    break
+            else:
+                bucket_leaders.append((name, seq))
+                leaders[name] = seq
+
+    # Preserve the original input ordering of the leaders
+    for name, _ in keys:
+        if name in leaders:
+            order.append(name)
+
+    return order, collapsed
+
+
 def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapters_3p):
     """
     Validate an existing adapted reference FASTA.
@@ -305,7 +373,9 @@ def validate_reference(input_fasta, output_fasta, report_path, adapter_5p, adapt
     return True
 
 
-def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_3p):
+def build_reference(
+    input_fasta, output_fasta, report_path, adapter_5p, adapter_3p, max_mismatch=0
+):
     """
     Build adapted reference from raw tRNA sequences.
 
@@ -324,6 +394,10 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
     stats = defaultdict(int)
     adapted_sequences = []
     seen_names = set()
+    # Original input sequence per name, used as the clustering key when
+    # max_mismatch > 0: grouping is on the molecule as provided, before CCA is
+    # appended, so added CCA does not shift the equal-length buckets
+    raw_by_name = {}
 
     # Verify 3' adapter starts with GGC
     if not adapter_3p.startswith("GGC"):
@@ -340,6 +414,7 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
             stats["duplicate_names"] += 1
             continue
         seen_names.add(name)
+        raw_by_name[name] = seq
 
         # Check for CCA ending - add if missing
         if seq.endswith("CCA"):
@@ -377,6 +452,28 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
     stats["duplicate_sequences"] = n_collapsed
     stats["unique_sequences"] = len(deduped_sequences)
 
+    # Optionally merge near-identical molecules. Clustering is on the original
+    # input sequences, so equal-length buckets reflect the lengths as provided
+    # rather than lengths after CCA was appended to some sequences.
+    if max_mismatch > 0:
+        n_before = len(deduped_sequences)
+        keys = [(name, raw_by_name[name]) for name, _ in deduped_sequences]
+        kept_names, similar_map = collapse_similar_sequences(keys, max_mismatch)
+
+        adapted_by_name = dict(deduped_sequences)
+        deduped_sequences = [(name, adapted_by_name[name]) for name in kept_names]
+
+        # Fold merged names into the collapsed map, carrying along any exact
+        # duplicates that had already been folded into a merged name
+        for leader, merged in similar_map.items():
+            for merged_name in merged:
+                collapsed_map.setdefault(leader, []).append(merged_name)
+                collapsed_map[leader].extend(collapsed_map.pop(merged_name, []))
+
+        stats["similar_sequences"] = n_before - len(deduped_sequences)
+        stats["unique_sequences"] = len(deduped_sequences)
+        stats["max_mismatch"] = max_mismatch
+
     # Write build report
     with open(report_path, "w") as f:
         f.write("=" * 70 + "\n")
@@ -397,10 +494,18 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
         f.write("Output Statistics:\n")
         f.write(f"  Sequences built: {stats['sequences_built']}\n")
         f.write(f"  Unique sequences: {stats['unique_sequences']}\n")
-        f.write(f"  Duplicate sequences collapsed: {stats['duplicate_sequences']}\n\n")
+        f.write(f"  Duplicate sequences collapsed: {stats['duplicate_sequences']}\n")
+        if max_mismatch > 0:
+            f.write(
+                f"  Near-identical sequences merged: {stats['similar_sequences']}"
+                f" (hamming <= {max_mismatch}, equal-length only,"
+                f" measured on the input sequences)\n"
+            )
+        f.write("\n")
 
         if collapsed_map:
-            f.write(f"Collapsed duplicates ({n_collapsed} sequences removed):\n")
+            n_removed = stats["duplicate_sequences"] + stats.get("similar_sequences", 0)
+            f.write(f"Collapsed sequences ({n_removed} sequences removed):\n")
             f.writelines(
                 f"  {kept} <- {', '.join(dropped)}\n"
                 for kept, dropped in sorted(collapsed_map.items())
@@ -436,9 +541,15 @@ def build_reference(input_fasta, output_fasta, report_path, adapter_5p, adapter_
     write_fasta(deduped_sequences, output_fasta)
 
     print(f"Build SUCCESSFUL: {stats['sequences_built']} sequences created")
+    n_unique = stats["sequences_built"] - n_collapsed
     if n_collapsed > 0:
         print(
-            f"  Deduplicated: {stats['sequences_built']} -> {stats['unique_sequences']} unique sequences"
+            f"  Deduplicated: {stats['sequences_built']} -> {n_unique} unique sequences"
+        )
+    if max_mismatch > 0:
+        print(
+            f"  Merged near-identical (hamming <= {max_mismatch}, equal-length): "
+            f"{n_unique} -> {stats['unique_sequences']}"
         )
     if stats["cca_added"] > 0:
         print(f"  Note: CCA was added to {stats['cca_added']} sequences")
@@ -534,6 +645,16 @@ charging classification model to work correctly.
     )
     parser.add_argument("--output", "-o", required=True, help="Output FASTA file")
     parser.add_argument(
+        "--max-mismatch",
+        type=int,
+        default=0,
+        help="Build mode: also merge sequences within this many substitutions of "
+        "a cluster representative. 0 (default) collapses exact duplicates only. "
+        "Distance is measured on the input sequences, before CCA is appended, "
+        "and only between equal-length sequences, so molecules differing by an "
+        "indel are never merged.",
+    )
+    parser.add_argument(
         "--report",
         "-r",
         default=None,
@@ -567,7 +688,12 @@ charging classification model to work correctly.
             parser.error("--report is required for build mode")
         # Build mode uses only the first adapter
         build_reference(
-            args.input, args.output, args.report, args.adapter_5p, adapters_3p[0]
+            args.input,
+            args.output,
+            args.report,
+            args.adapter_5p,
+            adapters_3p[0],
+            max_mismatch=args.max_mismatch,
         )
     else:
         # Trim mode uses the first adapter for length calculation

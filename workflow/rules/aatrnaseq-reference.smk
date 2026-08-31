@@ -91,6 +91,15 @@ def get_raw_reference():
     return config["fasta"]
 
 
+def get_reference_max_mismatch():
+    """Hamming distance for merging near-identical reference sequences.
+
+    0 (default) collapses exact duplicates only. Distance is measured on the
+    raw input sequences and only between equal-length sequences.
+    """
+    return config.get("reference", {}).get("max_mismatch", 0)
+
+
 def get_trna_fasta():
     """Return path to tRNA-only FASTA (adapters stripped)."""
     return os.path.join(outdir, "reference", "trna_only.fa")
@@ -176,6 +185,7 @@ rule build_reference:
         script=os.path.join(SCRIPT_DIR, "build_trna_reference.py"),
         adapter_5p=get_adapter_5p(),
         adapter_3p=get_adapter_3p(),
+        max_mismatch=get_reference_max_mismatch(),
     shell:
         """
         python {params.script} \
@@ -185,6 +195,7 @@ rule build_reference:
             --report {output.report} \
             --adapter-5p "{params.adapter_5p}" \
             --adapter-3p "{params.adapter_3p}" \
+            --max-mismatch {params.max_mismatch} \
             2>&1 | tee {log}
 
         samtools faidx {output.adapted} 2>&1 | tee -a {log}

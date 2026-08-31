@@ -108,6 +108,7 @@ Creates an adapted reference from raw tRNA sequences:
 3. Prepends 5' adapter
 4. Appends 3' adapter after CCA
 5. Verifies CCAGGC junction is created
+6. Collapses sequences with identical content
 
 ```yaml
 # Example: building reference from raw tRNAs
@@ -115,6 +116,32 @@ reference:
   mode: "build"
   raw_fasta: "resources/ref/my_raw_trnas.fa"
 ```
+
+##### Collapsing near-identical tRNAs
+
+Genome-wide tRNA sets are heavily redundant: the danRer11 GtRNAdb mature-tRNA
+FASTA is 8879 records but only 3315 distinct sequences. Identical sequences are
+always collapsed, which is lossless. `max_mismatch` additionally merges
+sequences within a given number of substitutions:
+
+```yaml
+reference:
+  mode: "build"
+  raw_fasta: "resources/fa/danRer11-mature-tRNAs.fa"
+  max_mismatch: 2     # 3315 -> 1246 reference entries
+```
+
+Grouping uses greedy leader clustering, so every member is within
+`max_mismatch` of its group's representative rather than merely chained to it.
+Distance is measured on the sequences **as provided** — before CCA is appended,
+so added CCA does not shift the comparison — and only between **equal-length**
+sequences, so molecules differing by an indel never merge.
+
+!!! warning "This is lossy"
+    Merged tRNAs share a single reference name, so charging and CPM can no
+    longer be resolved between members of a group. Check
+    `<output_dir>/reference/build_report.txt`, which lists every merge as
+    `kept_name <- merged_names`, before relying on per-tRNA results.
 
 !!! info "Custom References"
     To use a custom reference, either:
