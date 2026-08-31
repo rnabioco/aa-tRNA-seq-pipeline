@@ -64,6 +64,56 @@ pixi run escpod-model-info      # geometry, references, published metrics
 The zip ships no `SHA256SUMS.txt`; both ONNX graphs are instead pinned by hashes
 inside the bundle's own metadata, which `verify-demux-model` checks.
 
+## `barcode_crf_wdx4_rna004@v0.2.0`  (WDX4 panel, provisional)
+
+4-plex CTC-CRF over the **WarpDemuX** panel — `bc03`, `bc04`, `bc05`, `bc07`,
+which this project calls `barcode03`..`barcode07`. It exists so a WDX-barcoded
+run can be demuxed by escpod on the sidecar path instead of by WarpDemuX
+routing reads into a second full copy of the POD5.
+
+Select it per run; it is not the default:
+
+```yaml
+ldx:
+  enabled: true
+  model: resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0
+  min_crf_margin: 2.0   # see below -- provisional
+```
+
+Nothing else changes. The bundle carries its own references, so no
+`--barcodes` and no `--method` are passed, and the barcode-name crosswalk
+(`workflow/scripts/barcode_names.py`) maps a sample configured `barcode03` onto
+the `bc03` the bundle emits.
+
+**The panel is four codes. `barcode11` is not in it** and cannot be added by
+configuration — upstream's note is that bc11 and the other seven WarpDemuX
+codes "need new sequencing, not a config change". A WDX4b run using bc11 has no
+escpod equivalent today.
+
+### Provisional, on two counts
+
+**`min_crf_margin` is not yet a measured operating point.** Swept on a
+1.7M-read run, `>= 2.0` gives 99.87% agreement with WarpDemuX's confident calls
+at 0.113% worst-barcode cross-contamination, while keeping 1,236,235 calls
+against WarpDemuX's own 1,107,936 — better on both axes at once. But **that run
+is in this model's training corpus**: the v0.2.0 split is a random read-level
+10%, not leave-one-run-out, and every WDX4 run in `2026-aars-in-vitro` is in it.
+So the figure is an upper bound. Re-derive it with
+`scripts/crf_margin_sweep.py` against a genuinely held-out run before treating
+it as settled.
+
+**The labels it learned are ungated.** Upstream's config sets `no_gate: true`
+and says so plainly — "THE GATE IS OFF, DELIBERATELY, AND THIS IS A REAL COST".
+WarpDemuX declines ~15% of reads and its balanced accuracy on those is ~0.68,
+so v0.2.0 inherits noise that v0.1.0's confidence-gated corpus did not. A gated
+retrain, held out by run, is the fix; expect a v0.3.0 to supersede this bundle.
+
+Measured behaviour worth knowing before reading a concordance report: **every
+read this model leaves `unclassified` is one it never decoded** — the adapter
+ended before the 2000-sample window — not one it was unsure about. That is
+120,158 reads (7%) on a 1.7M-read run, and it is a `boundary_margin` /
+`clamp_max_shift` question rather than a classifier one.
+
 ## `barcode_crf_nbc16_rna004@v0.2.0`  (retained)
 
 Kept so runs pinned to it stay reproducible. Not the default.

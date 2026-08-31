@@ -16,11 +16,11 @@ DEMUX_MODELS = REPO_ROOT / "resources" / "models" / "demux"
 WDX_BUNDLE = DEMUX_MODELS / "barcode_crf_wdx4_rna004@v0.2.0"
 NBC_BUNDLE = DEMUX_MODELS / "barcode_crf_nbc16_rna004@v0.2.0"
 
-# The WDX4 CRF bundle is not vendored yet -- the panel is still choosing a
-# version (v0.2.0 is trained on ungated labels and wants a retrain), so this
-# repo does not carry one. Skip rather than let the tests pass vacuously:
-# `bundle_barcode_names` returns an empty set for a missing bundle, which makes
-# every `not in` assertion true for the wrong reason.
+# Guard, not an expectation of absence: the WDX4 bundle is vendored, so these
+# run. It stays because `bundle_barcode_names` returns an empty set for a
+# missing bundle, which would make every `not in` assertion below true for the
+# wrong reason -- including the bc11 coverage check, whose whole job is to fail
+# when a barcode is outside the panel.
 needs_wdx_bundle = pytest.mark.skipif(
     not WDX_BUNDLE.is_dir(), reason="WDX4 CRF bundle is not vendored in this repo"
 )
