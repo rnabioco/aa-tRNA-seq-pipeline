@@ -62,9 +62,16 @@ def get_samples_for_run(run_id):
 
 
 def get_barcodes_for_run(run_id):
-    """Get barcode→sample mapping for a run."""
+    """Get barcode→sample mapping for a run, keyed as the MODEL emits it.
+
+    The keys are matched against the `barcode` column of classifications.csv,
+    which carries the bundle's own vocabulary. A WDX4 sample configured as
+    `barcode03` is recorded there as `bc03`, so keying on the configured string
+    would match nothing and every sample would come back empty. `nbc01` is
+    already emitted-side and passes through unchanged.
+    """
     return {
-        info["barcode"]: sample
+        label_to_emitted(info["barcode"]): sample
         for sample, info in samples.items()
         if info.get("run_id") == run_id and info.get("barcode")
     }
@@ -652,7 +659,9 @@ rule extract_ldx_sample_reads:
     wildcard_constraints:
         sample=ldx_sample_constraint(),
     params:
-        barcode=lambda wildcards: samples[wildcards.sample]["barcode"],
+        # As the MODEL emits it: this is compared against classifications.csv,
+        # which speaks the bundle's vocabulary, not the samples file's.
+        barcode=lambda wildcards: label_to_emitted(samples[wildcards.sample]["barcode"]),
     run:
         import csv
 

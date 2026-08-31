@@ -8,6 +8,13 @@ from git import Repo
 
 SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 
+# The barcode-name crosswalk. Every escpod CRF bundle emits whatever its
+# metadata.json calls its references, and that vocabulary is upstream's, not
+# ours -- `nbc01` for the LDX panel, `bc03` for WDX4. Which of a sample's two
+# names is configured depends on the panel, so the translation cannot be a
+# conditional rename inline; see workflow/scripts/barcode_names.py.
+sys.path.insert(0, SCRIPT_DIR)
+from barcode_names import emitted_to_label, label_to_emitted
 
 # Cleanup tiers for maybe_temp(). Each large intermediate is assigned a tier so
 # they can be deleted or kept independently via the `cleanup_intermediates`
@@ -85,27 +92,29 @@ def is_ldx_enabled():
 def get_sample_barcode_label(sample):
     """The project-facing barcode name for a sample, or None if it has none.
 
-    `samples[s]["barcode"]` holds whatever the samples YAML said, and the two
-    backends speak different vocabularies there. WarpDemuX barcodes are already
+    `samples[s]["barcode"]` holds whatever the samples YAML said, and the
+    panels speak different vocabularies there. WarpDemuX barcodes are already
     ours (`barcode04`). LDX barcodes are not: escapepod-models names them
-    `nbc01`..`nbc16` and that is what the model bundle emits, what
+    `nbc01`..`nbc16`, and that is what the bundle emits, what
     classifications.csv records, and what demux_summary.tsv.gz tabulates — but
     **LDX is the name this project uses for them**, so normalise here rather
     than leaking upstream's naming into every BAM.
 
-    The mapping is a pure documented rename (nbcNN == LDX NN, see
-    config/README.md and resources/models/demux/README.md), so nothing is lost.
-    The upstream name is still recorded, in an @CO line on the BAM, so a reader
-    never has to guess which naming a file is using.
+    Each mapping is a pure documented rename (nbcNN == LDX NN, bcNN ==
+    barcodeNN; see config/README.md and resources/models/demux/README.md), so
+    nothing is lost. The upstream name is still recorded, in an @CO line on the
+    BAM, so a reader never has to guess which naming a file is using.
     """
     barcode = samples.get(sample, {}).get("barcode")
     if not barcode:
         return None
-    if is_ldx_enabled():
-        match = re.fullmatch(r"nbc(\d+)", barcode)
-        if match:
-            return f"ldx{match.group(1)}"
-    return barcode
+    # Driven by the name itself rather than by which backend is enabled. That
+    # was safe while `nbc` could only mean LDX, but the WDX4 panel is served by
+    # a CRF bundle too, and it emits `bc03` where the samples file says
+    # `barcode03` -- so the rename is now a property of the vocabulary, not of
+    # the config. `emitted_to_label` is the identity on every name that is
+    # already project-facing, including every WarpDemuX one.
+    return emitted_to_label(barcode)
 
 
 def get_sample_barcode_upstream(sample):
