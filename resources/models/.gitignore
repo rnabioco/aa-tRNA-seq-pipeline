@@ -1,1 +1,5 @@
+# Dorado basecalling models, downloaded by `pixi run setup` (and by hand when
+# evaluating a new one). Never vendored -- dorado fetches them by name.
+# v5 named them rna004_130bps_sup@vX; v6 dropped the 130bps segment.
 rna004_130bps_sup*
+rna004_sup*
