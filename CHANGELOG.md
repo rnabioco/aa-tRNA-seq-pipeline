@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-09-03
+
 ### Changed
 
 - **BREAKING: the pipeline basecalls with `rna004_sup@v6.0.0` and scores charging
