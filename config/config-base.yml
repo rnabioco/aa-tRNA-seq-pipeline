@@ -66,7 +66,7 @@ charging:
   # anchor definition, the feature recipe, the k-mer table it is defined
   # against (pinned by sha256), the abstain rule and the recommended operating
   # point, so nothing below is passed as a flag. See the README beside it.
-  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
 
   # Minimum mapping quality for a read to be classified. 0, not escpod's
   # default of 1, and deliberately: tRNA references are highly redundant, so a
@@ -96,10 +96,19 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # the `pod5` CLI, `escpod classify` is the charging classifier, and
 # `escpod demux` is the LDX barcode demultiplexer.
 #
-# 0.10.0 is the floor for the charging model. The vendored bundle is the
-# per-base-feature ONNX variant, which escpod reads from escapepod-rs#231
-# onward; an older binary refuses it outright with `missing field \`gbm\``. So
-# the runtime is pinned alongside the model, not independently of it.
+# 0.19.0 is the FLOOR FOR THE VENDORED CHARGING BUNDLE, which is why the two
+# are bumped together. `charging_feature_nn_rna004@v0.1.1` declares a top-level
+# `basecaller` block (escapepod-models#106) and a charging bundle's schema is
+# `deny_unknown_fields` — deliberately, since a key in a charging bundle is a
+# rule the model was built with and dropping one silently is how a read gets a
+# confident wrong answer. So every escpod before 0.19.0 refuses this bundle
+# outright with ``unknown field `basecaller` ``. Verified in both directions:
+# 0.19.0 scores the fixture, 0.18.1 will not open the file.
+#
+# 0.10.0 was the previous floor, for the per-base-feature ONNX variant itself,
+# which escpod reads from escapepod-rs#231 onward; older still refuses it with
+# `missing field \`gbm\``. Either way the runtime is pinned alongside the model
+# rather than independently of it.
 #
 # 0.11.0 brought two fixes to that classifier:
 #   - the bundle's abstain rule is actually applied. Before, it was parsed and

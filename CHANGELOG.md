@@ -4,6 +4,31 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Charging model repinned `charging_feature_nn_rna004@v0.1.0` -> `@v0.1.1`,
+  which needs escpod >= 0.19.0.** A sidecar-only reissue: the ONNX graph and the
+  k-mer table are byte-identical (`cmp` clean; the graph's sha256 is unchanged),
+  `metadata.json` differs only by the version string and a new top-level
+  `basecaller` block, and the fixture scores **identically, read for read**
+  under either bundle. No call moves.
+
+  What it buys is that the block is readable. The charging feature set is
+  `mean + z-scored k-mer residual` with the expected level predicted from the
+  read's own basecall, so the model substantially detects *how the basecaller
+  fails* at the aminoacyl adduct — swapping basecaller costs ~0.0097 AUROC and
+  flips **3.9% of per-read calls** while the aggregate charged fraction moves
+  0.04 pp, so the one number anyone would check reads "no change" while one read
+  in 26 answers differently. The bundle now names what it was trained on
+  (`rna004_130bps_sup@v5.3.0`, dorado 1.4.0) and escpod states it at load.
+  `dorado_model` matches; escpod does **not** enforce it.
+
+  This is a hard escpod floor, not a preference: a charging bundle's schema is
+  `deny_unknown_fields`, so every escpod before 0.19.0 refuses the file outright
+  with ``unknown field `basecaller` ``. Verified both directions — 0.19.0 scores
+  the fixture, 0.18.1 will not open it. `pixi run check-models` now reports every
+  vendored bundle as current or deliberately pinned.
+
 ### Fixed
 
 - **LDX demux was broken for every sample on the shipped default bundle.** A

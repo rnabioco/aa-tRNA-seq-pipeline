@@ -156,7 +156,7 @@ charging:
   # Model bundle DIRECTORY, vendored in the repo. Self-describing: it carries
   # the anchor, feature recipe, k-mer table (pinned by sha256) and operating
   # point, so none of those are flags.
-  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
   # 0, not escpod's default of 1 — tRNA references are redundant, so MAPQ 0
   # is normal and those reads are still good.
   min_mapq: 0

@@ -2,7 +2,7 @@
   "format": "escapepod-charging-classifier/1",
   "model": {
     "id": "charging_feature_nn_rna004",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "chemistry": "rna004",
     "task": "tRNA aminoacylation state (charged vs uncharged)"
   },
@@ -325,5 +325,12 @@
       "why": "constants fitted on the TRAIN split's observed values and shipped rather than recomputed: a per-batch gauge would make one read's answer depend on which reads it was run beside, and recomputing over unresolved bases (zero-filled, not absent) would move the gauge by whatever fraction of the input happens to be unresolved"
     },
     "missing": "NaN is NOT passed to the network. Unlike the GBM, which handles missingness natively, this model is told about it explicitly: the value channel is zeroed and the paired observed channel carries the indicator. Feeding NaN straight through gives NaN logits."
+  },
+  "basecaller": {
+    "model": "rna004_130bps_sup@v5.3.0",
+    "model_sha256": "2f3e0926f06332fb844312c57cd838409d0889c97897325a2d239bedf43672f9",
+    "dorado_version": "1.4.0+ba44a013",
+    "role": "feature definition, not tooling",
+    "note": "inference data should be basecalled with this model. A different basecaller is a domain shift on the k-mer residual: contrasts between arms that share one basecaller remain valid, absolute charged fractions do not."
   }
 }
