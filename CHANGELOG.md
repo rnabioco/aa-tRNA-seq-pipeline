@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-09-03
+
 ### Changed
 
 - **Charging model repinned `charging_feature_nn_rna004@v0.1.0` -> `@v0.1.1`,

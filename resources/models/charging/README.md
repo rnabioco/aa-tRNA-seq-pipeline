@@ -11,7 +11,7 @@ takes the token, the network and the cache out of the run-time path entirely.
 
 Released 2026-09-01 from
 `https://github.com/rnabioco/escapepod-models/releases/tag/charging_feature_nn_rna004%40v0.1.1`.
-This bundle replaced the Remora `cca_classifier.pt` in pipeline v0.4.0.
+This bundle replaced the Remora `cca_classifier.pt` in pipeline v0.2.0.
 
 v0.1.1 is a **sidecar-only reissue of v0.1.0**: the ONNX and the k-mer table are
 byte-identical (`cmp` clean, and the graph's sha256 is unchanged at
