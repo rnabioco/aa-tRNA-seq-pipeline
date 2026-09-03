@@ -83,6 +83,36 @@ charging:
   # cl >= 254 at f=0.05. Move it for a different precision, and say so.
   ml_threshold: 200
 
+  # How hard to enforce the bundle's `basecaller` declaration (escapepod-models
+  # #106): `error` (default), `warn`, or `off`.
+  #
+  # The bundle names the basecalling MODEL it was trained against, and that is
+  # what this gates on — not the dorado version. The charging feature set is
+  # mean + z-scored k-mer residual with the expected level predicted from the
+  # read's own basecall, so the model substantially detects HOW THE BASECALLER
+  # FAILS at the aminoacyl adduct; run it on another basecaller's output and the
+  # dominant feature means something else. Measured upstream: ~0.0097 AUROC,
+  # 3.0-3.2 pp of TPR, 3.9% of per-read calls flipped — while the aggregate
+  # charged fraction moves 0.04 pp, so the one number anyone checks reads "no
+  # change". escpod states the declaration at load and does NOT enforce it,
+  # which is why this exists.
+  #
+  # `warn` is the setting for a deliberate cross-basecaller run: arm-to-arm
+  # contrasts that share one basecaller survive the shift, absolute charged
+  # fractions do not. `off` silences the dorado-version warning too.
+  #
+  # The DORADO VERSION is checked separately and only ever WARNS, at a major
+  # difference. Same weights run by a later dorado are still the same weights,
+  # so it cannot justify blocking a run — but a major bump is a different
+  # implementation and can move basecalls with the weights unchanged. This is
+  # live today: the vendored bundle was built with dorado 1.4.0 and
+  # `dorado_version` pins 2.1.1.
+  #
+  # Neither check reads the model. `pixi run verify-basecaller` is the one that
+  # proves byte identity against the declared `model_sha256`, because it hashes
+  # ~300 MB and has no business running every time the DAG is built.
+  basecaller_check: error
+
 # software tools (modkit managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:

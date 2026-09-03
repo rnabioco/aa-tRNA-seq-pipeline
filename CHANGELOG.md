@@ -4,6 +4,42 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **The basecaller a charging bundle was trained on is now checked, not just
+  printed.** Since escapepod-models#106 a charging bundle declares
+  `{model, model_sha256, dorado_version}`, and escpod states it at load without
+  enforcing it. Two rules, deliberately of different strength:
+
+  - **Model identity is an error.** The charging feature set is
+    `mean + z-scored k-mer residual` with the expected level predicted from the
+    read's own basecall, so the model substantially detects *how the basecaller
+    fails* at the aminoacyl adduct — a different basecalling model is a domain
+    shift, not a detail. Upstream measured ~0.0097 AUROC, 3.0–3.2 pp of TPR and
+    **3.9% of per-read calls flipped**, while the aggregate charged fraction
+    moved 0.04 pp: the one number anyone would check reads "no change".
+    `charging.basecaller_check` (`error` by default, `warn`, `off`) governs it;
+    `warn` is the setting for a deliberate cross-basecaller run, where
+    arm-to-arm contrasts survive the shift and absolute charged fractions do not.
+  - **Dorado version only ever warns**, at a major difference. The same weights
+    run by a later dorado are still the same weights, so it cannot justify
+    blocking a run — but a major bump is a different implementation and can move
+    basecalls with the weights unchanged. **This fires today**: the vendored
+    bundle was built with dorado 1.4.0 and `dorado_version` pins 2.1.1.
+
+  Both run while the DAG is built, so a mismatch costs a dry-run rather than a
+  basecall plus a classification pass. A bundle that declares nothing produces
+  no findings — "cannot tell" is not "invalid".
+
+- **`pixi run verify-basecaller`** proves byte identity against the declared
+  `model_sha256`, reproducing upstream's hashing scheme exactly (sha256 over
+  every file, name-sorted, each contributing its relative path then its bytes).
+  That catches what a name comparison cannot: a model directory named right that
+  is not the same bytes — a partial download, a re-fetch of a retagged upstream
+  model, an edited `config.toml`. It reads ~300 MB, so it is a task rather than
+  part of DAG construction. The vendored `rna004_130bps_sup@v5.3.0` verifies:
+  159 files, `2f3e0926…3672f9`, byte-identical to what the bundle names.
+
 ## [v0.4.0] - 2026-09-03
 
 ### Changed
