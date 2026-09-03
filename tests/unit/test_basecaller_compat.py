@@ -20,7 +20,11 @@ from basecaller_compat import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHARGING_BUNDLE = (
-    REPO_ROOT / "resources" / "models" / "charging" / "charging_feature_nn_rna004@v0.1.1"
+    REPO_ROOT
+    / "resources"
+    / "models"
+    / "charging"
+    / "charging_feature_nn_sup6_rna004@v0.1.0"
 )
 
 needs_bundle = pytest.mark.skipif(
@@ -88,7 +92,7 @@ class TestBundleBasecaller:
     def test_vendored_bundle_declares_one(self):
         block = bundle_basecaller(CHARGING_BUNDLE)
         assert block is not None
-        assert block["model"] == "rna004_130bps_sup@v5.3.0"
+        assert block["model"] == "rna004_sup@v6.0.0"
 
 
 class TestCheckBasecaller:
@@ -131,6 +135,12 @@ class TestCheckBasecaller:
         bundle = write_bundle(tmp_path, GOOD)
         found = check_basecaller(bundle, "rna004_sup@v6.0.0", "2.1.1")
         assert [level for level, _ in found] == ["error", "warn"]
+
+    def test_version_warning_does_not_claim_the_model_matches(self, tmp_path):
+        """It fires alongside a model mismatch, so it must not assert the opposite."""
+        bundle = write_bundle(tmp_path, GOOD)
+        _, warning = check_basecaller(bundle, "rna004_sup@v6.0.0", "2.1.1")[1]
+        assert "model matches" not in warning
 
     def test_undeclared_bundle_produces_nothing(self, tmp_path):
         """'Cannot tell' is not 'invalid' — the rule bundle_barcode_names follows."""

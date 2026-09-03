@@ -4,6 +4,54 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: the pipeline basecalls with `rna004_sup@v6.0.0` and scores charging
+  with `charging_feature_nn_sup6_rna004@v0.1.0`.** Previously
+  `rna004_130bps_sup@v5.3.0` + `charging_feature_nn_rna004@v0.1.1`. Both halves
+  move together because they are one pairing, not two settings — see below.
+  **Charging calls, modification calls and base-calling error rates all change**;
+  results are not comparable across this switch without re-running.
+
+  The v6 charging bundle was built with dorado `2.1.1+d66c17c` on
+  `rna004_sup@v6.0.0`, which is exactly the binary `pixi run setup` installs and
+  exactly the model `base_calling_model` names — verified byte-for-byte (190
+  files, `9cab42f3…bbadb1`). So the pairing is now exact where before the
+  vendored bundle declared dorado 1.4.0 against a pinned 2.1.1, and the
+  major-version warning added in the previous release is silent.
+
+  It is a **trade**, not a free upgrade. Against the v5.3.0 pairing the v6 one
+  loses 0.0034 test AUROC (0.9906 -> 0.9872) and ~1 pp of balanced accuracy
+  (0.9625 -> 0.9530), and cuts the fraction of CHARGED reads excluded as
+  unreadable from 4.03% to **1.52%**. That last row is why it is the default:
+  abstention is charging-correlated and both bundles' own `coverage_note` says a
+  charging fraction over called reads alone is an UNDERESTIMATE, so a 2.6x cut
+  in the charged-class exclusion rate reduces a systematic bias in the headline
+  number — which matters more here than 0.0034 of AUROC. Report the no-call rate
+  beside the fraction either way.
+
+  The v6 bundle's operating point is **measured on the v6 corpus with its own
+  checkpoint**, not carried over: `operating_point.cl` is 200, the same value
+  `charging.ml_threshold` already used, but arrived at independently.
+
+  The four modification models follow automatically —
+  `download_mod_models` builds `"{dorado_model}_{mod}@v1"`, and
+  `rna004_sup@v6.0.0_{m5C_2OmeC,inosine_m6A_2OmeA,pseU_2OmeU,2OmeG}@v1` all
+  exist. Demux is untouched: `escpod demux` runs its own CTC-CRF over raw signal
+  and never sees a dorado basecall, so no demux bundle declares a basecaller and
+  none needed to move.
+
+  `charging_feature_nn_rna004@v0.1.1` **stays vendored** for data already
+  basecalled with v5.3.0 — re-basecalling an existing run to reach v6 is a GPU
+  cost, not a correctness fix. Using it means setting `base_calling_model`,
+  `dorado_model` and `charging.model` together; the basecaller check added last
+  release is what stops you setting only some of them.
+
+### Fixed
+
+- The dorado major-version warning claimed "the basecalling model matches" even
+  when it was firing alongside a model-identity error that said the opposite.
+
 ### Added
 
 - **The basecaller a charging bundle was trained on is now checked, not just

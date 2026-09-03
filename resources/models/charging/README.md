@@ -7,45 +7,109 @@ reasons as [the demux bundles](../demux/README.md): the upstream repository
 compute nodes on this cluster have no route to GitHub. Committing the bundle
 takes the token, the network and the cache out of the run-time path entirely.
 
+Two bundles are vendored, one per basecalling model. They are **not
+interchangeable**, and which one is correct is decided by how the data was
+basecalled:
+
+| basecalling model | charging bundle | status |
+|---|---|---|
+| `rna004_sup@v6.0.0` | `charging_feature_nn_sup6_rna004@v0.1.0` | **default** |
+| `rna004_130bps_sup@v5.3.0` | `charging_feature_nn_rna004@v0.1.1` | for data already basecalled with v5.3.0 |
+
+Pointing `charging.model` at the wrong one for your `base_calling_model` is an
+error at DAG construction (`charging.basecaller_check`), because it is not a
+detail — see below.
+
+## Why the pairing is a rule, not a preference
+
+The charging feature set is `mean + z-scored k-mer residual`, and the EXPECTED
+level is predicted from the read's own basecall. So a charging model
+substantially detects *how the basecaller fails* at the aminoacyl adduct, and
+swapping basecaller changes what its dominant feature means.
+
+Measured upstream on the same reads called two ways: ~0.0097 AUROC and
+3.0–3.2 pp of TPR lost, ~0.4 pp of FPR gained (so no threshold recovers it), and
+**3.9% of per-read calls flip** — while the aggregate charged fraction moves
+0.04 pp. The one number anyone would check when changing basecaller reads "no
+change" while one read in 26 answers differently.
+
+Since escapepod-models#106 each bundle **declares** the basecaller it was
+trained against, and escpod states it at load:
+
+```
+INFO bundle was trained on basecalls from rna004_sup@v6.0.0
+     (dorado 2.1.1+d66c17c); scoring reads called with another model is a
+     domain shift on the k-mer residual — escpod does not check this
+```
+
+escpod carries the declaration without enforcing it. This pipeline enforces it:
+`workflow/scripts/basecaller_compat.py` compares model identity at DAG
+construction, and `pixi run verify-basecaller` proves byte identity against the
+declared `model_sha256`.
+
+**Both bundles require escpod >= 0.19.0.** A charging bundle's schema is
+`deny_unknown_fields`, so every older escpod refuses a bundle carrying a
+`basecaller` block outright with ``unknown field `basecaller` ``. That is the
+schema working as designed, and it is why `escpod_version` moved alongside.
+
+## `charging_feature_nn_sup6_rna004@v0.1.0` (default)
+
+Released 2026-09-01 from
+`https://github.com/rnabioco/escapepod-models/releases/tag/charging_feature_nn_sup6_rna004%40v0.1.0`.
+Trained on `rna004_sup@v6.0.0` basecalls produced by dorado `2.1.1+d66c17c` —
+which is exactly the binary `pixi run setup` installs and exactly the model
+`base_calling_model` points at, verified byte-for-byte (190 files,
+`9cab42f3…bbadb1`).
+
+Its operating point is **measured on the v6 corpus with its own checkpoint**,
+not carried over: `operating_point.cl` is 200, the same value
+`charging.ml_threshold` already used, but arrived at independently.
+
+Against the v5.3.0 pairing it trades a little discrimination for substantially
+less bias:
+
+| | v5.3.0 pairing | v6 pairing |
+|---|---|---|
+| test AUROC | 0.9906 | 0.9872 |
+| balanced accuracy | 0.9625 | 0.9530 |
+| charged reads excluded as unreadable | 4.03% | **1.52%** |
+
+The third row is why this is the default. Reads whose common arm did not align
+are abstained on, the exclusion rate is far higher for charged reads, and both
+bundles say so in their own `coverage_note` — so a charging fraction over called
+reads alone is an UNDERESTIMATE. Cutting the charged-class exclusion rate by
+2.6x reduces that bias directly, which matters more here than 0.0034 of AUROC.
+Report the no-call rate beside the fraction either way.
+
 ## `charging_feature_nn_rna004@v0.1.1`
 
 Released 2026-09-01 from
 `https://github.com/rnabioco/escapepod-models/releases/tag/charging_feature_nn_rna004%40v0.1.1`.
-This bundle replaced the Remora `cca_classifier.pt` in pipeline v0.2.0.
+This family replaced the Remora `cca_classifier.pt` in pipeline v0.2.0 and was
+the default until v6.
 
 v0.1.1 is a **sidecar-only reissue of v0.1.0**: the ONNX and the k-mer table are
 byte-identical (`cmp` clean, and the graph's sha256 is unchanged at
-`6cfebc2d…a820637`), and `metadata.json` differs only by the version string and
-a new top-level `basecaller` block. Calls do not move — the fixture scores
-identically, read for read, under either bundle.
+`6cfebc2d…820637`), and `metadata.json` differs only by the version string and
+the `basecaller` block. Calls do not move — the fixture scores identically, read
+for read, under either.
 
-What it buys is that the block is **readable**. The charging feature set is
-`mean + z-scored k-mer residual` with the expected level predicted from the
-read's own basecall, so the model substantially detects *how the basecaller
-fails* at the aminoacyl adduct, and swapping basecaller changes what its
-dominant feature means. Measured upstream: ~0.0097 AUROC, 3.0–3.2 pp of TPR and
-**3.9% of per-read calls** flip, while the aggregate charged fraction moves
-0.04 pp — so the one number anyone would check reads "no change" while one read
-in 26 answers differently.
+Kept vendored because data basecalled with `rna004_130bps_sup@v5.3.0` is still
+correctly scored by it, and re-basecalling an existing run to move to v6 is a
+GPU cost rather than a correctness fix. To use it, set BOTH:
 
-**It requires escpod >= 0.19.0.** A charging bundle's schema is
-`deny_unknown_fields`, so every older escpod refuses this file outright with
-``unknown field `basecaller` ``. That is the schema working as designed, not a
-bug, and it is why `escpod_version` moved in the same release.
-
-escpod **states the declaration and does not enforce it**:
-
-```
-INFO bundle was trained on basecalls from rna004_130bps_sup@v5.3.0
-     (dorado 1.4.0+ba44a013); scoring reads called with another model is a
-     domain shift on the k-mer residual — escpod does not check this
+```yaml
+base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
+dorado_model: rna004_130bps_sup@v5.3.0
+charging:
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
 ```
 
-`config-base.yml` sets `dorado_model: rna004_130bps_sup@v5.3.0`, which matches.
-The dorado *version* differs (2.1.1 here against 1.4.0 there); the declaration
-scopes the risk to the basecalling model, which is identical, including its
-sha256. Revisit this if `dorado_model` moves — see the v6 note in
-`docs/`.
+Note its declared dorado is `1.4.0+ba44a013` against the pinned 2.1.1, so this
+pairing warns about the major-version difference; the basecalling model, which
+is the rule that governs charging calls, matches exactly.
+
+## Both bundles
 
 The bundle is self-describing: `metadata.json` carries the anchor definition,
 the feature recipe (offsets, stat layout, standardisation constants), the k-mer
@@ -56,7 +120,7 @@ differently gets a wrong answer rather than an error.
 
 ```bash
 escpod classify reads.pod5 -b aln.bam -r ref.fa \
-    -m resources/models/charging/charging_feature_nn_rna004@v0.1.1 \
+    -m resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0 \
     -o out.bam --tsv calls.tsv --min-mapq 0
 ```
 

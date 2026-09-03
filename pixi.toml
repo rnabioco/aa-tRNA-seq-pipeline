@@ -87,7 +87,7 @@ escpod-model-info-wdx = { cmd = "escpod demux --model resources/models/demux/bar
 verify-demux-model = { cmd = "python scripts/verify-demux-model.py", description = "Verify vendored demux bundles are byte-for-byte upstream" }
 check-models = { cmd = "python scripts/check-model-currency.py", description = "Report vendored model bundles upstream has superseded (needs network + gh)" }
 # Charging classifier
-verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_feature_nn_rna004@v0.1.1 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored charging model bundle against its pinned checksums" }
+verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored charging model bundle against its pinned checksums" }
 verify-basecaller = { cmd = "python scripts/verify-basecaller.py", description = "Prove the vendored basecalling model is byte-identical to the one the charging bundle names" }
 # GPU demux runtime.
 #

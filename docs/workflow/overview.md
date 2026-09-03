@@ -226,7 +226,7 @@ Dorado re-basecalls with:
 
 - Move tables (`--emit-moves`) required by the charging model
 - Modification calling (`--modified-bases pseU m5C inosine_m6A`)
-- High-accuracy model (rna004_130bps_sup@v5.3.0)
+- High-accuracy model (rna004_sup@v6.0.0)
 
 ### 3. Alignment
 

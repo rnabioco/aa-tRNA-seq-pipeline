@@ -7,7 +7,7 @@ the bundle declares, which catches the other thing: a model directory that is
 named right and is not the same bytes — a partial download, a re-fetch of a
 retagged upstream model, an edited config.toml.
 
-It hashes the whole model (~300 MB, 159 files for rna004_130bps_sup@v5.3.0),
+It hashes the whole model (~300 MB, 190 files for rna004_sup@v6.0.0),
 which is why it is a task and not part of DAG construction.
 
 The scheme is upstream's, reproduced exactly — sha256 over every file in the
