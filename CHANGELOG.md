@@ -20,6 +20,50 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`escpod` bumped 0.18.1 -> 0.19.0, and the LDX path now writes ONE `.p5s`
+  per POD5 directory instead of one per file.** `escpod demux --annotate`
+  pointed at a *directory* writes a single **collection** sidecar beside it
+  (`<run>/pod5/` gets `<run>/pod5.p5s`); pointed at files it still writes one
+  each. So the release alone does not get you the new shape — the argument
+  does, and `escapepod_demux` now passes the POD5 directories rather than a
+  `*.pod5` glob. A run that produced fifty POD5s produced one set of barcode
+  calls, not fifty, and this is the layout that says so. Declared as
+  `escapepod:p5s_version` 3; an older escpod refuses a collection *by name*
+  rather than misreading it, so a mixed-version tree fails loudly. Consumers are
+  unchanged — a POD5 is matched against its own `.p5s` first and then the
+  collection beside its directory, and only when footer UUID and byte size match
+  its member entry.
+
+  One migration note: a per-file `*.pod5.p5s` left by a pre-0.19.0 demux
+  **shadows** the collection, because the file's own sidecar wins per column.
+  Nothing here reads a sidecar (the split is driven by `classifications.csv`),
+  so pipeline output is unaffected — but delete the old per-file sidecars before
+  pointing `escpod demux split --sidecar` or the Python `Reader` at a run
+  demuxed under both versions.
+
+- **`merge_run_pods` is gone: an LDX run no longer merges a second full copy of
+  its signal.** The rule existed because `classify` takes one path and a run
+  split over `pod5_pass`/`pod5_fail` is two — but the directory argument is
+  walked **recursively**, so naming the run directory covers both. Verified
+  byte-identical: the same 89 reads, same calls, whether `classify` is handed
+  the flat POD5 directory or a run root containing it. Naming the run is a
+  superset of its POD5 directories and that is harmless here, because `classify`
+  is driven by the BAM and looks each aligned read up by id, so signal it is
+  never asked for is never touched. This removes a full duplicate of the run
+  from `pod5/runs/`, which is the exact cost the LDX path exists to avoid.
+  (Recursion is not new in 0.19.0; the pipeline simply never used it.)
+
+- **`escpod signal classify` is spelled `escpod classify` again**, upstream's
+  current name. Not a floor: 0.18.1 already carried `escpod classify` as an
+  alias in the other direction, so both spellings work on both releases. The
+  only user-visible difference is the `@PG` line on the output BAM.
+
+  0.19.0 also accepts a top-level `basecaller` block in a charging bundle's
+  metadata, which every escpod before it refused outright. That matters for the
+  *next* charging bundle rather than the vendored one — `charging_feature_nn_rna004@v0.1.1`
+  is a sidecar-only reissue with byte-identical weights that declares it — and
+  is why taking that bundle needs this bump first.
+
 - **The `nbc` barcode vocabulary is retired, and nbc bundles are refused.**
   `barcode_crf_nbc16_rna004@v0.2.0` is no longer vendored, `ldx.model` rejects
   any `barcode_crf_nbc*` bundle by name, and `nbc` is gone from the prefix table
@@ -49,6 +93,7 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   holds with their reasoning, so an undecided drift is distinguishable from a
   decided one. Needs network and a GitHub login, so it is a task rather than a
   workflow step: upstream is private and compute nodes have no route to it.
+
 
 ## [v0.3.0] - 2026-08-31
 

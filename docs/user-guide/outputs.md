@@ -94,7 +94,7 @@ samtools split -d BC merged.bam
 ```
 
 !!! note "`cl` and the modbase tags"
-    The charging call lands in its own `cl` tag (uint8, `round(P(charged) * 255)`), written directly by `escpod signal classify`. Dorado's `MM`/`ML` modbase tags are left untouched, which is what modkit reads — there is no tag round-trip and no `cm` tag any more.
+    The charging call lands in its own `cl` tag (uint8, `round(P(charged) * 255)`), written directly by `escpod classify`. Dorado's `MM`/`ML` modbase tags are left untouched, which is what modkit reads — there is no tag round-trip and no `cm` tag any more.
 
 !!! note "Why `BC` is written at all"
     Until it was added, a read's barcode existed **only** in the output path. The
@@ -411,7 +411,7 @@ Per-sample POD5 files after demultiplexing.
 
 `summary/tables/{sample}/{sample}.charging_calls.tsv.gz`
 
-One row per read the charging model saw, written by `escpod signal classify --tsv`.
+One row per read the charging model saw, written by `escpod classify --tsv`.
 
 | Column | Description |
 |--------|-------------|

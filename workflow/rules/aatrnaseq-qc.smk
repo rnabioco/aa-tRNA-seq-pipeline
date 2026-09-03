@@ -156,7 +156,7 @@ rule align_stats:
     extract alignment stats
 
     The `classified` row counts reads carrying a `cl` tag, not every read in
-    the final BAM: `escpod signal classify` passes unscored records through
+    the final BAM: `escpod classify` passes unscored records through
     untouched, so without --require-tag that row would equal `aligned` and the
     charge-calling gate in read_attrition would report zero loss.
     """
@@ -224,7 +224,7 @@ rule read_attrition:
     rows across files, so nobody did — a 12.37% drop at charge-calling survived every
     run until it was reconstructed by hand (issue #110).
 
-    The charge-calling gate no longer has to be inferred: `escpod signal classify`
+    The charge-calling gate no longer has to be inferred: `escpod classify`
     emits a row per unscored read with a `reason`, so that loss is now broken out
     by cause rather than reported as one unexplained difference.
     """

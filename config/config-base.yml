@@ -60,7 +60,7 @@ reference:
   # equal-length sequences, so molecules differing by an indel never merge.
   max_mismatch: 0
 
-# Charged vs uncharged tRNA classification, via `escpod signal classify`.
+# Charged vs uncharged tRNA classification, via `escpod classify`.
 charging:
   # Model bundle DIRECTORY, not a file. It is self-describing: it carries the
   # anchor definition, the feature recipe, the k-mer table it is defined
@@ -93,7 +93,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
 # GitHub release. It is on the critical path of every run, not just demux runs:
 # `escpod merge`/`escpod filter` do the POD5 handling that used to shell out to
-# the `pod5` CLI, `escpod signal classify` is the charging classifier, and
+# the `pod5` CLI, `escpod classify` is the charging classifier, and
 # `escpod demux` is the LDX barcode demultiplexer.
 #
 # 0.10.0 is the floor for the charging model. The vendored bundle is the
@@ -109,8 +109,33 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.18.1 is what we run, and it is a CORRECTNESS floor for `signal classify`
-# against any reference whose tRNA bodies are not sacCer3's. The CCA|adapter
+# 0.19.0 is what we run, and it changes two things this pipeline depends on:
+#   - ONE `.p5s` per DIRECTORY. `escpod demux --annotate` pointed at a directory
+#     now writes a single COLLECTION sidecar beside it (`run/pod5/` gets one
+#     `run/pod5.p5s`) instead of one per member file: a run of fifty POD5s
+#     produced one set of barcode calls, not fifty. Pointed at FILES it still
+#     writes a sidecar each, so `escapepod_demux` passes the POD5 DIRECTORIES
+#     rather than a `*.pod5` glob — the release alone does not get you the new
+#     shape, the argument does. Declared as `escapepod:p5s_version` 3, and an
+#     escpod that predates it refuses a collection by name rather than misreading
+#     it, so a mixed-version tree fails loudly. Nothing else had to change:
+#     a POD5 is matched against its own `.p5s` first and then the collection
+#     beside its directory, and a member is given rows only when its footer UUID
+#     and byte size match the collection's entry for it.
+#   - `escpod classify` is `escpod classify` again, and the `signal` group
+#     is now the hidden deprecated alias. This is NOT a floor: 0.18.1 already
+#     carried `escpod classify` as the alias in the other direction, so both
+#     spellings run on both releases. The rules use the current one; the only
+#     user-visible difference is the `@PG` line on the output BAM.
+#
+# It also carries a fix that matters for the NEXT charging bundle rather than the
+# vendored one: `MetaFile` now accepts a top-level `basecaller` block, which
+# escapepod-models#106 started emitting and which every escpod before this
+# refused outright (`unknown field \`basecaller\``). Absent still means "not
+# declared", so the bundle here loads on either version.
+#
+# 0.18.1 is a CORRECTNESS floor for `classify` against any reference whose tRNA
+# bodies are not sacCer3's. The CCA|adapter
 # junction was located by requiring `CCAGGC` to occur exactly once per reference
 # record, and that check ran BEFORE the common-arm check that actually
 # identifies the junction. But the motif is just CCA plus the adapter's opening
@@ -134,8 +159,9 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # a path that does not exist. Before it, `escpod demux basecall <run>/pod5`
 # logged one WARN, wrote a header-only CSV and exited 0 — a result nothing
 # downstream can distinguish from a run where no read passed. That matters here
-# because `get_ldx_pod5_source` hands `signal classify` a directory whenever a
-# run keeps its reads in one place.
+# because `get_ldx_pod5_source` hands `classify` a directory and never a file:
+# the resolver walks it RECURSIVELY, so a run split over pod5_pass and pod5_fail
+# is covered by naming the run, which is what retired the per-run `escpod merge`.
 #
 # 0.17.1 remains a floor for two reasons of its own:
 #   - it is the first release to ship a GPU BINARY
@@ -162,7 +188,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # were worse: they projected `read_id` and never read it, stamping the queried
 # UUID onto whatever row they landed on. Nothing downstream could detect it.
 # Every indexed lookup now confirms the row's `read_id` before using it. Our
-# demux --annotate -> sidecar -> `signal classify` flow is exactly that path.
+# demux --annotate -> sidecar -> `classify` flow is exactly that path.
 #
 # 0.12.0 brought `--ref-scores`, which computes log P(barcode | signal) from the
 # CRF lattice itself, so a demux call finally carries a continuous per-read
@@ -187,7 +213,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.18.1
+escpod_version: 0.19.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)

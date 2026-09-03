@@ -1,6 +1,6 @@
 # Rules for tRNA charging classification analysis
 # Extracts and summarizes the charged vs uncharged calls (`cl` tag) that
-# `escpod signal classify` wrote onto the BAM.
+# `escpod classify` wrote onto the BAM.
 
 
 rule get_cca_trna:

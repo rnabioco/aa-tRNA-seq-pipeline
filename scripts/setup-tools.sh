@@ -22,15 +22,15 @@ ESCPOD_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}"
 # Pinned checksums for the release tarballs, from the release's SHA256SUMS.txt.
 # Pinned rather than fetched alongside the tarball so that re-tagging the
 # release upstream is caught here instead of being silently trusted.
-ESCPOD_SHA256_x86_64_linux="185b92ecd890ed0044120e79d15a8b627eede92aab927668a381996833e4ca3b"
-ESCPOD_SHA256_aarch64_linux="7ccd1f09a966d766ff1920f63a3daa11384c734040d85751251253119472796b"
-ESCPOD_SHA256_x86_64_darwin="c0c1843bfe45408b18c6b59dbbf25b364699cbdb20b339342b7fe0f9c81cde04"
-ESCPOD_SHA256_aarch64_darwin="392847d096532353c9a08bc33d2d2a7a8c7287c0ae6eccf24374b24f5492248e"
+ESCPOD_SHA256_x86_64_linux="944452b52c2e6f02d3c03984b3b3743372b856127a95e9906e778d2cd50dc7bc"
+ESCPOD_SHA256_aarch64_linux="30def754f4ed9f5c9b3aa9570e7a5df18ecea82d9f23853352a6809ac2ecf906"
+ESCPOD_SHA256_x86_64_darwin="ff28a157c58429546eb87507bb0a769969bfe4b38d8dfae81469d8e1dce3048f"
+ESCPOD_SHA256_aarch64_darwin="8408979d5a3dd42898b1c32114937b99771775ad0c8db392378a57810f4b9e35"
 # The GPU build, for `ldx.gpu: true`. It is a SEPARATE artifact and the only
 # dynamically linked one (glibc >= 2.28), because the CUDA runtimes are
 # dlopened and so cannot be static-musl. x86_64 Linux only — upstream publishes
 # no other GPU target.
-ESCPOD_SHA256_x86_64_linux_gpu="51fff5e8f9e482c468b4efe06d0b186561b5fede929f2a69403c8750180b91a0"
+ESCPOD_SHA256_x86_64_linux_gpu="cfc7dcd8cd9ef9efd397008de176349445cf3913762365e3212dcda942cb565b"
 ESCPOD_GPU_TARGET="x86_64-unknown-linux-gnu-gpu"
 ESCPOD_GPU_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}-gpu"
 
@@ -260,7 +260,7 @@ fi
 # ============================================================================
 # escapepod (escpod) Setup
 # ============================================================================
-# Provides `escpod signal classify` (the tRNA charging classifier), `escpod
+# Provides `escpod classify` (the tRNA charging classifier), `escpod
 # merge`/`escpod filter` (POD5 handling), and `escpod demux` (the CTC-CRF
 # barcode demultiplexer used for LDX/nbc barcodes). The models themselves are
 # vendored in resources/models/charging/ and resources/models/demux/ rather

@@ -23,7 +23,7 @@ _CLEANUP_TIERS = {
     "cascade",  # bam/aln, tagged, charging, classified, adapter_tagged (redundant near-copies)
     "basecall",  # bam/rebasecall, bam/rebasecall_run (GPU-hours to regenerate)
     "fastq",  # fq/, demux/edx/fq
-    "merged_pod5",  # pod5/ (pre-demux merged per-sample, or per-run for LDX)
+    "merged_pod5",  # pod5/ (pre-demux merged per-sample; LDX runs build none)
     "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
     "split_pod5",  # demux/pod5 (WDX split; pre-EDX-filter). Only enable for all-EDX runs.
 }
@@ -682,15 +682,22 @@ def get_ldx_pod5_source(run_id):
     """Return the one POD5 path to hand a classifier for an LDX run.
 
     There is no per-sample POD5 on the LDX path — the whole run stays in its raw
-    POD5 and each sample is defined by its BAM. `escpod signal classify` takes a
-    single POD5 *or* a directory of them, so a run whose reads sit in one
-    directory can be pointed straight at the raw data. A run split across
-    pod5_pass/pod5_fail has to be merged first, since the CLI takes one path.
+    POD5 and each sample is defined by its BAM. `escpod classify` takes one path,
+    a POD5 *or* a directory, and it walks a directory RECURSIVELY: a run split
+    across pod5_pass/pod5_fail is covered by naming the run directory itself.
+    That is why there is no per-run `escpod merge` here any more — a merged copy
+    of the run existed only to collapse two paths into one, and it duplicated the
+    entire run's signal to do it, which is the cost the LDX path exists to avoid.
+
+    Naming the run is a SUPERSET of its POD5 directories, and that is harmless
+    here: classify is driven by the BAM, looking each aligned read up by id, so
+    signal it is never asked for is never touched. The narrower path is still
+    preferred when a run keeps its reads in one directory.
     """
     dirs = get_run_pod5_dirs(run_id)
     if len(dirs) == 1:
         return dirs[0]
-    return os.path.join(outdir, "pod5", "runs", run_id, f"{run_id}.pod5")
+    return get_run_path(run_id)
 
 
 def get_sample_pod5(wildcards):
@@ -702,9 +709,9 @@ def get_sample_pod5(wildcards):
     """
     if sample_is_ldx(wildcards.sample):
         source = get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
-        # A directory would make this input's mtime move every time demux writes
-        # a sidecar into it, re-triggering classification for nothing. Track the
-        # POD5 files themselves.
+        # A directory would make this input's mtime move whenever demux writes
+        # a sidecar beside the POD5s, re-triggering classification for nothing.
+        # Track the POD5 files themselves.
         return (
             samples[wildcards.sample]["raw_files"] if os.path.isdir(source) else source
         )

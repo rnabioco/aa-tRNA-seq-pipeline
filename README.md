@@ -110,7 +110,7 @@ flowchart TD
     end
 
     subgraph Classification
-        D --> F[classify_charging<br/>escpod signal classify]
+        D --> F[classify_charging<br/>escpod classify]
         B -.-> F
         A -.-> F
         F --> G[add_adapter_tags<br/>finalize_bam]
@@ -141,7 +141,7 @@ Given a directory of POD5 files, this pipeline:
 3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required by the charging model)
 4. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
 5. **Filters** for full-length tRNA reads with proper adapter boundaries
-6. **Classifies** charged vs. uncharged reads with `escpod signal classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
+6. **Classifies** charged vs. uncharged reads with `escpod classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
 
 The classification writes a `cl` tag (0-255) onto each scored read, `round(P(charged) * 255)`. By default `cl` >= 200 is charged and < 200 uncharged; this is the model bundle's own recommended operating point and is set by `charging.ml_threshold` in the config.
 

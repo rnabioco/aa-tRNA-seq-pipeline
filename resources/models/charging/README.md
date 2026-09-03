@@ -1,7 +1,7 @@
 # Vendored charging model
 
 The tRNA aminoacylation (charged vs uncharged) classifier read by
-`escpod signal classify`, committed here rather than fetched — for the same
+`escpod classify`, committed here rather than fetched — for the same
 reasons as [the demux bundles](../demux/README.md): the upstream repository
 `rnabioco/escapepod-models` is private, so a fetch needs a `$GITHUB_TOKEN`, and
 compute nodes on this cluster have no route to GitHub. Committing the bundle
@@ -21,7 +21,7 @@ motif, no offsets and no threshold — a caller computing the features
 differently gets a wrong answer rather than an error.
 
 ```bash
-escpod signal classify reads.pod5 -b aln.bam -r ref.fa \
+escpod classify reads.pod5 -b aln.bam -r ref.fa \
     -m resources/models/charging/charging_feature_nn_rna004@v0.1.0 \
     -o out.bam --tsv calls.tsv --min-mapq 0
 ```
@@ -67,7 +67,7 @@ shaped like a result.
 Arm resolvability is itself charging-correlated — the adduct is what stops the
 aligner — so **any charging fraction computed over called reads alone is an
 underestimate**, and the no-call rate has to be reported beside it. The pipeline
-does this for you: `escpod signal classify --tsv` emits a row per unscored read
+does this for you: `escpod classify --tsv` emits a row per unscored read
 with a `reason` column (`no_aligned_arm`, `no_signal`, `ns_mismatch`), which
 lands in `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` and is folded
 into `summary/read_attrition.tsv.gz`.
@@ -98,7 +98,7 @@ common arm differs from that sequence are out of distribution.
 
 ### The runtime version is pinned alongside the model
 
-This is the per-base-feature ONNX variant. `escpod signal classify` reads it
+This is the per-base-feature ONNX variant. `escpod classify` reads it
 from escapepod-rs#231 onward (**v0.10.0+**); an older `escpod` refuses the
 bundle with ``missing field `gbm` ``. `escpod_version` in
 `config/config-base.yml` is pinned at or above that for this reason.

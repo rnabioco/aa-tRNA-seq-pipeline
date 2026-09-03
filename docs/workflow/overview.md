@@ -43,7 +43,7 @@ flowchart TB
         C[rebasecall<br/>Dorado basecalling]
         D[ubam_to_fastq<br/>Extract FASTQ]
         E[bwa_align<br/>Align to reference]
-        F[classify_charging<br/>escpod signal classify]
+        F[classify_charging<br/>escpod classify]
         G2[add_adapter_tags<br/>PT tags]
         G3[finalize_bam<br/>Symlink final BAM]
     end
@@ -140,7 +140,7 @@ Core data processing from raw signal to classified reads:
 | `ubam_to_fastq` | Extract reads for alignment | No |
 | `bwa_idx` | Build BWA index | No |
 | `bwa_align` | Align reads to reference | No |
-| `classify_charging` | ML charging classification (`escpod signal classify`) | No |
+| `classify_charging` | ML charging classification (`escpod classify`) | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Symlink final BAM | No |
 
@@ -237,7 +237,7 @@ BWA MEM with RNA-optimized parameters:
 
 ### 4. Charging Classification
 
-`escpod signal classify` analyzes signal at the CCA 3' end:
+`escpod classify` analyzes signal at the CCA 3' end:
 
 - Input: POD5 (signal) + aligned BAM (with move tables) + reference + model bundle
 - Output: the same BAM records with a `cl` tag (0-255 score) added
