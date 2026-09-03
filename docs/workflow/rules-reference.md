@@ -126,7 +126,7 @@ samtools index {output}
 
 ### classify_charging
 
-Classify charged vs uncharged reads with `escpod signal classify`.
+Classify charged vs uncharged reads with `escpod classify`.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -140,7 +140,7 @@ Classify charged vs uncharged reads with `escpod signal classify`.
 
 **Command:**
 ```bash
-escpod signal classify {pod5} \
+escpod classify {pod5} \
     --bam {bam} \
     --reference {reference} \
     --model {model} \

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) aa-tRNA-seq data. The pipeline distinguishes between charged (aminoacylated) and uncharged tRNA molecules using a machine learning model — run by `escpod signal classify` — trained on nanopore signal data over the CCA 3' end of tRNA molecules.
+This is a Snakemake pipeline for processing Oxford Nanopore Technologies (ONT) aa-tRNA-seq data. The pipeline distinguishes between charged (aminoacylated) and uncharged tRNA molecules using a machine learning model — run by `escpod classify` — trained on nanopore signal data over the CCA 3' end of tRNA molecules.
 
 ## Setup and Environment
 
@@ -61,7 +61,7 @@ The pipeline supports both LSF and SLURM schedulers. Key files:
 **SLURM:**
 - `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
 
-GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` is CPU-only — `escpod signal classify` has no GPU path.
+GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` is CPU-only — `escpod classify` has no GPU path.
 
 ## Architecture
 
@@ -119,7 +119,7 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids
 2. **rebasecall**: Use dorado to rebasecall with move tables (required by the charging model)
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
-5. **classify_charging**: Run `escpod signal classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score
+5. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score
 6. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
 7. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
 
@@ -184,8 +184,11 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 Both converge on the same per-sample uBAM (`bam/rebasecall/{sample}/`), and
 everything downstream is identical. Enabling both is rejected at parse time.
 
-LDX writes no POD5 of its own: the raw run plus a few-MB sidecar is the whole
-signal store, where the WarpDemuX path leaves a second full copy of every read.
+LDX writes no POD5 of its own: the raw run plus a few-MB sidecar per POD5
+directory is the whole signal store, where the WarpDemuX path leaves a second
+full copy of every read. The classifiers are handed the raw run directory —
+`escpod classify` walks a directory recursively — so a run split across
+pod5_pass/pod5_fail needs no merged copy either.
 That is also why the LDX path basecalls per run rather than per sample — there
 is no per-sample POD5 to hand dorado — and why the signal classifiers are given
 the raw run and rely on the per-sample BAM to bound what they read.
@@ -267,7 +270,7 @@ pixi run snakemake --configfile=config/config-demux-test.yml --cores 8
 
 ## Charged vs Uncharged Classification
 
-The pipeline runs `escpod signal classify` against a vendored ONNX model bundle:
+The pipeline runs `escpod classify` against a vendored ONNX model bundle:
 
 - **Model Location**: `charging.model` config parameter — a bundle **directory**,
   `resources/models/charging/charging_feature_nn_rna004@v0.1.0`. It is

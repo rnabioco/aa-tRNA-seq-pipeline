@@ -147,7 +147,7 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=
     """Summarize a BAM.
 
     `require_tag` counts only reads carrying that tag. It exists because
-    `escpod signal classify` writes its `cl` call onto the records it scored
+    `escpod classify` writes its `cl` call onto the records it scored
     and passes every other record through UNCHANGED, so a plain read count of
     the charging BAM equals the read count of its input and the charge-calling
     gate silently reports zero loss. Remora only emitted the reads it called,

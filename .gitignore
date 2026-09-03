@@ -22,9 +22,11 @@ resources/leech/
 !.tests/fixtures/**/*.pod5
 # samtools indexes the fixture reference in place during a run; derived, not vendored
 .tests/fixtures/**/*.fai
-# `escpod demux --annotate` writes a .p5s sidecar NEXT TO the POD5 it describes --
-# i.e. into the raw data directory, which for the committed fixture is inside this
-# repo. Derived from a run, never vendored.
+# `escpod demux --annotate` writes a .p5s sidecar next to what it was pointed at:
+# since escpod 0.19.0 that is one COLLECTION sidecar beside each POD5 directory
+# (`run/pod5/` -> `run/pod5.p5s`), where it used to be one per member file. Either
+# way it lands in the raw data directory, which for the committed fixture is
+# inside this repo. Derived from a run, never vendored.
 *.p5s
 # pod5 writes these while migrating a run to a newer file version, and names
 # them after the version pair -- so a v3->v4 pattern stops matching the moment

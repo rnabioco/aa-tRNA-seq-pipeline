@@ -94,7 +94,7 @@ class TestFinalBamOutput:
     def test_final_bam_preserves_modbase_tags(self, final_bam_path):
         """Dorado's MM/ML modbase tags must survive charging classification.
 
-        `escpod signal classify` adds `cl` alongside them rather than writing
+        `escpod classify` adds `cl` alongside them rather than writing
         into ML/MM the way Remora did, and modkit reads MM/ML downstream. A
         regression here would silently empty the modification pileups.
         """

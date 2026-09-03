@@ -188,7 +188,7 @@ Per-tRNA aggregated counts:
 `ML`/`MM` are the standard SAM modification tags, and Dorado already uses them
 for the base modifications modkit reads. The charging call gets its own `cl`
 tag (uint8, `round(P(charged) * 255)`), written directly by
-`escpod signal classify`, so the two never collide.
+`escpod classify`, so the two never collide.
 
 Historically the charging score *did* arrive in `ML`/`MM` — Remora emitted it
 there, clobbering the modbase calls — and a `transfer_bam_tags` step existed

@@ -14,7 +14,7 @@ Two rules require GPU access:
 
 !!! note "`classify_charging` is CPU-only"
 
-    `escpod signal classify` has no GPU path — it runs a small ONNX network on
+    `escpod classify` has no GPU path — it runs a small ONNX network on
     the CPU and scales with `--threads`. Do not give it a GPU slot; it will sit
     on an idle device.
 
@@ -192,7 +192,7 @@ GPU rules also require significant system memory:
 ### classify_charging (CPU)
 
 - Analyzes signal at the CCA 3' end, anchored in reference coordinates
-- Runs on the CPU under `escpod signal classify`; scales with `--threads`
+- Runs on the CPU under `escpod classify`; scales with `--threads`
 - No GPU slot required
 
 ## Troubleshooting

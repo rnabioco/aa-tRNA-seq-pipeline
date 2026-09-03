@@ -223,7 +223,7 @@ there rather than failing.
 loudly if it is missing. **`escpod_version` is shared with the musl default** —
 demux is the only rule with a GPU path, so pointing the global pin at `-gpu`
 would hand every other rule a dynamically linked, single-platform binary just
-to run `escpod merge` and `escpod signal classify`, and would break `pixi run
+to run `escpod merge` and `escpod classify`, and would break `pixi run
 setup`, which derives its download URL from that string.
 
 `scripts/install-escpod-gpu.sh` still exists for building an unreleased ref out
@@ -378,8 +378,8 @@ complete a run; its header explains why, and there is no committed WDX fixture.
       `bam/adapter_tagged` (redundant near-copies; `bam/final` hardlinks the last one)
     - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
     - `fastq` — `fq/`, `demux/edx/fq`
-    - `merged_pod5` — `pod5/` (pre-demux merged per-sample, or per-run on an LDX
-      run whose reads span several POD5 directories)
+    - `merged_pod5` — `pod5/` (pre-demux merged per-sample; an LDX run builds
+      none — its classifiers are handed the raw run directory)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
     - `split_pod5` — `demux/pod5` (WarpDemuX split, pre-EDX-filter)
 

@@ -237,7 +237,7 @@ rule inject_ubam_tags:
 
 rule classify_charging:
     """
-    Classify charged vs uncharged reads with `escpod signal classify`.
+    Classify charged vs uncharged reads with `escpod classify`.
 
     Runs on CPU. The model bundle is self-describing — it carries the anchor
     definition, the feature recipe, the k-mer table it is defined against
@@ -288,14 +288,15 @@ rule classify_charging:
         model=get_charging_model(),
         min_mapq=config["charging"]["min_mapq"],
         # LDX samples have no POD5 of their own: input.pod5 is the raw run's
-        # files (for dependency tracking) but the tool takes one path.
+        # files (for dependency tracking) but the tool takes one path — a
+        # directory, which it walks recursively.
         pod5_src=get_classification_pod5_arg,
         # escpod writes plain text regardless of extension, so hand it the
         # uncompressed path and gzip afterwards.
         tsv=lambda wildcards, output: output.calls[: -len(".gz")],
     shell:
         """
-        escpod signal classify {params.pod5_src} \
+        escpod classify {params.pod5_src} \
             --bam {input.bam} \
             --reference {input.reference} \
             --model {params.model} \

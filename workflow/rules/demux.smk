@@ -307,7 +307,7 @@ def get_escpod_bin():
     demux is the only rule with a GPU path and the GPU artifact is x86_64 Linux
     only. Moving the global pin would hand every other rule a dynamically
     linked, single-platform binary just to run `escpod merge` and
-    `escpod signal classify`, and would break `pixi run setup`, which derives
+    `escpod classify`, and would break `pixi run setup`, which derives
     its download URL from that same string and would ask GitHub for a
     `v<version>-gpu` release that does not exist.
     """
@@ -366,22 +366,42 @@ rule escapepod_demux:
     Demultiplex LDX (nbc) barcodes with escapepod's fused CTC-CRF pipeline.
 
     One pass over the raw POD5 does detect -> prep -> basecall -> match, and
-    `--annotate` records each read's barcode in a `.p5s` sidecar written beside the
-    POD5 it describes. With no -d/--output-dir this is the only routing output: no
-    per-barcode POD5 is written, so the run is never duplicated. The split is taken
-    later, on the basecalled uBAM (see split_ldx_ubam).
+    `--annotate` records each read's barcode in a `.p5s` sidecar. With no
+    -d/--output-dir this is the only routing output: no per-barcode POD5 is
+    written, so the run is never duplicated. The split is taken later, on the
+    basecalled uBAM (see split_ldx_ubam).
+
+    Since escpod 0.19.0 a DIRECTORY argument produces ONE collection sidecar for
+    the whole directory — `<run>/pod5/` gets `<run>/pod5.p5s` — rather than a
+    `*.pod5.p5s` beside every member. A run that wrote fifty POD5s produced one
+    set of barcode calls, not fifty, and this is the shape that says so. It is
+    the argument that selects it, not the flag: naming files individually still
+    writes one sidecar each, which is why params.pod5_dirs passes the
+    directories.
 
     The sidecar lives next to the raw data rather than under this run's results
-    because escpod binds it to that POD5's footer UUID and size, and reads it from
-    the adjacent path. Two consequences worth knowing:
+    because escpod binds it to the POD5s' footer UUIDs and sizes, and reads it
+    from the adjacent path. A member gets rows only when both match its entry, so
+    a file dropped into the directory afterwards is told it has no sidecar rather
+    than inheriting a neighbour's labels. Three consequences worth knowing:
 
-      - Re-demuxing the same POD5 replaces the `barcode` column in place, so
+      - Re-demuxing the same directory replaces the `barcode` column in place, so
         changing the model or the margin is safe and needs no cleanup.
-      - A POD5 replaced under the same name leaves a sidecar describing reads that
-        are no longer there. escpod detects this from the footer and refuses to
-        read it; recover by deleting the `.p5s` and re-running. (Deleting a `.p5s`
-        by itself does not re-trigger this rule, since its outputs are still
-        present — force it with `--forcerun escapepod_demux`.)
+      - A POD5 replaced under the same name leaves a collection describing reads
+        that are no longer there. escpod detects this from the footer and refuses
+        to read it; recover by deleting the `.p5s` and re-running. (Deleting a
+        `.p5s` by itself does not re-trigger this rule, since its outputs are
+        still present — force it with `--forcerun escapepod_demux`.)
+      - An escpod older than 0.19.0 refuses a collection sidecar BY NAME rather
+        than reporting a missing column, so a tree written by this pipeline and
+        read by an older binary fails loudly instead of silently.
+      - A per-file `*.pod5.p5s` left behind by a pre-0.19.0 demux SHADOWS the
+        collection: lookup merges the two per column with the file's own winning,
+        so a stale `barcode` column would outrank the fresh one. Nothing here
+        reads a sidecar — the split is driven by classifications.csv — so this
+        cannot affect the pipeline's own output, but delete the old per-file
+        sidecars before pointing `escpod demux split --sidecar` or the Python
+        Reader at a run demuxed under both versions.
 
     No --barcodes or --method is passed: the bundle carries its own references and
     pins the boundary detector it was calibrated against, and overriding either
@@ -495,9 +515,11 @@ rule escapepod_demux:
             if config.get("ldx", {}).get("gpu", False)
             else ""
         ),
-        pod5_dirs=lambda wildcards: " ".join(
-            os.path.join(d, "*.pod5") for d in get_run_pod5_dirs(wildcards.run_id)
-        ),
+        # DIRECTORIES, not a `*.pod5` glob, and the distinction is the whole
+        # point since escpod 0.19.0: pointed at a directory `--annotate` writes
+        # ONE collection sidecar beside it, pointed at files it writes one per
+        # file. Naming the directories is what turns fifty sidecars into one.
+        pod5_dirs=lambda wildcards: " ".join(get_run_pod5_dirs(wildcards.run_id)),
         summarize_awk=os.path.join(SCRIPT_DIR, "summarize_demux.awk"),
     shell:
         """
@@ -747,33 +769,6 @@ rule split_ldx_ubam:
         """
         samtools view -b -@ {threads} -N {input.read_ids} {input.bam} \
             >{output} 2>{log}
-        """
-
-
-rule merge_run_pods:
-    """
-    Merge a run's POD5 directories into one file for the signal classifiers.
-
-    Only reached when a run's reads are spread over more than one directory
-    (pod5_pass and pod5_fail, say). `escpod signal classify` takes a single POD5
-    or a single directory, so there is nowhere to put the second path; a run that
-    keeps everything in one directory is handed that directory directly and never
-    builds this. Not a copy of the split — one file, the whole run, which the
-    per-sample BAMs then index into.
-    """
-    input:
-        get_run_raw_inputs,
-    output:
-        maybe_temp(
-            os.path.join(outdir, "pod5", "runs", "{run_id}", "{run_id}.pod5"),
-            tier="merged_pod5",
-        ),
-    log:
-        os.path.join(outdir, "logs", "merge_run_pods", "{run_id}"),
-    threads: 12
-    shell:
-        """
-        escpod merge -t {threads} --force -o {output} {input} 2>&1 | tee {log}
         """
 
 

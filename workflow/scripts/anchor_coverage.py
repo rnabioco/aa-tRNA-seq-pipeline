@@ -9,7 +9,7 @@ not that the model looked and declined.
 That distinction used to be invisible: under Remora the two were indis-
 tinguishable in the outputs, and the only trace of either was that
 `align_stats`'s `classified` row came out smaller than its `aligned` row.
-`escpod signal classify --tsv` now names the reads it saw and did not score, so
+`escpod classify --tsv` now names the reads it saw and did not score, so
 this script covers the other half — the reads that never reached the model at
 all — and the two are read together in `read_attrition.tsv.gz`.
 
