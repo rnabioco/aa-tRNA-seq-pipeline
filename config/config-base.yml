@@ -94,7 +94,7 @@ dorado_model: rna004_130bps_sup@v5.3.0
 # GitHub release. It is on the critical path of every run, not just demux runs:
 # `escpod merge`/`escpod filter` do the POD5 handling that used to shell out to
 # the `pod5` CLI, `escpod signal classify` is the charging classifier, and
-# `escpod demux` is the LDX (nbc) barcode demultiplexer.
+# `escpod demux` is the LDX barcode demultiplexer.
 #
 # 0.10.0 is the floor for the charging model. The vendored bundle is the
 # per-base-feature ONNX variant, which escpod reads from escapepod-rs#231
@@ -184,8 +184,9 @@ dorado_model: rna004_130bps_sup@v5.3.0
 #     SHORT — silently, no error, no non-zero exit. On the 2026-08-06 run that
 #     cost 97,790 reads (10.6%) and looked like biology.
 #   - 0.8.1 also carries the multi-input `filter` that `split_pod5` needs, and
-#     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys the
-#     vendored nbc16 model declares.
+#     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
+#     upstream CRF bundle has ever actually declared either (see `ldx` below),
+#     so the flags are what carry them; the escpod floor is for the flags.
 escpod_version: 0.18.1
 
 # modkit threshold parameters for modification calling
@@ -279,7 +280,12 @@ warpdemux:
 
 # LDX demultiplexing via escapepod's CTC-CRF barcode basecaller (optional).
 #
-# LDX is our name for the barcodes escapepod-models calls `nbc01`..`nbc16`.
+# LDX names both the adapters and the barcode codes, `ldx01`..`ldx16`, and the
+# shipped `barcode_crf_ldx16_rna004` bundle emits exactly those names -- so
+# nothing is translated on this path. The retired `barcode_crf_nbc16_rna004`
+# family called the same physical codes `nbcNN`; it is refused outright now
+# (see get_ldx_model in demux.smk), because it is a different retrain rather
+# than a renaming and its calls differ from ldx16's on ~8% of reads.
 # This is the successor to the WarpDemuX/WDX path: it reads the barcode out of
 # the raw adapter signal with a CRF and matches the decode to references by
 # edit distance, rather than classifying boundary-gated fingerprints.

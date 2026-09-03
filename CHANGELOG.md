@@ -4,6 +4,52 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **LDX demux was broken for every sample on the shipped default bundle.** A
+  sample configured `ldx01` was rewritten to `nbc01` before being matched
+  against `classifications.csv` — but the default bundle since v0.3.0 is
+  `barcode_crf_ldx16_rna004@v0.1.0`, whose references *are* named
+  `ldx01`..`ldx16`, so the rewritten name appeared nowhere in the file. Every
+  barcoded sample on the run then failed, and it failed **late**: the demux pass
+  and the whole-run dorado basecall had already been paid for by the time
+  anything looked at a barcode name. The rename was correct for the nbc16 bundle
+  it was written against and became wrong when the default moved; a dry-run
+  could not catch it, because both call sites merely produced a mapping that
+  matched nothing rather than raising.
+
+### Changed
+
+- **The `nbc` barcode vocabulary is retired, and nbc bundles are refused.**
+  `barcode_crf_nbc16_rna004@v0.2.0` is no longer vendored, `ldx.model` rejects
+  any `barcode_crf_nbc*` bundle by name, and `nbc` is gone from the prefix table
+  in `workflow/scripts/barcode_names.py` — the LDX panel is `ldx01`..`ldx16` end
+  to end, in the samples file, in the bundle and in the BAM, with no translation
+  step to get wrong. This is not a naming preference: nbc16 and ldx16 are
+  separate retrains whose calls differ on ~8% of reads, so keeping the retired
+  bundle selectable meant keeping alive the crosswalk that caused the failure
+  above, in exchange for an option nobody should take.
+
+- **Barcode names are resolved against the bundle, not guessed from a prefix.**
+  `resolve_to_bundle()` asks the configured bundle's `metadata.json` what it
+  calls its references and raises `BarcodeVocabularyError` — naming the bundle's
+  own vocabulary — when a configured name matches none of them. Both sites that
+  compare against `classifications.csv` now use it, so a samples file and a model
+  that disagree fail during DAG construction, at `pixi run dry-run-ldx`, instead
+  of after the GPU hours. `bundle_barcode_names()` already existed for this and
+  was called only from tests.
+
+### Added
+
+- **`pixi run check-models`** reports vendored model bundles that upstream has
+  since superseded. `verify-demux-model` answers "is this copy what upstream
+  released?"; this answers "is that still the release we want?", which a bundle
+  can fail while verifying perfectly. It is a report and never an upgrade —
+  newest is not best here, and `resources/models/pins.yml` records deliberate
+  holds with their reasoning, so an undecided drift is distinguishable from a
+  decided one. Needs network and a GitHub login, so it is a task rather than a
+  workflow step: upstream is private and compute nodes have no route to it.
+
 ## [v0.3.0] - 2026-08-31
 
 ### Added

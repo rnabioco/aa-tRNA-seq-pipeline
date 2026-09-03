@@ -203,8 +203,13 @@ rule inject_ubam_tags:
             if get_sample_barcode_label(wildcards.sample)
             else ""
         ),
-        # Records the upstream (escapepod-models) barcode name next to ours, so
-        # a BAM tagged `ldx04` still says which `nbc` it came from.
+        # Records the upstream (escapepod-models) barcode name next to ours
+        # whenever the two differ. Since the ldx16 switch neither live panel
+        # renames — a sample is configured as the name its bundle emits — so
+        # this emits nothing today. Kept because the emitted vocabulary belongs
+        # to the bundle: the retired nbc16 panel did differ, and a future one
+        # may, and then a BAM tagged `ldx04` should still say what it came
+        # from.
         comment_arg=lambda wildcards: (
             f'--comment "aa-tRNA-seq:upstream_barcode='
             f'{get_sample_barcode_upstream(wildcards.sample)}"'
