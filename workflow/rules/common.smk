@@ -16,6 +16,12 @@ SCRIPT_DIR = os.path.join(SNAKEFILE_DIR, "scripts")
 sys.path.insert(0, SCRIPT_DIR)
 from barcode_names import emitted_to_label, resolve_to_bundle
 
+# Whether this run's basecaller is the one the charging bundle was trained
+# against. A charging model reads the k-mer residual against a level predicted
+# from the read's own basecall, so the basecaller is part of the feature
+# definition rather than tooling; see workflow/scripts/basecaller_compat.py.
+from basecaller_compat import check_basecaller
+
 # Cleanup tiers for maybe_temp(). Each large intermediate is assigned a tier so
 # they can be deleted or kept independently via the `cleanup_intermediates`
 # config key (see maybe_temp / _enabled_cleanup_tiers below).
@@ -845,3 +851,45 @@ rule generate_squiggy_session:
             --no-checksums \
             2>&1 | tee {log}
         """
+
+
+def check_basecaller_compatibility():
+    """Fail (or warn) when this run's basecaller is not the bundle's.
+
+    Runs while the DAG is built, so a mismatch costs a dry-run rather than a
+    basecall plus a classification pass. Reads `metadata.json` only — the
+    ~300 MB model digest that would prove byte identity is `pixi run
+    verify-basecaller`, not this.
+
+    `charging.basecaller_check` selects the strength: `error` (default),
+    `warn`, or `off`. Only the MODEL-IDENTITY finding is governed by it; the
+    dorado major-version finding always warns, because the model is what governs
+    charging calls and blocking a run over the runtime that produced identical
+    weights would strand every bundle built by an older dorado.
+    """
+    mode = config.get("charging", {}).get("basecaller_check", "error")
+    if mode == "off":
+        return
+    if mode not in ("error", "warn"):
+        sys.exit(
+            f"charging.basecaller_check must be one of error, warn, off; "
+            f"got {mode!r}"
+        )
+
+    findings = check_basecaller(
+        get_charging_model(),
+        config.get("base_calling_model", ""),
+        config.get("dorado_version", ""),
+    )
+    fatal = [msg for level, msg in findings if level == "error" and mode == "error"]
+    for level, msg in findings:
+        label = "ERROR" if (level == "error" and mode == "error") else "WARNING"
+        print(f"{label}: {msg}\n", file=sys.stderr)
+    if fatal:
+        sys.exit(
+            "Refusing to run with a basecaller the charging bundle was not "
+            "trained on. Set `charging.basecaller_check: warn` to proceed anyway."
+        )
+
+
+check_basecaller_compatibility()
