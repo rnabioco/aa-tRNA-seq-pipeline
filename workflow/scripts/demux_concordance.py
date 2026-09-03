@@ -70,10 +70,10 @@ def read_crf_calls(path):
 
     Names are normalised to the project's vocabulary on the way in. escpod
     emits whatever the bundle's metadata calls its references -- `bc03` for the
-    WDX panel, `nbc01` for LDX -- while every WarpDemuX-side source here speaks
-    `barcode03`. Comparing the two raw is not a near miss that shows up as a
-    few percent: nothing ever matches, and the run reports ~99% `differed`
-    while looking entirely well-formed.
+    WDX panel -- while every WarpDemuX-side source here speaks `barcode03`.
+    Comparing the two raw is not a near miss that shows up as a few percent:
+    nothing ever matches, and the run reports ~99% `differed` while looking
+    entirely well-formed.
     """
     calls = {}
     with open(path, newline="") as f:

@@ -1,0 +1,24 @@
+# Vendored bundles deliberately held BEHIND the newest upstream release.
+#
+# Read by `pixi run check-models` (scripts/check-model-currency.py), which
+# otherwise warns about every bundle upstream has superseded. An entry here is a
+# recorded decision, not a suppression: it must name the version actually
+# vendored, so a later bump that leaves this file untouched is reported as a
+# stale pin rather than silently inheriting the old justification.
+#
+# A family that is simply current needs no entry.
+
+barcode_crf_ldx16_rna004:
+  version: 0.1.0
+  reason: >
+    v0.1.1 is an unexplained rebuild, not an improvement. Same corpus
+    (n_train 283,296 in both), same geometry, same ldx01..ldx16 names; the only
+    structural difference is that the training config came from leech's packaged
+    crf_ctc.toml rather than this project's scripts/ldx/crf_config.toml. It
+    lands 0.0038 LOWER on exact match than the v0.1.0 we vendor (0.97965 against
+    0.98342), and upstream is itself still bounding that gap as training-seed
+    variance — escapepod-models 2cb4324 added a seed axis for exactly this
+    reason, noting the task has no measured run-to-run spread to compare it
+    against. v0.1.1 deliberately did not become the shipped bundle upstream
+    either. Moving would mean vendoring a new bundle to get a model that scores
+    lower, so we stay until the seed sweep gives an error bar that explains it.

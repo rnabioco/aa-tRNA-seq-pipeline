@@ -285,9 +285,9 @@ class TestFinalBamTags:
     def test_barcode_tag_on_every_read(self, sample, barcode):
         """
         BC must be on every read — a partially tagged BAM is worse than an
-        untagged one. Since barcode_crf_ldx16 the model already emits `ldx01`,
-        so get_sample_barcode's nbc->ldx rename is an identity here; it still
-        applies to anyone pinned to an nbc16 bundle.
+        untagged one. The ldx16 bundle emits `ldx01` directly, so
+        get_sample_barcode_label is the identity on this path; the crosswalk it
+        goes through still renames the WDX4 panel.
         """
         expected = barcode
         bam = OUTPUTS / "bam" / "final" / sample / f"{sample}.bam"
@@ -310,10 +310,10 @@ class TestFinalBamTags:
     @pytest.mark.parametrize("sample,barcode", [(s, b) for s, (b, _) in EXPECTED_SAMPLES.items()])
     def test_upstream_barcode_comment_iff_renamed(self, sample, barcode):
         """
-        @CO records upstream's name only when it DIFFERS from the tag — with an
-        nbc16 bundle `nbc01` is tagged `ldx01` and the comment disambiguates,
-        but ldx16 emits `ldx01` directly and there is nothing to disambiguate.
-        Asserting the conditional keeps this honest under either bundle.
+        @CO records upstream's name only when it DIFFERS from the tag, and
+        ldx16 emits `ldx01` directly, so there is nothing to disambiguate and no
+        comment is written. Asserting the conditional rather than the absence
+        keeps this honest if a future bundle does rename.
         """
         bam = OUTPUTS / "bam" / "final" / sample / f"{sample}.bam"
         with pysam.AlignmentFile(bam, "rb") as fh:

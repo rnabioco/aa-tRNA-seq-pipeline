@@ -46,6 +46,10 @@ measurements that justify them are recorded below.
 2026-08-19 from
 `https://github.com/rnabioco/escapepod-models/releases/tag/barcode_crf_ldx16_rna004%40v0.1.0`.
 
+Held at **v0.1.0 on purpose**, though upstream has since published v0.1.1 —
+see `resources/models/pins.yml` for the measurement behind that, and run
+`pixi run check-models` to see it reported rather than silently drifting.
+
 Successor to the `barcode_crf_nbc16_rna004` family, which is **closed at
 v0.3.1**. It is a retrain, not just a rename: corrected geometry
 (escapepod-models#36, `state_len=4` so the full 27-nt code is emitted rather
@@ -114,39 +118,27 @@ ended before the 2000-sample window — not one it was unsure about. That is
 120,158 reads (7%) on a 1.7M-read run, and it is a `boundary_margin` /
 `clamp_max_shift` question rather than a classifier one.
 
-## `barcode_crf_nbc16_rna004@v0.2.0`  (retained)
+## `barcode_crf_nbc16_rna004` — retired, no longer vendored
 
-Kept so runs pinned to it stay reproducible. Not the default.
+The nbc16 family is gone from this repository, and `ldx.model` now **refuses**
+any bundle whose directory name begins `barcode_crf_nbc`.
 
+It named the same 16 physical LDX codes `nbc01`..`nbc16`, and for a while this
+project translated between the two vocabularies. That translation is what broke:
+the successor bundle's references are called `ldx01`..`ldx16` already, so
+rewriting a configured `ldx01` into `nbc01` produced a name appearing nowhere in
+an ldx16 `classifications.csv` — and every sample on the run then failed with
+"No reads were assigned", *after* the demux pass and the whole-run basecall had
+been paid for. Keeping a retired bundle available as an option is what kept that
+translation alive, so the bundle went with it.
 
-16-plex CTC-CRF barcode basecaller for the LDX adapters (upstream calls these
-barcodes `nbc01`..`nbc16`; **LDX is the name we use for them**). Released
-2026-08-01 from
-`https://github.com/rnabioco/escapepod-models/releases/tag/barcode_crf_nbc16_rna004%40v0.2.0`.
+Switching between the families was never a rename in any case. They are separate
+retrains whose calls differ on ~8% of reads, so a run demultiplexed with one is
+not comparable to a run demultiplexed with the other.
 
-The bundle is self-describing: `metadata.json` carries the 16 barcode
-references, the signal geometry, the standardisation constants, and the
-boundary detector it is pinned to. That is why the run-time invocation needs no
-`--barcodes` and no `--method`:
-
-```bash
-escpod demux <pod5>... --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 -d out/
-escpod demux --model resources/models/demux/barcode_crf_nbc16_rna004@v0.2.0 --info
-```
-
-### Contents
-
-| File | sha256 | Notes |
-|---|---|---|
-| `barcode_crf_nbc16_rna004.onnx` | `5b626e5e…3134c6` | CRF encoder. Decode is *not* in the graph — standard ONNX ops cannot express it, so `escpod` runs the Viterbi over 256 states × 5 transitions itself. |
-| `adapter_rna004.onnx` | `b59f8667…3d26b5` | Boundary CNN, `adapter_rna004@v1.1.0`. |
-| `metadata.json` | — | Runtime sidecar: references, geometry, standardisation, boundary pin. |
-| `provenance.json` | — | Training provenance and published metrics. |
-
-Both checksums were verified against two independent sources: the release's own
-`provenance.json`/release notes, and — for `adapter_rna004` — the pinned member
-hash in escapepod-rs's `demux/models.rs` manifest. Re-check with
-`sha256sum -c SHA256SUMS.txt` from inside the bundle directory.
+To reproduce a genuinely pre-ldx16 run, check out the pipeline commit that
+shipped the bundle rather than pointing a current checkout at a recovered copy —
+the vocabulary handling moved with it.
 
 ### The boundary model is not interchangeable
 

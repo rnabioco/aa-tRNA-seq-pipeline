@@ -67,11 +67,17 @@ def get_barcodes_for_run(run_id):
     The keys are matched against the `barcode` column of classifications.csv,
     which carries the bundle's own vocabulary. A WDX4 sample configured as
     `barcode03` is recorded there as `bc03`, so keying on the configured string
-    would match nothing and every sample would come back empty. `nbc01` is
-    already emitted-side and passes through unchanged.
+    would match nothing and every sample would come back empty; an ldx16 sample
+    configured `ldx01` is already the bundle's own name and passes through.
+
+    Resolved against the CONFIGURED bundle rather than by prefix, so a samples
+    file and a model that disagree are caught here, while the DAG is being
+    built, instead of by the "No reads were assigned" guard in
+    rebasecall_ldx_run — which fires only after the demux pass has run.
     """
+    bundle = get_ldx_model()
     return {
-        label_to_emitted(info["barcode"]): sample
+        resolve_to_bundle(info["barcode"], bundle): sample
         for sample, info in samples.items()
         if info.get("run_id") == run_id and info.get("barcode")
     }
@@ -242,7 +248,7 @@ rule parse_warpdemux:
         )
 
 
-# --- escapepod CTC-CRF (LDX / nbc) demultiplexing ---
+# --- escapepod CTC-CRF (LDX) demultiplexing ---
 
 
 def get_ldx_model():
@@ -266,6 +272,23 @@ def get_ldx_model():
             f"ldx.model is not a directory: {model}\n"
             "escapepod CRF models are self-describing BUNDLES (metadata.json "
             "plus the ONNX graphs it names), not a single file."
+        )
+    # The nbc16 family is retired here, and refused rather than merely
+    # undocumented. It is not a naming preference: nbc16 and ldx16 are separate
+    # RETRAINS whose calls differ on ~8% of reads, so a run demultiplexed with
+    # one is not comparable to a run demultiplexed with the other, and nothing
+    # downstream records which was used. The vocabulary is also no longer
+    # translated (see workflow/scripts/barcode_names.py), so an nbc bundle would
+    # now fail in resolve_to_bundle anyway — this says why, at the point the
+    # model is chosen.
+    if os.path.basename(model).startswith("barcode_crf_nbc"):
+        sys.exit(
+            f"ldx.model points at a retired nbc bundle: {os.path.basename(model)}\n"
+            "This pipeline runs the ldx16 panel, whose references are named "
+            "`ldx01`..`ldx16`. nbc16 is a different retrain — ~8% of calls "
+            "differ — so switching is not a rename and results are not "
+            "comparable across it.\n"
+            "Use resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0."
         )
     return model
 
@@ -660,8 +683,11 @@ rule extract_ldx_sample_reads:
         sample=ldx_sample_constraint(),
     params:
         # As the MODEL emits it: this is compared against classifications.csv,
-        # which speaks the bundle's vocabulary, not the samples file's.
-        barcode=lambda wildcards: label_to_emitted(samples[wildcards.sample]["barcode"]),
+        # which speaks the bundle's vocabulary, not the samples file's. Asked of
+        # the bundle rather than guessed from the prefix — see resolve_to_bundle.
+        barcode=lambda wildcards: resolve_to_bundle(
+            samples[wildcards.sample]["barcode"], get_ldx_model()
+        ),
     run:
         import csv
 
