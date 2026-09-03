@@ -39,7 +39,7 @@ output_directory: "results/myproject"
 
 ```yaml
 # Path to Dorado model directory or model name for auto-download
-base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
+base_calling_model: "resources/models/rna004_sup@v6.0.0"
 ```
 
 The model is downloaded automatically if using a model name.
@@ -156,7 +156,7 @@ charging:
   # Model bundle DIRECTORY, vendored in the repo. Self-describing: it carries
   # the anchor, feature recipe, k-mer table (pinned by sha256) and operating
   # point, so none of those are flags.
-  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
+  model: "resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0"
   # 0, not escpod's default of 1 — tRNA references are redundant, so MAPQ 0
   # is normal and those reads are still good.
   min_mapq: 0
@@ -178,7 +178,7 @@ charging:
 ```yaml
 # Dorado basecaller version
 dorado_version: 2.1.1
-dorado_model: rna004_130bps_sup@v5.3.0
+dorado_model: rna004_sup@v6.0.0
 ```
 
 Modkit is managed via Pixi and specified in `pixi.toml`.

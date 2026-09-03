@@ -273,7 +273,7 @@ pixi run snakemake --configfile=config/config-demux-test.yml --cores 8
 The pipeline runs `escpod classify` against a vendored ONNX model bundle:
 
 - **Model Location**: `charging.model` config parameter — a bundle **directory**,
-  `resources/models/charging/charging_feature_nn_rna004@v0.1.1`. It is
+  `resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0`. It is
   self-describing (anchor, feature recipe, k-mer table pinned by sha256, abstain
   rule, operating point), so nothing about the recipe is passed as a flag.
   See the README beside it.
@@ -291,11 +291,18 @@ The pipeline runs `escpod classify` against a vendored ONNX model bundle:
 - **Runtime pinning**: the bundle needs escpod >= 0.19.0; older refuses it with
   ``unknown field `basecaller` `` (the schema is `deny_unknown_fields` on purpose).
   `escpod_version` is pinned alongside the model, and the two move together
-- **Basecaller declaration**: the bundle names the basecalls it was trained on —
-  `rna004_130bps_sup@v5.3.0`, dorado 1.4.0 — and escpod states it at load. It does
-  NOT check it. `dorado_model` in config matches; a different basecalling model is a
-  domain shift on the k-mer residual, so arm-to-arm contrasts survive it but absolute
-  charged fractions do not
+- **Basecaller pairing**: the bundle names the basecalls it was trained on —
+  `rna004_sup@v6.0.0`, dorado 2.1.1+d66c17c, matching `base_calling_model` and the
+  installed binary byte-for-byte. escpod states this at load and does NOT check it,
+  so the pipeline does: `charging.basecaller_check` errors on a model mismatch at
+  DAG construction, and `pixi run verify-basecaller` proves byte identity. A
+  different basecalling model is a domain shift on the k-mer residual — arm-to-arm
+  contrasts survive it, absolute charged fractions do not
+- **Two bundles are vendored, one per basecalling model** and they are NOT
+  interchangeable: `charging_feature_nn_sup6_rna004@v0.1.0` for `rna004_sup@v6.0.0`
+  (the default), `charging_feature_nn_rna004@v0.1.1` for data already basecalled with
+  `rna004_130bps_sup@v5.3.0`. Switching means setting `base_calling_model`,
+  `dorado_model` and `charging.model` together
 
 ## Development
 

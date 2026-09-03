@@ -75,7 +75,7 @@ pixi run setup
 This downloads and installs:
 
 - **Dorado** - Oxford Nanopore basecaller (version set in `config/config-base.yml`)
-- **Dorado model** - `rna004_130bps_sup@v5.3.0` basecalling model
+- **Dorado model** - `rna004_sup@v6.0.0` basecalling model
 - **escpod** - POD5 handling, charging classification, and LDX demultiplexing
 - **WarpDemuX** - Barcode demultiplexing (optional, for multiplexed samples)
 
@@ -120,7 +120,7 @@ aa-tRNA-seq-pipeline/
 │   │   ├── escpod/<version>/  # escpod binary
 │   │   └── WarpDemuX/       # WarpDemuX (if demux enabled)
 │   ├── models/
-│   │   ├── rna004_130bps_sup@v5.3.0/  # Basecalling model
+│   │   ├── rna004_sup@v6.0.0/         # Basecalling model
 │   │   ├── charging/                  # Charging model bundle (vendored)
 │   │   └── demux/                     # Barcode model bundles (vendored)
 │   ├── ref/                  # Reference sequences

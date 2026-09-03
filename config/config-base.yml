@@ -2,7 +2,7 @@
 # this is included in the main Snakefile
 
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
-base_calling_model: "resources/models/rna004_130bps_sup@v5.3.0"
+base_calling_model: "resources/models/rna004_sup@v6.0.0"
 
 # path to fasta file to use for bwa alignment.
 # a BWA index will be built if it does not exist for this fasta file
@@ -66,7 +66,7 @@ charging:
   # anchor definition, the feature recipe, the k-mer table it is defined
   # against (pinned by sha256), the abstain rule and the recommended operating
   # point, so nothing below is passed as a flag. See the README beside it.
-  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
+  model: "resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0"
 
   # Minimum mapping quality for a read to be classified. 0, not escpod's
   # default of 1, and deliberately: tRNA references are highly redundant, so a
@@ -104,9 +104,9 @@ charging:
   # The DORADO VERSION is checked separately and only ever WARNS, at a major
   # difference. Same weights run by a later dorado are still the same weights,
   # so it cannot justify blocking a run — but a major bump is a different
-  # implementation and can move basecalls with the weights unchanged. This is
-  # live today: the vendored bundle was built with dorado 1.4.0 and
-  # `dorado_version` pins 2.1.1.
+  # implementation and can move basecalls with the weights unchanged. Since the
+  # v6 switch both sides agree exactly (the bundle declares 2.1.1+d66c17c, which
+  # is the binary `pixi run setup` installs), so neither check says anything.
   #
   # Neither check reads the model. `pixi run verify-basecaller` is the one that
   # proves byte identity against the declared `model_sha256`, because it hashes
@@ -118,7 +118,7 @@ charging:
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
 dorado_version: 2.1.1
-dorado_model: rna004_130bps_sup@v5.3.0
+dorado_model: rna004_sup@v6.0.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
 # GitHub release. It is on the critical path of every run, not just demux runs:

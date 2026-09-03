@@ -1,0 +1,135 @@
+{
+  "id": "charging_feature_nn_sup6_rna004",
+  "version": "0.1.0",
+  "full_id": "charging_feature_nn_sup6_rna004@v0.1.0",
+  "kind": "charging",
+  "format": "onnx",
+  "chemistry": "rna004",
+  "created": "2026-09-01",
+  "file": "charging_feature_nn_sup6_rna004.onnx",
+  "sha256": "0139bca7e3753bd83e1983c959aecf9553ad94c1fffc7f33e77b29e2a3d7e59c",
+  "license": "CC-BY-4.0",
+  "source": {
+    "escapepod_models_commit": "8bdb8139b4565af36cea0093052fe300b10b5d7f",
+    "escapepod_models_dirty": false,
+    "escapepod_rs_commit": null,
+    "escapepod_rs_version": "escpod 0.19.0+3695bf9",
+    "escapepod_rs_binary": "/beevol/home/jhessel/.local/escpod-gpu-0.19.0/bin/escpod",
+    "training_script": "snakemake workflow (config: charging_feature_nn_sup6_rna004)",
+    "trainable_source_pt": null,
+    "builders": {
+      "leech": {
+        "expected": "0.10.0",
+        "resolved": "0.10.0",
+        "environments": {
+          "boundary": {
+            "leech": "0.10.0",
+            "leech_core": "0.10.0"
+          },
+          "boundary-gpu": {
+            "leech": "0.10.0",
+            "leech_core": "0.10.0"
+          }
+        }
+      }
+    }
+  },
+  "training": {
+    "label_source": "Library chemistry, not a model. ldx01-05 chemical ligation only, which joins the adapter to the amino acid's alpha-amine and so cannot happen on a deacylated molecule; ldx11-16 enzymatic ligation only, which needs a free 3'-OH a charged tRNA lacks. Reads are assigned to blocks by an LDX barcode call (barcode_crf_nbc16_rna004@v0.3.0), and that caller's error is the only label noise: ~9.3% of the ldx01-05 label is foreign by the 5' marker, against ~0.2% for ldx11-16.",
+    "dataset": "20260814_charged_vs_uncharged: E. coli K-12 MG1655 tRNA, 16 LDX codes on a single shared edx07 3' adapter, the same pool on two flowcells (Rep_1 PBK76952 train, Rep_2 PBK76980 test).",
+    "barcodes": null,
+    "n_train": 1224605,
+    "n_test": 1397627,
+    "pipeline": "dorado 2.1.1 rna004_sup@v6.0.0 --emit-moves; escpod demux detect --method cnn -> demux basecall --barcodes for the block; bwa mem vs eschColi_K_12_MG1655-edx07.fa; junction windows via move-table mapping; per-base features (mean + z-scored k-mer residual) over offsets -8..+24; matched split; recurrent net over the offset axis; ONNX.",
+    "basecaller": {
+      "model": "rna004_sup@v6.0.0",
+      "model_sha256": "9cab42f3123de784aca5c38f03f85d2c247bd4a6e1b4914b78cf45fc42bbadb1",
+      "dorado_version": "2.1.1+d66c17c"
+    }
+  },
+  "io_contract": "input float32 [B,4,33]: channels (mean, resid, mean_observed, resid_observed) over offsets -8..+24, per-channel standardised with the mu/sd fitted on the train split; output [B,2] logits (uncharged, charged).",
+  "runtime": "",
+  "metrics": {
+    "source": "workflow/rules/charging.smk (charging-eval via escapepod_models.charging)",
+    "verified": true,
+    "labels": [
+      "uncharged",
+      "charged"
+    ],
+    "label_source": "Library chemistry, not a model. ldx01-05 chemical ligation only, which joins the adapter to the amino acid's alpha-amine and so cannot happen on a deacylated molecule; ldx11-16 enzymatic ligation only, which needs a free 3'-OH a charged tRNA lacks. Reads are assigned to blocks by an LDX barcode call (barcode_crf_nbc16_rna004@v0.3.0), and that caller's error is the only label noise: ~9.3% of the ldx01-05 label is foreign by the 5' marker, against ~0.2% for ldx11-16.",
+    "split": "held-out flowcell; training draw matched within (run x isotype x speed bin) across the two chemically pure blocks",
+    "n_train": 1224605,
+    "n_test": 1397627,
+    "geometry": {
+      "feature_set": "level_resid@arm_le24",
+      "channels": [
+        "mean",
+        "resid",
+        "mean_observed",
+        "resid_observed"
+      ],
+      "n_offsets": 33,
+      "standardisation": {
+        "method": "per-channel affine over the TRAIN split's observed values",
+        "mu": [
+          -0.31856822967529297,
+          -0.14093293249607086
+        ],
+        "sd": [
+          0.7598916292190552,
+          1.252407193183899
+        ]
+      },
+      "anchor": "alignment junction (adapter-G base start), per-base features"
+    },
+    "best_val_auroc": 0.9868229782836185,
+    "val": {
+      "n": 136099,
+      "auroc": 0.9868229782836185,
+      "balanced_accuracy": 0.9528212089782309,
+      "flowcells": null
+    },
+    "test_cross_experiment": {
+      "n": 1397627,
+      "auroc": 0.9871640684036359,
+      "balanced_accuracy": 0.9530276873107955,
+      "confusion": [
+        [
+          702633,
+          27551
+        ],
+        [
+          37519,
+          629924
+        ]
+      ],
+      "flowcells": null
+    },
+    "balanced_accuracy": 0.9530276873107955,
+    "corpus_counts": {
+      "charged": {
+        "test": 1154001,
+        "train": 1013995,
+        "val": 112509
+      },
+      "uncharged": {
+        "test": 6821700,
+        "train": 6166160,
+        "val": 685708
+      }
+    },
+    "excluded_unreadable": {
+      "charged": {
+        "n_excluded": 35112,
+        "frac_of_class": 0.015163129308516909
+      },
+      "uncharged": {
+        "n_excluded": 10141,
+        "frac_of_class": 0.0007411002382468086
+      }
+    },
+    "coverage_note": "Reads whose common arm did not align (cs_source == junction_fallback) are excluded here and abstained on at inference: their whole left window is masked and every arm feature is NaN, and a model scored on them answers ~100% charged whatever the library. The exclusion rate is far higher for charged reads, so any charging fraction derived from called reads alone is an UNDERESTIMATE. Report the no-call rate beside it.",
+    "note": "Labels are library chemistry: chemical ligation attaches the adapter to the amino acid's alpha-amine and cannot happen on a deacylated molecule, enzymatic ligation needs a free 3'-OH a charged tRNA lacks. The training draw is matched on isotype and translocation speed because the two blocks also differ in 5' adapter and run ~53% apart. Test is a held-out flowcell."
+  },
+  "notes": ""
+}

@@ -155,11 +155,11 @@ def check_basecaller(bundle_dir, basecall_model, dorado_version):
                 "warn",
                 f"dorado major version differs: the bundle was built with "
                 f"{declared['dorado_version']}, this run pins {dorado_version}.\n"
-                "The basecalling model matches, which is the rule that governs "
-                "charging calls, so this does not block the run. But a major bump is "
-                "a different implementation of the basecaller and can move basecalls "
-                "with the weights unchanged — worth revalidating before trusting "
-                "absolute charged fractions across it.",
+                "Model identity is the rule that governs charging calls, so this "
+                "never blocks a run on its own. But a major bump is a different "
+                "implementation of the basecaller and can move basecalls with the "
+                "weights unchanged — worth revalidating before trusting absolute "
+                "charged fractions across it.",
             )
         )
     return findings
