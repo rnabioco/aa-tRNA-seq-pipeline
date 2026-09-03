@@ -1,11 +1,11 @@
 {
   "id": "charging_feature_nn_rna004",
-  "version": "0.1.0",
-  "full_id": "charging_feature_nn_rna004@v0.1.0",
+  "version": "0.1.1",
+  "full_id": "charging_feature_nn_rna004@v0.1.1",
   "kind": "charging",
   "format": "onnx",
   "chemistry": "rna004",
-  "created": "2026-08-17",
+  "created": "2026-09-01",
   "file": "charging_feature_nn_rna004.onnx",
   "sha256": "6cfebc2d436f4d565e27c20094c1e49c176a79ebb401c4a8e85a8f663a820637",
   "license": "CC-BY-4.0",
@@ -110,5 +110,9 @@
     "coverage_note": "Reads whose common arm did not align (cs_source == junction_fallback) are excluded here and abstained on at inference: their whole left window is masked and every arm feature is NaN, and a model scored on them answers ~100% charged whatever the library. The exclusion rate is far higher for charged reads, so any charging fraction derived from called reads alone is an UNDERESTIMATE. Report the no-call rate beside it.",
     "note": "Labels are library chemistry: chemical ligation attaches the adapter to the amino acid's alpha-amine and cannot happen on a deacylated molecule, enzymatic ligation needs a free 3'-OH a charged tRNA lacks. The training draw is matched on isotype and translocation speed because the two blocks also differ in 5' adapter and run ~53% apart. Test is a held-out flowcell."
   },
-  "notes": ""
+  "notes": "sidecar-only reissue: declares the basecaller the model was trained against (escapepod-models#106). Weights are byte-identical to charging_feature_nn_rna004@v0.1.0.",
+  "reissued_from": {
+    "full_id": "charging_feature_nn_rna004@v0.1.0",
+    "sha256": "6cfebc2d436f4d565e27c20094c1e49c176a79ebb401c4a8e85a8f663a820637"
+  }
 }

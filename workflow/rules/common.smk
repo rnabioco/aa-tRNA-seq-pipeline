@@ -63,7 +63,7 @@ def get_charging_model():
         sys.exit(
             "charging.model is unset. Point it at a charging bundle "
             "directory, e.g. "
-            "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+            "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
         )
     if not os.path.isabs(model):
         model = os.path.join(PIPELINE_DIR, model)

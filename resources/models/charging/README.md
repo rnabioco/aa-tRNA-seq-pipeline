@@ -7,11 +7,45 @@ reasons as [the demux bundles](../demux/README.md): the upstream repository
 compute nodes on this cluster have no route to GitHub. Committing the bundle
 takes the token, the network and the cache out of the run-time path entirely.
 
-## `charging_feature_nn_rna004@v0.1.0`
+## `charging_feature_nn_rna004@v0.1.1`
 
-Released 2026-08-17 from
-`https://github.com/rnabioco/escapepod-models/releases/tag/charging_feature_nn_rna004%40v0.1.0`.
+Released 2026-09-01 from
+`https://github.com/rnabioco/escapepod-models/releases/tag/charging_feature_nn_rna004%40v0.1.1`.
 This bundle replaced the Remora `cca_classifier.pt` in pipeline v0.4.0.
+
+v0.1.1 is a **sidecar-only reissue of v0.1.0**: the ONNX and the k-mer table are
+byte-identical (`cmp` clean, and the graph's sha256 is unchanged at
+`6cfebc2d…a820637`), and `metadata.json` differs only by the version string and
+a new top-level `basecaller` block. Calls do not move — the fixture scores
+identically, read for read, under either bundle.
+
+What it buys is that the block is **readable**. The charging feature set is
+`mean + z-scored k-mer residual` with the expected level predicted from the
+read's own basecall, so the model substantially detects *how the basecaller
+fails* at the aminoacyl adduct, and swapping basecaller changes what its
+dominant feature means. Measured upstream: ~0.0097 AUROC, 3.0–3.2 pp of TPR and
+**3.9% of per-read calls** flip, while the aggregate charged fraction moves
+0.04 pp — so the one number anyone would check reads "no change" while one read
+in 26 answers differently.
+
+**It requires escpod >= 0.19.0.** A charging bundle's schema is
+`deny_unknown_fields`, so every older escpod refuses this file outright with
+``unknown field `basecaller` ``. That is the schema working as designed, not a
+bug, and it is why `escpod_version` moved in the same release.
+
+escpod **states the declaration and does not enforce it**:
+
+```
+INFO bundle was trained on basecalls from rna004_130bps_sup@v5.3.0
+     (dorado 1.4.0+ba44a013); scoring reads called with another model is a
+     domain shift on the k-mer residual — escpod does not check this
+```
+
+`config-base.yml` sets `dorado_model: rna004_130bps_sup@v5.3.0`, which matches.
+The dorado *version* differs (2.1.1 here against 1.4.0 there); the declaration
+scopes the risk to the basecalling model, which is identical, including its
+sha256. Revisit this if `dorado_model` moves — see the v6 note in
+`docs/`.
 
 The bundle is self-describing: `metadata.json` carries the anchor definition,
 the feature recipe (offsets, stat layout, standardisation constants), the k-mer
@@ -22,7 +56,7 @@ differently gets a wrong answer rather than an error.
 
 ```bash
 escpod classify reads.pod5 -b aln.bam -r ref.fa \
-    -m resources/models/charging/charging_feature_nn_rna004@v0.1.0 \
+    -m resources/models/charging/charging_feature_nn_rna004@v0.1.1 \
     -o out.bam --tsv calls.tsv --min-mapq 0
 ```
 
@@ -30,7 +64,7 @@ escpod classify reads.pod5 -b aln.bam -r ref.fa \
 
 | File | sha256 | Notes |
 |---|---|---|
-| `charging_feature_nn_rna004.onnx` | `6cfebc2d…3a0637` | LSTM over the offset axis, opset 17. Input `float32 [B,4,33]`, output `[B,2]` logits (uncharged, charged). |
+| `charging_feature_nn_rna004.onnx` | `6cfebc2d…820637` | LSTM over the offset axis, opset 17. Input `float32 [B,4,33]`, output `[B,2]` logits (uncharged, charged). |
 | `9mer_levels_v1.txt` | `1d366c9e…f13e63` | **A symlink**, see below. The k-mer level table the `resid` feature is defined against. |
 | `metadata.json` | — | Runtime sidecar: anchor, features, abstain rule, standardisation, operating point. |
 | `provenance.json` | — | Training provenance and published metrics. |

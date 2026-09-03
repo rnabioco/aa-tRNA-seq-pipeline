@@ -215,7 +215,7 @@ Warning: 0 reads aligned
 
 **Error:**
 ```
-No such file or directory ... charging_feature_nn_rna004@v0.1.0
+No such file or directory ... charging_feature_nn_rna004@v0.1.1
 ```
 
 **Solution:**
@@ -224,7 +224,7 @@ No such file or directory ... charging_feature_nn_rna004@v0.1.0
 
 ```yaml
 charging:
-  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.0"
+  model: "resources/models/charging/charging_feature_nn_rna004@v0.1.1"
 ```
 
 The bundle is vendored in the repository, so it should already be present:
