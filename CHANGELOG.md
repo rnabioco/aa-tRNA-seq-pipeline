@@ -4,6 +4,41 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Right-sized the two GPU rules against cgroup measurements, and taught the
+  Slurm profile to poll with `squeue`.** No behaviour changes, only what the
+  rules ask the scheduler for.
+
+  `escapepod_demux` drops from 32 to **16 cpus** and `rebasecall_ldx_run` from
+  32 to **12**. Both are measured from the jobs' own `cpu.stat usage_usec`
+  rather than from MaxRSS: demux draws a mean of 1.86 cores (peak 4.24) and is
+  bound by filesystem read latency, while dorado draws a flat 4.67 (peak 4.84)
+  and is GPU-bound. Neither was using what it held.
+
+  `rebasecall_ldx_run` drops from `gpu:4` to **`gpu:2`**, which is a scheduling
+  decision and not a throughput one. Asked of the scheduler with `--test-only`,
+  every other field held constant, `gpu:1/2/3` all started immediately and
+  `gpu:4` started **12.5 h later** — a whole-node request waits for a node with
+  nothing else on it. On an idle partition 4 is strictly better; re-derive per
+  site.
+
+  `slurm-status-command: squeue` is new. Without it the executor's status check
+  needs slurmdbd, and when that is unreachable the controller does not error —
+  it silently stops making progress after its first submission batch, which is
+  what a controller driven from inside an allocation hits.
+
+- **Documented why `escapepod_demux` memory must NOT be cut**, after a cut to
+  24000 cgroup-OOM-killed two flowcells. escpod's arena grows to fill the
+  cgroup, so its 99.7%-of-request MaxRSS states no requirement — but every
+  surviving job also sat at 24.44 GB, because with an arena the limit *becomes*
+  the working set: lowering it moves the cliff rather than reclaiming slack. The
+  check that separates a safe cut from a fatal one is `memory.stat` `anon` vs
+  `file`, now recorded at both keys — escpod is ~24 GB of anon (a cliff), dorado
+  is 5.3 GiB anon against 111.1 GiB of reclaimable page cache (not one), which
+  is why its 128 G looks equally oversized and is left alone.
+
+
 ## [v0.5.0] - 2026-09-03
 
 ### Changed
