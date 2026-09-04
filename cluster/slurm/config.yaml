@@ -17,6 +17,18 @@ show-failed-logs: true
 slurm-logdir: "logs/slurm"
 slurm-keep-successful-logs: false
 slurm-delete-logfiles-older-than: 10
+
+# Poll job state with squeue rather than Snakemake's default sacct.
+#
+# Without this the executor's status check depends on slurmdbd being reachable,
+# and when it is not the controller does not error -- it silently stops making
+# progress after its first submission batch. That is what a controller driven
+# from inside an allocation (a compute-node interactive session) hits, and the
+# failure looks like a hung pipeline rather than a configuration problem.
+#
+# squeue only reports live jobs, so a job that finishes between polls reads as
+# gone; the executor handles that and falls back for the final state.
+slurm-status-command: squeue
 # NOTE: no profile-wide slurm-qos here. The executor plugin appends
 # settings.slurm-qos *after* any per-rule `qos` resource, so a global
 # value here silently overrides (or, if passed via slurm_extra, is
@@ -174,14 +186,61 @@ set-resources:
     # obvious candidate and is untested. Keep the headroom until the throughput
     # is understood, rather than sizing to the good run.
     runtime: "12h"
+    # 48000, and DO NOT CUT IT on a MaxRSS argument. This was tried on
+    # 2026-09-04 and killed two flowcells.
+    #
+    # The reasoning that justified the cut was: escpod peaks at 99.7% of
+    # whatever cgroup it is given (46.7 of 46.9 GiB), which is the same
+    # arena-fills-the-cgroup signature this file documents for dorado below, so
+    # MaxRSS cannot state a requirement; and memory was not the binding
+    # constraint for packing (2 jobs/node by CPU and by GPU, 5 by memory). Both
+    # premises are true. The conclusion does not follow.
+    #
+    # At 24000, ten demux jobs ran and TWO were cgroup-OOM-killed:
+    #   20260227 Pool1 (760 GB)  OUT_OF_MEMORY 0:125 after 2h02
+    #   20260306 Pool2 (486 GB)  OUT_OF_MEMORY 0:125 after 1h38
+    # and the eight that SURVIVED each peaked at 24.44 GB. Every job, living or
+    # dead, sat hard against the limit -- which is what an arena grown to the
+    # cgroup implies: the limit becomes the working set, so lowering it does not
+    # reclaim slack, it moves the cliff. Packing was never what would kill it.
+    #
+    # 530 GB survived 24000 while 486 GB did not, so input size does not predict
+    # which side of the cliff a run lands on.
+    #
+    # The check that distinguishes a safe cut from a fatal one is the job's own
+    # cgroup `memory.stat`: read `anon` against `file`. Anonymous memory is a
+    # cliff -- exceed it and the cgroup kills you. Page cache is reclaimable and
+    # is evicted under pressure instead. escpod here is ~24 GB of anon arena, so
+    # it is all cliff. dorado below measures anon 5.3 GiB against 111.1 GiB of
+    # page cache, which is why ITS 128 G looks equally oversized and is not.
+    # Do not re-cut this without that measurement and a controlled A/B on the
+    # largest flowcell.
     mem_mb: 48000
+    # 16, not 32, and the "UNMEASURED" note this replaces is now measured.
+    #
+    # Read from the job's own cgroup (cpu.stat usage_usec) on a 530 GB flowcell
+    # mid-run, 45 s of 5 s windows:
+    #
+    #     mean 1.86 cores, peak 4.24, of 32 allocated  -- 6% mean, 13% peak
+    #
+    # with several windows at 0.00 that line up with both GPUs sitting idle.
+    # This rule is bound by filesystem read latency (BeeGFS here), not by CPU
+    # and not by GPU, so the 32 was buying nothing. 16 is ~4x the observed peak.
+    #
+    # NOT cut further, and not to 8, for two reasons. The sample is one phase of
+    # one flowcell. And a project config setting `ldx.threads: 32` still asks
+    # escpod for 32 threads -- the mismatch the original note below calls a bug
+    # becomes deliberate at that point, but a cgroup tight enough to thrash 32
+    # threads on a 12h rule with no resume would trade a real flowcell for an
+    # accounting tidy-up. `ldx.threads` should follow this down, but note that
+    # editing it mid-campaign invalidates every completed demux: it is a params
+    # change and snakemake's default rerun-triggers include params.
+    #
+    # Original note, kept because it explains the pairing:
     # 32 to match `ldx.threads` in the project config. The committed default was
     # 16, which silently halves what the config asks for, since the profile's
-    # default-resources overrides a rule's own `threads:`. That is a real bug,
-    # but NEITHER Watt pus4 run hit it -- both ran at 32, the first from an
-    # uncommitted working tree -- so the speed value of this bump is UNMEASURED
-    # here. Do not cite either run as evidence for it.
-    cpus_per_task: 32
+    # default-resources overrides a rule's own `threads:`.
+    cpus_per_task: 16
 
   # The LDX run basecall. Same work as `rebasecall`, gathered into one job
   # instead of one per sample, so it needs a runtime that covers the whole
@@ -212,7 +271,26 @@ set-resources:
   rebasecall_ldx_run:
     slurm_partition: gpu
     slurm_account: gpu_rbi
-    gres: "gpu:4"
+    # 2, not 4, and this is a SCHEDULING decision rather than a throughput one.
+    # dorado does scale across four A30s; the question is when it starts.
+    #
+    # Asked of the scheduler directly on 2026-09-03 with --test-only, every
+    # other field held constant:
+    #
+    #   gpu:1  start 2026-09-03T15:08 compgpu03
+    #   gpu:2  start 2026-09-03T15:08 compgpu03
+    #   gpu:3  start 2026-09-03T15:08 compgpu03
+    #   gpu:4  start 2026-09-04T03:45 compgpu01   <- 12.5 h later
+    #
+    # cpus_per_task made no difference (16 and 32 gave the same answer). The
+    # whole cost was the fourth GPU: a gpu:4 request needs a node with nothing
+    # else on it, so one unrelated single-GPU job holds a whole node back from
+    # satisfying it.
+    #
+    # Re-derive per site rather than inheriting this. On an idle gpu partition 4
+    # is strictly faster and costs nothing; on a contended one it is the
+    # difference between this afternoon and tomorrow morning.
+    gres: "gpu:2"
     runtime: "285m"   # 4h45 -- see note above
     # 128 GB, and this number is a BUDGET, not a requirement -- dorado expands
     # to whatever the cgroup allows. Two runs of this rule over the identical
@@ -234,7 +312,21 @@ set-resources:
     # whatever you set. Note the single-POD5 `dorado basecaller` benchmark
     # (~16 GiB, no --read-ids, one file) is not comparable to this rule either.
     mem_mb: 128000
-    cpus_per_task: 32
+    # 12, down from 32, measured from the job cgroup (cpu.stat) mid-basecall,
+    # 40 s of 5 s windows:
+    #
+    #     mean 4.67 cores, peak 4.84, of 32 allocated  -- 15%
+    #
+    # and unlike escapepod_demux the draw is FLAT (4.58-4.84), not spiky, so the
+    # mean is the whole story. 12 leaves ~2.5x on the peak. dorado is genuinely
+    # GPU-bound here -- every A30 on the node sits at 100% util with two of
+    # these jobs on it -- so CPU is not what paces it and the 32 bought nothing.
+    #
+    # This cannot be applied to an already-queued job. `scontrol update
+    # NumCPUs=` and `CpusPerTask=` both return success on a PENDING job and
+    # change nothing (verified: NumCPUs=32 before and after). Only a new
+    # submission picks it up. `TimeLimit=` and `MinMemoryNode=` do take.
+    cpus_per_task: 12
 
   ldx_split_parent_map:
     runtime: "2h"
