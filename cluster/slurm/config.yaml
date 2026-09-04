@@ -166,10 +166,12 @@ set-resources:
     # two are usable. If a run still logs a single device, put this back to 1
     # rather than holding a GPU nothing addresses.
     gres: "gpu:2"
-    # 12h, not 8. Like rebasecall_ldx_run below this rule has NO RESUME -- it is
-    # one `escpod demux` writing its sidecars and --classifications in a single
-    # pass, so a job killed on wall clock loses the whole thing rather than a
-    # tail of it. Measured 2026-08-26 on 4x A30 (one device; escpod is
+    # 12h, not 8. This rule has NO RESUME -- it is one `escpod demux` writing
+    # its sidecars and --classifications in a single pass, so a job killed on
+    # wall clock loses the whole thing rather than a tail of it. (rebasecall and
+    # rebasecall_ldx_run no longer share that: they resume, see below. escpod
+    # has no equivalent of dorado's --resume-from, so this one still does not.)
+    # Measured 2026-08-26 on 4x A30 (one device; escpod is
     # single-GPU): 422 GB of POD5 in 283 min = 1.49 GB/min, INCLUDING the ~50
     # onnxruntime arena OOM retries that run hit. The complete 2026-08-21 Watt
     # pus4 flowcell is 559 GB, so ~375 min -- which left the old 8h just 105 min
@@ -246,28 +248,37 @@ set-resources:
   # instead of one per sample, so it needs a runtime that covers the whole
   # flowcell rather than a barcode's share of it.
   #
-  # THERE IS NO RESUME. This rule is a plain `dorado basecaller ... >{output}`;
-  # nothing passes --resume-from, and the output is a shell redirect, so a job
-  # killed on wall clock loses the entire basecall rather than a tail of it.
-  # Size `runtime` to finish, not to be generous -- and when a maintenance
-  # reservation is pending, remember Slurm will not START a job whose walltime
-  # crosses into it, so an over-large request means the job simply never runs.
+  # THIS RULE RESUMES (#149). It runs through
+  # workflow/scripts/dorado_basecall_resume.sh, which keeps the partial BAM of a
+  # killed attempt out of Snakemake's reach and feeds it back as dorado's
+  # --resume-from, so an overrun costs the tail of a basecall and a requeue
+  # rather than the whole flowcell. That inverts the old sizing advice: this
+  # number can be the measured need instead of insurance against being wrong.
+  #
+  # It still should not be wildly over-asked. Slurm will not START a job whose
+  # walltime crosses a pending maintenance reservation, so an over-large request
+  # means the job never runs -- and failing to start costs a whole scheduling
+  # window, where an overrun now costs only the unfinished tail.
   #
   # dorado is not pinned to a device (`opts.dorado` passes no -x), so it uses
-  # every visible GPU and scales across all four on a node. Measured here on
-  # 2026-08-26, 4x A30, rna004_130bps_sup@v5.3.0 with the four mod models:
-  # 928,690 reads in 569 s = 1,632 reads/s wall (1,789 steady, the difference
-  # being dorado's batch-size benchmarking at startup). The 2026-08-21 Watt
-  # pus4 flowcell is 27.7M reads, ~92% of which demux assigns, so ~25.5M reads
-  # => ~4.3 h (260 min).
+  # every GPU the allocation makes visible. Two measurements, and note they
+  # differ in BOTH the basecalling model and the GPU count:
   #
-  # 4h45 rather than a round 5h, and the asymmetry is the reason. Overrunning
-  # the walltime destroys the whole basecall, since there is no resume; failing
-  # to START only costs the attempt, because demux's output is already on disk.
-  # So margin belongs on the job, not on the deadline: 285 min is 25 min over
-  # the measured need, and still lets Slurm start it as late as 01:15 against
-  # the 06:00 reservation. Re-derive this against the next reservation rather
-  # than inheriting it -- it encodes a date, not a property of the data.
+  #   rna004_130bps_sup@v5.3.0, 4x A30, 2026-08-26:
+  #     928,690 reads in 569 s = 1,632 reads/s wall
+  #   rna004_sup@v6.0.0 (the v0.5.0 default), gpu:2, 2026-09-03 (job 256074):
+  #     8,646,049 reads in 02:34:44 = 931 reads/s wall
+  #
+  # The second is the one that sets this number, because it matches what the
+  # rule now asks for on both counts -- the v6 model and the `gres: gpu:2`
+  # below. A 30.7M read flowcell in the E. coli IVC corpus is ~9.2 h at 931
+  # reads/s, and 600m is that plus a little.
+  #
+  # Do not average the two, and do not read the pair as a model comparison:
+  # halving the GPUs and changing the model at once confounds them, so how much
+  # of the 1,632 -> 931 is v6 being slower and how much is two devices instead
+  # of four is NOT separated here. The v5.3.0 row is kept only so a run pinned
+  # back to that model on four GPUs has something to size against.
   rebasecall_ldx_run:
     slurm_partition: gpu
     slurm_account: gpu_rbi
@@ -291,7 +302,7 @@ set-resources:
     # is strictly faster and costs nothing; on a contended one it is the
     # difference between this afternoon and tomorrow morning.
     gres: "gpu:2"
-    runtime: "285m"   # 4h45 -- see note above
+    runtime: "600m"   # 10h -- see note above
     # 128 GB, and this number is a BUDGET, not a requirement -- dorado expands
     # to whatever the cgroup allows. Two runs of this rule over the identical
     # 4,889,538 reads, same node, same GPUs:

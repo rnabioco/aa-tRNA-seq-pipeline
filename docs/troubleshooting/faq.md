@@ -157,6 +157,23 @@ pixi run snakemake --profile cluster/lsf --configfile=config/config.yml
 
 Only incomplete rules will re-run.
 
+A rule that failed re-runs from the start, with one exception: **basecalling
+resumes mid-rule**. `rebasecall` and `rebasecall_ldx_run` go through
+`workflow/scripts/dorado_basecall_resume.sh`, which leaves the partial BAM of a
+killed attempt beside the output as a hidden `.{name}.partial` and passes it back
+to dorado as `--resume-from` next time. So a basecall killed on wall clock costs
+the reads it had not reached, not the whole flowcell — just resubmit.
+
+The checkpoint is discarded automatically, and a full basecall done instead, if
+the basecalling arguments changed since it was written (a different
+`base_calling_model`, say) or if it is too damaged to read. You should not need
+to touch it; if you want to force a clean start anyway, delete the
+`.{name}.partial`, `.{name}.resume` and `.{name}.args` files next to the output.
+The `clean` rule already removes them with the rest of `bam/rebasecall*/`.
+
+`escapepod_demux` does **not** resume — `escpod` has no equivalent of
+`--resume-from` — so an LDX demux killed on wall clock does start over.
+
 ---
 
 ## Output Questions
