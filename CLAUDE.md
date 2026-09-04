@@ -116,7 +116,7 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
 1. **merge_pods**: Merge all pod5 files per sample into single pod5
-2. **rebasecall**: Use dorado to rebasecall with move tables (required by the charging model)
+2. **rebasecall**: Use dorado to rebasecall with move tables (required by the charging model). Runs through `workflow/scripts/dorado_basecall_resume.sh`, as does `rebasecall_ldx_run`: the partial BAM of a killed attempt is kept beside the output (where Snakemake will not reap it) and fed back as dorado's `--resume-from`, so an overrun costs the tail of a basecall rather than the whole flowcell. `escapepod_demux` has no equivalent and does not resume
 3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
 4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
 5. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score

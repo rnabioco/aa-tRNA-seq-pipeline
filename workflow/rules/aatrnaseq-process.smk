@@ -75,6 +75,7 @@ rule rebasecall:
         temp_pod5=os.path.join(outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
         models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
+        resume_sh=os.path.join(SCRIPT_DIR, "dorado_basecall_resume.sh"),
     shell:
         """
         if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -82,7 +83,13 @@ rule rebasecall:
             export CUDA_VISIBLE_DEVICES
         fi
 
-        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} {params.model} {input.pod5} >{output}
+        # Via the resume wrapper rather than a bare redirect, so a job killed on
+        # wall clock costs the tail of a basecall instead of all of it. A
+        # per-sample basecall is smaller than the LDX run-level one, but it is
+        # the same failure mode and the same fix; see the script.
+        bash {params.resume_sh} {output} \
+            --models-directory {params.models_dir} {params.dorado_opts} \
+            {params.model} {input.pod5}
         """
 
 

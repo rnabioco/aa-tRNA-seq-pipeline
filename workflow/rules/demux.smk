@@ -628,6 +628,7 @@ rule rebasecall_ldx_run:
         models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
         run_path=lambda wildcards: get_run_path(wildcards.run_id),
         barcodes=lambda wildcards: ",".join(get_barcodes_for_run(wildcards.run_id)),
+        resume_sh=os.path.join(SCRIPT_DIR, "dorado_basecall_resume.sh"),
     shell:
         """
         # Exact set membership rather than a regex: barcode names come from the
@@ -648,9 +649,15 @@ rule rebasecall_ldx_run:
             export CUDA_VISIBLE_DEVICES
         fi
 
-        dorado basecaller --models-directory {params.models_dir} {params.dorado_opts} \
+        # Via the resume wrapper rather than a bare redirect. This is the rule
+        # whose walltime is hardest to size -- one job for a whole flowcell, hours
+        # of GPU -- and without a resume an overrun destroyed all of it rather
+        # than a tail, so the wall had to be padded rather than measured. The
+        # partial it leaves behind is now a checkpoint; see the script.
+        bash {params.resume_sh} {output.bam} \
+            --models-directory {params.models_dir} {params.dorado_opts} \
             {params.model} {params.run_path} --recursive \
-            --read-ids {output.read_ids} >{output.bam}
+            --read-ids {output.read_ids}
         """
 
 

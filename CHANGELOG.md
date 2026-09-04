@@ -4,7 +4,52 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`rebasecall` and `rebasecall_ldx_run` resume** (#149). Both now run through
+  `workflow/scripts/dorado_basecall_resume.sh`, which basecalls into a sibling
+  dot-file and renames it onto `{output}` only on success, then hands that
+  partial back to dorado as `--resume-from` on the next attempt. A job killed on
+  wall clock costs the tail of a basecall and a requeue instead of the whole
+  flowcell.
+
+  Two things had to be worked around. The partial cannot be the rule's output:
+  Snakemake deletes a failed job's outputs ("since they might be corrupted") and
+  the basecall is additionally `maybe_temp(tier="basecall")`, so the failure path
+  destroyed the exact artifact `--resume-from` exists to consume. And dorado will
+  not read and write the same file, so the checkpoint is rotated to a second name
+  before it is passed back. `clean` still reclaims both — it removes the whole
+  `bam/rebasecall{,_run}` directory.
+
+  What `--resume-from` does was read off dorado's sources rather than assumed,
+  because guessing it wrong loses reads silently: `ResumeLoader::copy_completed_reads()`
+  pushes every record of the resume file into the writer, so the **resumed BAM is
+  self-contained** and the two files are never concatenated; the read ids it saw
+  are then excluded from the new basecall, via the `pi` parent tag for split
+  reads; and its record loop treats a read failure as end-of-records, so a BAM
+  cut off mid-write is the designed input, not a corruption. Confirmed against
+  dorado 2.1.1 on the LDX fixture.
+
+  The wrapper refuses a checkpoint it should not continue. dorado re-parses the
+  checkpoint's `@PG CL` and errors if the models differ — correct, but leaning on
+  it would wedge the rule on every retry after a model change, so the argv is
+  compared first and a superseded checkpoint is dropped. A checkpoint whose
+  header never landed is dropped the same way, and of two survivors the larger
+  wins, because an attempt killed inside dorado's copy-through leaves a partial
+  shorter than the file it resumed from.
+
 ### Changed
+
+- **`rebasecall_ldx_run` walltime 285m -> 600m**, and the sizing note inverted
+  with it. 285m was derived on `rna004_130bps_sup@v5.3.0` at `gpu:4` (1,632
+  reads/s wall); the rule now runs v0.5.0's `rna004_sup@v6.0.0` at `gpu:2`, where
+  the measured rate is 931 reads/s (job 256074, 8,646,049 reads in 02:34:44),
+  putting a 30.7M read flowcell at ~9.2 h. The old advice — size to finish,
+  because an overrun destroys everything — is what forced walls to be padded
+  rather than measured; with resume the number can be the measured need, and an
+  overrun costs a requeue. `escapepod_demux` still has no resume (escpod has no
+  `--resume-from`), and its note now says so on its own rather than by reference
+  to this rule.
 
 - **Right-sized the two GPU rules against cgroup measurements, and taught the
   Slurm profile to poll with `squeue`.** No behaviour changes, only what the
