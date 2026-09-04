@@ -205,9 +205,23 @@ committed barcoded fixture (`.tests/fixtures/ldx-demux`, 415 reads of a real
 pooled run — see the README there):
 
 ```bash
-pixi run dry-run-ldx    # DAG only, no GPU, runs in CI
-pixi run test-ldx       # full run against the fixture (needs a GPU for dorado)
+pixi run dry-run-ldx      # DAG only, no GPU, runs in CI
+pixi run test-ldx         # full run against the fixture (needs a GPU for dorado)
+pixi run test-ldx-resume  # basecall resume, #149 (needs a GPU; rebuilds .tests/outputs-ldx)
 ```
+
+`test-ldx-resume` (`.tests/run_ldx_resume_e2e.sh`) is the only thing that
+exercises `dorado_basecall_resume.sh` against real dorado — run it after any
+change to that wrapper. Read its header before editing it: the fixture
+basecalls faster than dorado starts, so the kill and the resume have to be
+proved separately, and it carries a **control** run whose only job is to
+measure the pipeline's own nondeterminism (bwa picks arbitrarily among
+equal-scoring near-identical tRNA isodecoders, which moves per-reference
+summary rows) so that instability is never mistaken for a resume bug. The
+header also records two traps that make a naive version of this test pass while
+testing nothing: SIGTERM to snakemake alone makes it *wait* for the running job
+rather than kill it, and deleting a rule's output does not make it re-run when
+its consumers are up to date.
 
 `config/config-demux-test.yml` (WarpDemuX) **cannot complete a run** and is a
 dry-run target only: it points at unbarcoded sacCer3 data relabelled as
@@ -332,6 +346,9 @@ pixi run snakemake <rule_name> --forcerun <rule_name> --configfile=config/config
 # Demultiplexing: dry-run the DAG, then run it against the committed fixture
 pixi run dry-run-ldx
 pixi run test-ldx
+
+# Basecall resume, after any change to dorado_basecall_resume.sh
+pixi run test-ldx-resume
 ```
 
 A dry-run only builds the DAG — it never looks at the data, which is why

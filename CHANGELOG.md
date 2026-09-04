@@ -6,6 +6,39 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Added
 
+- **An end-to-end test for basecall resume** — `pixi run test-ldx-resume`
+  (`.tests/run_ldx_resume_e2e.sh`). Needs a GPU, so it is not in CI; it is the
+  only thing that exercises `dorado_basecall_resume.sh` against real dorado,
+  and it rebuilds `.tests/outputs-ldx`.
+
+  It kills a basecall the way Slurm does — SIGTERM to the whole process group —
+  and asserts Snakemake's failure path takes `{output}` while the checkpoint and
+  its `.args` survive, which is the blocker in #149. Because the fixture's 323
+  reads basecall in far less time than dorado takes to start, no signal can land
+  mid-write, so the resume itself is driven from a checkpoint holding real dorado
+  records: the baseline uBAM truncated mid-record, carrying the wrapper's own
+  `.args`. It then checks the resumed run against a clean one — read ids and
+  sequences, no duplicates, MM/ML/`mv` tag counts (those records bypass the
+  basecall pipeline, so a lossy copy-through shows there), and every downstream
+  BAM, `cl` call and summary table.
+
+  It carries a **control** run whose only job is to measure what the pipeline
+  does *not* reproduce on its own, because a first cut of this test blamed the
+  resume path for six differing summary tables that turned out to be bwa picking
+  arbitrarily among equal-scoring near-identical tRNA isodecoders — the same read
+  landing on `tRNA-Gln-CTG-1-1` one run and `tRNA-Gln-TTG-1-1` the next, with an
+  identical charging score. Artifacts that move in the control are reported;
+  artifacts that hold still must be identical after a resume. The control also
+  confirms the uBAM itself is bit-reproducible, so that wobble is downstream of
+  dorado.
+
+  Two traps are recorded in the script header because each produced a convincing
+  false pass while it was written: SIGTERM to snakemake *alone* is not what Slurm
+  does — snakemake treats it as a graceful stop and waits for the running job, so
+  the basecall completes — and deleting a rule's output does not make it re-run
+  when its consumers are up to date, so the DAG exits 0 having done nothing and
+  every downstream comparison passes against artifacts nothing regenerated.
+
 - **`rebasecall` and `rebasecall_ldx_run` resume** (#149). Both now run through
   `workflow/scripts/dorado_basecall_resume.sh`, which basecalls into a sibling
   dot-file and renames it onto `{output}` only on success, then hands that
