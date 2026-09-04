@@ -9,6 +9,12 @@ logs
 .vscode
 results/
 resources/tools/*
+# ...and the path itself, not just what is under it: a worktree cannot run the
+# pipeline without the tools `pixi run setup` installed into the main checkout,
+# so the working convention is to SYMLINK resources/tools there. A symlink is
+# not matched by the pattern above, and committing one would put an absolute
+# path into somebody's home directory in the repository.
+resources/tools
 # Sibling source repos cloned in here to build against -- escapepod-rs is the
 # GPU build the escpod pin is cut from, leech is left over from before #124
 # retired it. Checkouts of other repositories, not content of this one.

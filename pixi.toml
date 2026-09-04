@@ -79,6 +79,11 @@ dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml"
 # test-ldx needs a GPU for dorado.
 dry-run-ldx = { cmd = "snakemake -n --configfile=config/config-ldx-test.yml", description = "Dry run the LDX demux test DAG" }
 test-ldx = { cmd = "snakemake --configfile=config/config-ldx-test.yml --cores 8", description = "Run the LDX demux test end-to-end on the committed fixture (needs a GPU)" }
+# Basecall resume (#149). Also a GPU job, and it DESTROYS and rebuilds
+# .tests/outputs-ldx -- see the header of the script for why it is shaped the
+# way it is, and for the two traps that make a naive version of it pass while
+# testing nothing.
+test-ldx-resume = { cmd = ".tests/run_ldx_resume_e2e.sh", description = "End-to-end test of basecall resume against the committed fixture (needs a GPU)" }
 escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0 --info", description = "Describe the vendored LDX (ldx16) CRF demux bundle" }
 escpod-model-info-wdx = { cmd = "escpod demux --model resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0 --info", description = "Describe the vendored WDX4 CRF demux bundle" }
 # Verifies vendored demux bundles against the hashes UPSTREAM declares, not
