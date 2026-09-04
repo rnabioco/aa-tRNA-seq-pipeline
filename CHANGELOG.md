@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-09-04
+
 ### Added
 
 - **An end-to-end test for basecall resume** — `pixi run test-ldx-resume`
