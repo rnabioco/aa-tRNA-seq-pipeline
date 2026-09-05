@@ -127,7 +127,7 @@ def is_fdx_fused():
     once and calls both axes, writing one classifications CSV with per-axis
     columns. It is the shape upstream recommends and the one to want on a
     600 GB flowcell, where the POD5 sweep is hours of IO-bound wall. It is off
-    by default because escpod 0.19.0 (and the 0.20.0 source) refuses
+    by default because escpod (0.19.0 and 0.20.0, both measured) refuses
     `--boundary-margin` / `--clamp-max-shift` whenever a model in the run
     anchors on the read end, which the fdx bundle does, and the LDX axis cannot
     give those flags up. See the `fdx` block in config-base.yml.

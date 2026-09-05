@@ -159,7 +159,7 @@ at all) the fdx model still calls 17% of reads a code at 1.0 nats and 2.2% at
 3.5. Reads below the gate are `unclassified` on the FDX axis and drop out of
 every dual-index sample.
 
-`fused` is off by default because escpod 0.19.0 refuses `--boundary-margin` /
+`fused` is off by default because escpod (0.19.0 and 0.20.0, measured) refuses `--boundary-margin` /
 `--clamp-max-shift` whenever a read-end model is in the run, and the LDX axis
 needs them; until then the FDX axis is a second pass over the raw POD5 and the
 two passes share one sidecar (`barcode` and `fdx` columns). `config-base.yml`
