@@ -3,24 +3,33 @@ Rules for processing raw data from aa-tRNA-seq experiments
 """
 
 
-rule merge_pods:
+rule stage_pod5:
     """
-    merge pod5s into a single pod5
+    Stage a sample's raw POD5 files as a directory of symlinks.
+
+    Both consumers of a sample's signal take a directory: dorado basecalls one
+    with --recursive, and `escpod classify` walks one recursively, looking each
+    aligned read up by id. So nothing needs the signal copied. The rule this
+    replaces (`merge_pods`) wrote a merged POD5 per sample -- a full second copy
+    of every run, kept for the life of the analysis, which for a 500 GB flowcell
+    was 500 GB of duplicate. It existed because the pod5 CLI and Remora wanted a
+    single file; neither is used any more, and the LDX path has handed the raw
+    run to both tools since it was written.
+
+    The links mirror the source layout, <run>/<pod5_pass|pod5_fail|pod5>/<file>,
+    so a sample that pools several runs, or a run that keeps pass and fail reads
+    apart, cannot collide on a basename. Targets are canonical (realpath'd)
+    paths, so the directory works from anywhere and survives a move of the
+    output directory.
     """
     input:
         get_raw_inputs,
     output:
-        maybe_temp(
-            os.path.join(outdir, "pod5", "{sample}", "{sample}.pod5"),
-            tier="merged_pod5",
-        ),
+        directory(os.path.join(outdir, "pod5", "{sample}")),
     log:
-        os.path.join(outdir, "logs", "merge_pods", "{sample}"),
-    threads: 12
-    shell:
-        """
-        escpod merge -t {threads} --force -o {output} {input}
-        """
+        os.path.join(outdir, "logs", "stage_pod5", "{sample}"),
+    run:
+        stage_pod5_links(input, output[0], log[0])
 
 
 rule download_mod_models:
@@ -57,7 +66,10 @@ rule rebasecall:
     """
     rebasecall using different accuracy model
 
-    TODO: remove `-v` to reduce log file size. Removing it cases the call to fail.
+    The POD5 input is the sample's signal store: the staged directory of its raw
+    run's files (scanned with --recursive), or on the WarpDemuX path the split
+    POD5 `escpod filter` wrote for it. LDX samples never reach this rule -- the
+    run is basecalled whole by rebasecall_ldx_run and cut per sample afterwards.
     """
     input:
         pod5=get_sample_pod5,
@@ -71,11 +83,14 @@ rule rebasecall:
         os.path.join(outdir, "logs", "rebasecall", "{sample}"),
     params:
         model=config["base_calling_model"],
-        raw_data_dir=get_basecalling_dir,
-        temp_pod5=os.path.join(outdir, "{sample}", "{sample}.pod5"),
         dorado_opts=config["opts"]["dorado"],
         models_dir=os.path.join(PIPELINE_DIR, "resources", "models"),
         resume_sh=os.path.join(SCRIPT_DIR, "dorado_basecall_resume.sh"),
+        # A staged directory needs the recursive scan; a WarpDemuX split POD5
+        # is one file and takes none.
+        recursive=lambda wildcards: (
+            "" if sample_needs_demux(wildcards.sample) else "--recursive"
+        ),
     shell:
         """
         if [[ "${{CUDA_VISIBLE_DEVICES:-}}" ]]; then
@@ -89,26 +104,7 @@ rule rebasecall:
         # the same failure mode and the same fix; see the script.
         bash {params.resume_sh} {output} \
             --models-directory {params.models_dir} {params.dorado_opts} \
-            {params.model} {input.pod5}
-        """
-
-
-rule ubam_to_fastq:
-    """
-    extract reads from bam into FASTQ format for alignment
-    """
-    input:
-        rules.rebasecall.output,
-    output:
-        maybe_temp(
-            os.path.join(outdir, "fq", "{sample}", "{sample}.fq.gz"),
-            tier="fastq",
-        ),
-    log:
-        os.path.join(outdir, "logs", "ubam_to_fastq", "{sample}"),
-    shell:
-        """
-        samtools fastq {input} | gzip >{output}
+            {params.model} {input.pod5} {params.recursive}
         """
 
 
@@ -131,13 +127,50 @@ rule bwa_idx:
 
 rule bwa_align:
     """
-    Align reads to tRNA references with bwa mem.
-    Uses the validated/built reference.
+    Align reads to the tRNA + adapter reference with bwa mem, carrying dorado's
+    tags through.
 
-    For EDX samples, input FASTQ is pre-filtered to matching reads only.
+    `samtools fastq -T '*'` writes every uBAM tag into the FASTQ comment, and
+    `bwa mem -C` appends that comment to each aligned record. So the move table
+    (`mv`, `ns`, `ts`) the charging model reads and the MM/ML modbase calls
+    modkit reads arrive on the aligned BAM directly, in one streaming pass with
+    no FASTQ on disk. This retired `inject_ubam_tags`, which re-read the uBAM in
+    Python to put the same tags back after alignment had dropped them: a 48 GB,
+    hours-long job per sample and a fourth full copy of the BAM.
+
+    bwa builds its header from the reference and declares no read groups, while
+    `-C` copies dorado's per-read `RG:Z:` through -- so `-H` inserts the uBAM's
+    own @RG lines, with SM/LB/BC stamped by stamp_read_groups.py, and every read
+    still resolves to a declared read group (the dangling-@RG bug #121 fixed).
+    This is also where the sample's identity is written INTO the BAM, because it
+    is the first place both demux backends have converged (see the note at the
+    top of demux.smk): on a demux run a constant `BC:Z:` goes onto every read
+    via the comment, so a read stays attributable to its barcode after it leaves
+    this directory, and an @CO records upstream's barcode name whenever it
+    differs from ours. Unbarcoded samples get neither.
+
+    Memory: the comment is ~13x the read (4.8 kB against 370 B on the fixture;
+    the move table dominates), and bwa holds a whole input batch plus its
+    formatted output in memory. `-K` pins the batch at 100 Mbases regardless of
+    thread count -- ~600k reads, so a few GB of comment text either side --
+    where bwa's default is 10 Mbases PER THREAD. That payload is what PR #86
+    measured as an OOM at 48 GB and answered by dropping `-C`; the footprint
+    this rule is budgeted for today (160 GB, see cluster/slurm/config.yaml) is
+    set by `-k 6` on a dense reference and dwarfs it. `-K` also makes the
+    output independent of the thread count.
+
+    For EDX samples only the reads carrying the sample's 3' adapter are aligned:
+    `-N` on the uBAM replaces the filtered FASTQ that used to be written for
+    them, and the EDX-filtered POD5 that went with it is gone too, since the
+    classifier only ever touches reads the BAM names.
+
+    -F 2324 drops unmapped (4), reverse-strand (16), secondary (256) and
+    supplementary (2048) records, so the output is primary forward alignments --
+    which is what the tagged BAM this replaces contained.
     """
     input:
-        reads=get_alignment_fastq,
+        ubam=rules.rebasecall.output,
+        read_ids=get_alignment_read_ids,
         idx=rules.bwa_idx.output,
     output:
         bam=maybe_temp(
@@ -148,97 +181,41 @@ rule bwa_align:
             os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
             tier="cascade",
         ),
+        # The @RG/@CO lines handed to bwa -H. Kept beside the BAM: it is tiny,
+        # and it is the record of what identity was stamped on this sample.
+        header=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.rg.sam"),
     log:
         os.path.join(outdir, "logs", "bwa_align", "{sample}"),
     threads: 16
     params:
         index=get_validated_reference(),
         bwa_opts=config["opts"]["bwa"],
-    shell:
-        """
-        bwa mem -t {threads} {params.bwa_opts} {params.index} {input.reads} \
-            | samtools view -F 20 -Sb - \
-            | samtools sort -m 2G -@ 4 -o {output.bam}
-
-        samtools index {output.bam}
-        """
-
-
-rule inject_ubam_tags:
-    """Transfer all tags from unaligned BAM (dorado) to aligned BAM by read ID.
-
-    Also the point where the sample's identity is written INTO the BAM, because
-    it is the first place both demux backends have converged (see the note at
-    the top of demux.smk). Two things happen:
-
-    - a constant `BC` tag on every read, so a read stays attributable to its
-      barcode after it leaves this directory. Until now the barcode lived only
-      in the output path, and the per-read record that could recover it
-      (demux/read_ids/) is deleted by the `clean` rule and, on the WarpDemuX
-      path, is temp() under the demux_scratch tier.
-    - a repaired @RG. bwa builds the aligned header fresh and drops dorado's
-      read group, but --all-tags copies the per-read RG:Z straight back, so
-      every read pointed at a header line that did not exist. transfer_tags.py
-      now splices the source's @RG in and stamps SM/LB/BC onto it.
-
-    Unbarcoded samples get neither BC nor a barcode on the @RG: absence means
-    "no demultiplexing", not "unknown barcode".
-    """
-    input:
-        source_bam=rules.rebasecall.output,
-        target_bam=rules.bwa_align.output.bam,
-        target_bai=rules.bwa_align.output.bai,
-    output:
-        bam=maybe_temp(
-            os.path.join(outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam"),
-            tier="cascade",
-        ),
-        bai=maybe_temp(
-            os.path.join(
-                outdir, "bam", "tagged", "{sample}", "{sample}.tagged.bam.bai"
-            ),
-            tier="cascade",
-        ),
-    log:
-        os.path.join(outdir, "logs", "inject_ubam_tags", "{sample}"),
-    threads: 4
-    params:
         src=SCRIPT_DIR,
-        barcode_arg=lambda wildcards: (
-            f"--set-tag BC:Z:{get_sample_barcode_label(wildcards.sample)} "
-            f"--rg-barcode {get_sample_barcode_label(wildcards.sample)}"
+        batch_bases=100000000,
+        rg_args=get_read_group_args,
+        bc_tag=lambda wildcards: (
+            f"BC:Z:{get_sample_barcode_label(wildcards.sample)}"
             if get_sample_barcode_label(wildcards.sample)
             else ""
         ),
-        # Records the upstream (escapepod-models) barcode name next to ours
-        # whenever the two differ. Since the ldx16 switch neither live panel
-        # renames — a sample is configured as the name its bundle emits — so
-        # this emits nothing today. Kept because the emitted vocabulary belongs
-        # to the bundle: the retired nbc16 panel did differ, and a future one
-        # may, and then a BAM tagged `ldx04` should still say what it came
-        # from.
-        comment_arg=lambda wildcards: (
-            f'--comment "aa-tRNA-seq:upstream_barcode='
-            f'{get_sample_barcode_upstream(wildcards.sample)}"'
-            if get_sample_barcode_upstream(wildcards.sample)
-            != get_sample_barcode_label(wildcards.sample)
-            else ""
+        read_filter=lambda wildcards, input: (
+            f"-N {input.read_ids[0]}" if input.read_ids else ""
         ),
-        rg_library=lambda wildcards: samples[wildcards.sample].get("run_id") or "",
     shell:
         """
-        python {params.src}/transfer_tags.py \
-            --all-tags \
-            --threads {threads} \
-            --source {input.source_bam} \
-            --target {input.target_bam} \
-            --output {output.bam} \
-            --rg-sample {wildcards.sample} \
-            --rg-library "{params.rg_library}" \
-            {params.barcode_arg} \
-            {params.comment_arg}
+        python {params.src}/stamp_read_groups.py {input.ubam} {params.rg_args} \
+            >{output.header}
 
-        samtools index -@ {threads} {output.bam}
+        samtools view -u {params.read_filter} {input.ubam} \
+            | samtools fastq -T '*' - \
+            | awk -v bc="{params.bc_tag}" \
+                'NR % 4 == 1 && bc != "" {{ $0 = $0 "\\t" bc }} {{ print }}' \
+            | bwa mem -C -K {params.batch_bases} -t {threads} -H {output.header} \
+                {params.bwa_opts} {params.index} - \
+            | samtools view -u -F 2324 - \
+            | samtools sort -m 2G -@ 4 -o {output.bam}
+
+        samtools index {output.bam}
         """
 
 
@@ -265,12 +242,18 @@ rule classify_charging:
     per-read TSV, which carries a `reason` for every unscored read, is a real
     output and not a debug aid. `read_attrition` folds it in.
 
-    For EDX samples, uses the EDX-filtered POD5 to match the filtered BAM.
+    The POD5 argument is the sample's whole signal store -- the staged directory
+    of its raw run, a WarpDemuX split POD5, or on LDX the raw run itself -- and
+    never a subset of it. classify is driven by the BAM: it looks each aligned
+    read's signal up by id, so signal the BAM does not name is never touched.
+    That is why an EDX sample needs no EDX-filtered POD5 (it used to get one,
+    a copy of the split POD5 kept forever) and why LDX samples have no POD5 of
+    their own at all.
     """
     input:
-        pod5=get_classification_pod5,
-        bam=rules.inject_ubam_tags.output.bam,
-        bai=rules.inject_ubam_tags.output.bai,
+        pod5=get_sample_pod5,
+        bam=rules.bwa_align.output.bam,
+        bai=rules.bwa_align.output.bai,
         reference=get_validated_reference(),
     output:
         charging_bam=maybe_temp(
@@ -380,10 +363,10 @@ rule finalize_bam:
     """
     Produce the final BAM for downstream analysis.
 
-    EDX filtering now happens early in the pipeline (before alignment) via
-    the detect_edx_adapters / filter_fastq_by_edx / filter_pod5_by_edx rules.
-    This rule hardlinks the adapter-tagged BAM as the final output so that
-    temp() cleanup of upstream BAMs doesn't break downstream consumers.
+    Hardlinks the adapter-tagged BAM as the final output so that temp() cleanup
+    of the upstream BAMs (the `cascade` tier) does not break downstream
+    consumers. EDX filtering happens before alignment (bwa_align aligns only the
+    sample's own reads), so this is a plain passthrough.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,

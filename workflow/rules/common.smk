@@ -26,13 +26,19 @@ from basecaller_compat import check_basecaller
 # they can be deleted or kept independently via the `cleanup_intermediates`
 # config key (see maybe_temp / _enabled_cleanup_tiers below).
 _CLEANUP_TIERS = {
-    "cascade",  # bam/aln, tagged, charging, classified, adapter_tagged (redundant near-copies)
+    "cascade",  # bam/aln, charging, adapter_tagged (redundant near-copies; bam/final hardlinks the last)
     "basecall",  # bam/rebasecall, bam/rebasecall_run (GPU-hours to regenerate)
-    "fastq",  # fq/, demux/edx/fq
-    "merged_pod5",  # pod5/ (pre-demux merged per-sample; LDX runs build none)
     "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
-    "split_pod5",  # demux/pod5 (WDX split; pre-EDX-filter). Only enable for all-EDX runs.
+    "split_pod5",  # demux/pod5 (WDX split POD5: that path's signal store and classification input)
 }
+
+# Tiers that existed before v0.7 and no longer name anything. `fastq` went when
+# alignment started streaming straight from the uBAM (no fq/ is written);
+# `merged_pod5` went when stage_pod5 replaced merge_pods (pod5/ now holds
+# symlinks, not a copy of the run). Accepted and ignored so an existing config
+# keeps working, but named, so the reader learns why the space it expected to
+# reclaim is no longer being spent.
+_RETIRED_CLEANUP_TIERS = {"fastq", "merged_pod5"}
 
 
 def _enabled_cleanup_tiers():
@@ -48,6 +54,12 @@ def _enabled_cleanup_tiers():
         return set(_CLEANUP_TIERS)
     if not cfg:
         return set()
+    unknown = set(cfg) - _CLEANUP_TIERS - _RETIRED_CLEANUP_TIERS
+    if unknown:
+        sys.exit(
+            f"cleanup_intermediates names unknown tier(s) {sorted(unknown)}; "
+            f"choose from {sorted(_CLEANUP_TIERS)}"
+        )
     return set(cfg) & _CLEANUP_TIERS
 
 
@@ -358,7 +370,10 @@ if _reuse_from:
     if os.path.realpath(_reuse_from) == os.path.realpath(outdir):
         sys.exit("reuse_outputs_from cannot be the same as output_directory")
 
-    _REUSE_DIRS = ["pod5", "demux", "bam/rebasecall", "fq"]
+    # `pod5/` from a pre-v0.7 run holds a merged copy per sample where this
+    # version stages symlinks; both are a directory of POD5 the tools walk, so
+    # either shape serves. (No `fq/`: alignment streams from the uBAM now.)
+    _REUSE_DIRS = ["pod5", "demux", "bam/rebasecall"]
     for _subdir in _REUSE_DIRS:
         _src = os.path.join(_reuse_from, _subdir)
         _dst = os.path.join(os.path.realpath(outdir), _subdir)
@@ -708,10 +723,18 @@ def get_ldx_pod5_source(run_id):
 
 def get_sample_pod5(wildcards):
     """
-    Return the correct POD5 path for a sample.
+    The sample's signal store, as handed to dorado and to `escpod classify`.
+
     LDX samples have no POD5 of their own: they resolve to the raw run.
-    If WDX demux is enabled and sample has barcode, use split POD5.
-    Otherwise, use merged POD5 from merge_pods rule.
+    A WarpDemuX sample resolves to the split POD5 `escpod filter` wrote for it.
+    Every other sample resolves to the directory of symlinks stage_pod5 laid
+    over its raw files -- both tools take a directory, so nothing is copied.
+
+    This is the whole store, never a subset: classification is driven by the
+    BAM and looks each aligned read up by id, so an EDX sample's classifier
+    reads exactly its own reads out of the shared store. (There used to be an
+    EDX-filtered POD5 per sample for this, a copy kept forever; it went with
+    merge_pods.)
     """
     if sample_is_ldx(wildcards.sample):
         source = get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
@@ -726,51 +749,102 @@ def get_sample_pod5(wildcards):
             outdir, "demux", "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
         )
     else:
-        return os.path.join(
-            outdir, "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
-        )
+        return os.path.join(outdir, "pod5", wildcards.sample)
 
 
-def get_alignment_fastq(wildcards):
+def stage_pod5_links(raw_files, dest_dir, log_path):
+    """Lay a directory of symlinks over a sample's raw POD5 files (stage_pod5).
+
+    Each link is <dest>/<run>/<pod5_pass|pod5_fail|pod5>/<file>, mirroring where
+    the file was found, so two runs pooled into one sample cannot collide on a
+    basename. Targets are canonical paths. A link that already points at the
+    right file is left alone; one pointing elsewhere is a real collision and is
+    refused rather than silently repointed.
     """
-    Return the correct FASTQ path for alignment.
-    EDX samples use the EDX-filtered FASTQ; others use ubam_to_fastq output.
+    from snakemake.exceptions import WorkflowError
+
+    n_linked = n_kept = 0
+    for raw in raw_files:
+        target = os.path.realpath(raw)
+        subdir = os.path.dirname(raw)
+        run = os.path.basename(os.path.normpath(os.path.dirname(subdir)))
+        link_dir = os.path.join(dest_dir, run, os.path.basename(subdir))
+        link = os.path.join(link_dir, os.path.basename(raw))
+        os.makedirs(link_dir, exist_ok=True)
+        if os.path.islink(link):
+            if os.path.realpath(link) == target:
+                n_kept += 1
+                continue
+            raise WorkflowError(
+                f"stage_pod5: {link} already points at {os.path.realpath(link)}, "
+                f"not {target}. Two of this sample's runs share a directory name "
+                "and a file name; give them distinct run directory names."
+            )
+        if os.path.exists(link):
+            raise WorkflowError(
+                f"stage_pod5: {link} exists and is not a symlink; refusing to "
+                "replace it (this directory is expected to hold only links)."
+            )
+        os.symlink(target, link)
+        n_linked += 1
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "w") as fh:
+        fh.write(f"{n_linked} links created, {n_kept} already in place\n")
+
+
+def get_alignment_read_ids(wildcards):
+    """The read-id list that bounds a sample's alignment, or nothing.
+
+    An EDX sample aligns only the reads carrying its own 3' adapter, which
+    detect_edx_adapters / extract_edx_read_ids identify on the uBAM before
+    alignment. Every other sample aligns its whole uBAM. Returned as a list so
+    bwa_align's input is empty rather than absent in the second case.
     """
     if sample_has_edx(wildcards.sample):
-        return os.path.join(
-            outdir,
-            "demux",
-            "edx",
-            "fq",
-            wildcards.sample,
-            f"{wildcards.sample}.fq.gz",
-        )
-    return os.path.join(outdir, "fq", wildcards.sample, f"{wildcards.sample}.fq.gz")
+        return [
+            os.path.join(
+                outdir,
+                "demux",
+                "edx",
+                wildcards.sample,
+                f"{wildcards.sample}.edx_read_ids.txt",
+            )
+        ]
+    return []
 
 
-def get_classification_pod5(wildcards):
+def get_read_group_args(wildcards):
+    """Arguments to stamp_read_groups.py: the identity written into the BAM.
+
+    bwa_align is where the sample's identity is written INTO the BAM, because it
+    is the first place both demux backends have converged (see the note at the
+    top of demux.smk). The @RG gets SM (sample), LB (run id, when the sample has
+    one) and BC (barcode). Until this point the barcode lives only in the output
+    path, and the per-read record that could recover it (demux/read_ids/) is
+    deleted by the `clean` rule and, on the WarpDemuX path, is temp() under the
+    demux_scratch tier.
+
+    The @CO records the upstream (escapepod-models) barcode name next to ours
+    whenever the two differ. Since the ldx16 switch neither live panel renames --
+    a sample is configured as the name its bundle emits -- so this emits nothing
+    today. Kept because the emitted vocabulary belongs to the bundle: the
+    retired nbc16 panel did differ, and a future one may, and then a BAM tagged
+    `ldx04` should still say what it came from.
+
+    Unbarcoded samples get neither BC nor a barcode on the @RG: absence means
+    "no demultiplexing", not "unknown barcode".
     """
-    Return the correct POD5 path for classification/signal analysis.
-    EDX samples use the EDX-filtered POD5; others use the WDX-split or merged POD5.
-
-    LDX samples take no EDX detour. The classifiers walk the BAM and look each
-    read's signal up by id, so reads the BAM does not name are never touched —
-    and an LDX sample's BAM is already EDX-filtered upstream of alignment. A
-    filtered POD5 would subset something that is not read in the first place.
-
-    NOTE: Do NOT use this for rebasecall — rebasecall needs the pre-EDX POD5
-    (use get_sample_pod5 instead).
-    """
-    if sample_has_edx(wildcards.sample) and not sample_is_ldx(wildcards.sample):
-        return os.path.join(
-            outdir,
-            "demux",
-            "edx",
-            "pod5",
-            wildcards.sample,
-            f"{wildcards.sample}.pod5",
-        )
-    return get_sample_pod5(wildcards)
+    args = [f"--sample {wildcards.sample}"]
+    library = samples[wildcards.sample].get("run_id")
+    if library:
+        args.append(f"--library {library}")
+    label = get_sample_barcode_label(wildcards.sample)
+    if label:
+        args.append(f"--barcode {label}")
+        upstream = get_sample_barcode_upstream(wildcards.sample)
+        if upstream != label:
+            args.append(f'--comment "aa-tRNA-seq:upstream_barcode={upstream}"')
+    return " ".join(args)
 
 
 def get_classification_pod5_arg(wildcards, input):
@@ -793,33 +867,29 @@ def get_all_final_bams():
     )
 
 
-def get_all_merged_pod5s():
-    """Return list of all merged/filtered POD5 files for all samples.
+def get_sample_pod5_files(sample):
+    """The POD5 FILES holding a sample's signal, for the Squiggy session.
 
-    For EDX samples, returns the EDX-filtered POD5 (subset matching the sample's adapter).
-    For WDX-only samples, returns the WDX-split POD5.
-    For LDX samples, returns the raw run POD5 — they have no POD5 of their own.
-    For non-demux samples, returns the merged POD5.
+    Squiggy opens files, not directories, so this is the file-level view of
+    what get_sample_pod5 hands the tools: the split POD5 for a WarpDemuX
+    sample, and the raw run's own files for everyone else -- a staged
+    directory is only symlinks to those, and an LDX sample has nothing else.
     """
-    pod5_paths = []
-    for sample in samples.keys():
-        if sample_is_ldx(sample):
-            # Every sample of a run points at the same raw POD5s, so this is the
-            # one branch that can repeat a path.
-            pod5_paths.extend(
-                f for f in samples[sample]["raw_files"] if f not in pod5_paths
-            )
-        elif sample_has_edx(sample):
-            pod5_paths.append(
-                os.path.join(outdir, "demux", "edx", "pod5", sample, f"{sample}.pod5")
-            )
-        elif sample_needs_demux(sample):
-            pod5_paths.append(
-                os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")
-            )
-        else:
-            pod5_paths.append(os.path.join(outdir, "pod5", sample, f"{sample}.pod5"))
-    return pod5_paths
+    if sample_needs_demux(sample) and not sample_is_ldx(sample):
+        return [os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")]
+    return list(samples[sample]["raw_files"])
+
+
+def get_all_pod5_files():
+    """Every POD5 file any sample's session entry names, each once.
+
+    Samples of one LDX run all point at the same raw files, and two unbarcoded
+    samples may name the same run, so this is the one place a path can repeat.
+    """
+    seen = []
+    for sample in samples:
+        seen.extend(f for f in get_sample_pod5_files(sample) if f not in seen)
+    return seen
 
 
 rule generate_squiggy_session:
@@ -831,7 +901,7 @@ rule generate_squiggy_session:
     """
     input:
         bams=get_all_final_bams(),
-        pod5s=get_all_merged_pod5s(),
+        pod5s=get_all_pod5_files(),
         fasta=config["fasta"],
     output:
         session=os.path.join(outdir, "squiggy-session.json"),
@@ -841,10 +911,16 @@ rule generate_squiggy_session:
         src=SCRIPT_DIR,
         samples=" ".join(samples.keys()),
         outdir=outdir,
+        pod5_args=" ".join(
+            f"--pod5 {sample}={path}"
+            for sample in samples
+            for path in get_sample_pod5_files(sample)
+        ),
     shell:
         """
         python {params.src}/generate_squiggy_session.py \
             --samples {params.samples} \
+            {params.pod5_args} \
             --output-dir {params.outdir} \
             --fasta {input.fasta} \
             --output {output.session} \

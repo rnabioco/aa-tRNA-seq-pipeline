@@ -6,7 +6,7 @@ Documentation for Python scripts in `workflow/scripts/`.
 
 | Script | Purpose |
 |--------|---------|
-| `transfer_tags.py` | Transfer BAM tags between files |
+| `stamp_read_groups.py` | Emit a uBAM's @RG lines with SM/LB/BC stamped, for `bwa mem -H` |
 | `get_charging_table.py` | Extract charging likelihood per read |
 | `get_trna_charging_cpm.py` | Calculate CPM-normalized counts |
 | `get_charging_summary.py` | Generate charging statistics |
@@ -22,36 +22,41 @@ Documentation for Python scripts in `workflow/scripts/`.
 
 ---
 
-## transfer_tags.py
+## stamp_read_groups.py
 
-Transfer specified BAM tags from one file to another with optional renaming.
+Emit a uBAM's `@RG` lines, with the pipeline's identity stamped on, as SAM
+header text for `bwa mem -H`. bwa builds the aligned header from the reference
+and declares no read groups, while `bwa mem -C` copies dorado's per-read `RG:Z:`
+through from the FASTQ comment; without these lines every read would point at an
+undeclared read group.
 
 ### Usage
 
 ```bash
-python transfer_tags.py \
-    --tags ML MM \
-    --rename ML=CL MM=CM \
-    --source source.bam \
-    --target target.bam \
-    --output output.bam
+python stamp_read_groups.py reads.rbc.bam \
+    --sample sample1 \
+    --library run_id \
+    --barcode ldx04 \
+    --comment "aa-tRNA-seq:upstream_barcode=bc04" \
+    > sample1.rg.sam
 ```
 
 ### Arguments
 
 | Argument | Description |
 |----------|-------------|
-| `--tags` | Tags to transfer (space-separated) |
-| `--rename` | Tag renaming (OLD=NEW format) |
-| `--source` | Source BAM with tags |
-| `--target` | Target BAM to add tags to |
-| `--output` | Output BAM path |
+| `ubam` | Unaligned BAM whose `@RG` lines to carry over |
+| `--sample` | `SM`: the pipeline's sample name |
+| `--library` | `LB`: typically the run id |
+| `--barcode` | `BC`: the sample's barcode (omitted for unbarcoded samples) |
+| `--comment` | Add an `@CO` line; repeatable |
+| `--output` | Write here instead of stdout |
 
 ### Behavior
 
-1. Reads source BAM, stores specified tags by read ID
-2. Iterates target BAM, transfers matching tags
-3. Outputs only primary alignments (filters secondary/supplementary)
+1. Copies every `@RG` from the uBAM, preserving dorado's `ID` (what each read's `RG:Z:` points at) and its provenance fields
+2. Overwrites only `SM`/`LB`/`BC`, and only where a value was given
+3. Appends one `@CO` per `--comment`
 
 ---
 

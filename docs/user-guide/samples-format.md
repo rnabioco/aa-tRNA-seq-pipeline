@@ -145,7 +145,7 @@ flowchart LR
     A[samples.tsv] --> B[parse_samples]
     B --> C[find_raw_inputs]
     C --> D[POD5 files per sample]
-    D --> E[merge_pods rule]
+    D --> E[stage_pod5 rule]
 ```
 
 ### With Demultiplexing (YAML)
@@ -176,11 +176,11 @@ Building DAG of jobs...
 Job stats:
 job          count
 ---------  -------
-merge_pods       3
+stage_pod5       3
 ...
 ```
 
-The `merge_pods` count should match your number of samples.
+The `stage_pod5` count should match your number of samples.
 
 ### Common Issues
 

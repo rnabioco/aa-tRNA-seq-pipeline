@@ -153,10 +153,9 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph Per Sample
-        A[POD5 files] --> B[merge_pods]
+        A[POD5 files] --> B[stage_pod5]
         B --> C[rebasecall]
-        C --> D[ubam_to_fastq]
-        D --> E[bwa_align]
+        C --> E[bwa_align<br/>tags carried through]
         E --> F[classify_charging]
         F --> G[add_adapter_tags<br/>finalize_bam]
     end
@@ -252,7 +251,7 @@ Located in `workflow/scripts/`:
 
 | Script | Called By | Purpose |
 |--------|-----------|---------|
-| `transfer_tags.py` | `inject_ubam_tags` | Transfer BAM tags |
+| `stamp_read_groups.py` | `bwa_align` | @RG/@CO header lines for `bwa mem -H` |
 | `get_charging_table.py` | `get_cca_trna` | Extract CL tag |
 | `get_trna_charging_cpm.py` | `get_cca_trna_cpm` | Calculate CPM |
 | `get_bcerror_freqs.py` | `base_calling_error` | Error metrics |

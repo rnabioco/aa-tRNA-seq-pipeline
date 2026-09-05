@@ -24,7 +24,7 @@ The main CI workflow runs on every push and pull request. It includes three jobs
 - Downloads test data
 - Sets up dorado and modkit tools
 - Downloads the dorado basecalling model
-- Runs the `merge_pods` rule as a basic integration test
+- Runs the `stage_pod5` rule as a basic integration test
 - Validates that output files are created
 
 ### 3. Configuration Validation
@@ -95,7 +95,7 @@ snakemake --cores 2 --configfile=config/config-test.yml
 snakemake -n --configfile=config/config-test.yml
 
 # Run a specific rule
-snakemake merge_pods --configfile=config/config-test.yml --cores 1
+snakemake stage_pod5 --configfile=config/config-test.yml --cores 1
 
 # Force rerun of a specific rule
 snakemake <rule_name> --forcerun <rule_name> --configfile=config/config-test.yml

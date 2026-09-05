@@ -41,7 +41,7 @@ Job stats:
 job                      count
 ---------------------  -------
 all                          1
-merge_pods                   2
+stage_pod5                   2
 rebasecall                   2
 bwa_align                    2
 classify_charging            2

@@ -5,16 +5,17 @@ Run explicitly with:
 
     snakemake clean --configfile=<your-config.yml>
 
-This deletes the big space-consuming intermediates (merged/split POD5,
-rebasecalled uBAMs, FASTQs, intermediate/charging BAMs, demux scratch) from
-`output_directory` while KEEPING everything downstream you actually want to
-retain: the `summary/` tables (bg/tsv/modkit pileups), the final BAM
-(`bam/final/`), any AA-classified BAMs, the built reference, and logs.
+This deletes the big space-consuming intermediates (split POD5, rebasecalled
+uBAMs, intermediate/charging BAMs, demux scratch -- and, from runs before v0.7,
+merged POD5 and FASTQ) from `output_directory` while KEEPING everything
+downstream you actually want to retain: the `summary/` tables (bg/tsv/modkit
+pileups), the final BAM (`bam/final/`), any AA-classified BAMs, the built
+reference, and logs.
 
 Everything removed here is reproducible: re-running the pipeline regenerates
 whatever is needed to (re)build a requested output. Because the kept summary
 outputs already exist and are up to date, a plain re-run is a no-op — force a
-specific target (e.g. `--forcerun merge_pods`) if you actually want the raw
+specific target (e.g. `--forcerun rebasecall`) if you actually want the raw
 intermediates back.
 
 Note: this is a superset of the auto-`temp()` cleanup controlled by
@@ -36,12 +37,12 @@ this rule is for things that are cheap to rebuild.
 # Directories under `output_directory` that are large and cheaply regenerable.
 # Paths are relative to outdir. Order does not matter.
 CLEAN_TARGETS = [
-    "pod5",  # merged per-sample POD5 (merge_pods)
-    "fq",  # per-sample FASTQ (ubam_to_fastq)
+    "pod5",  # per-sample POD5 symlink dirs (stage_pod5); merged copies on pre-v0.7 runs
+    "fq",  # retired ubam_to_fastq output (pre-v0.7 runs; alignment streams from the uBAM now)
     "bam/rebasecall",  # rebasecalled uBAM (dorado) — very large
     "bam/rebasecall_run",  # LDX run-level uBAM (dorado), split into the above
-    "bam/aln",  # bwa_align output
-    "bam/tagged",  # inject_ubam_tags output
+    "bam/aln",  # bwa_align output (carries dorado's tags since v0.7)
+    "bam/tagged",  # retired inject_ubam_tags output (pre-v0.7 runs)
     "bam/charging",  # classify_charging output
     "bam/classified",  # retired transfer_bam_tags output (pre-v0.4.0 runs)
     "bam/adapter_tagged",  # add_adapter_tags output (hardlinked into bam/final)

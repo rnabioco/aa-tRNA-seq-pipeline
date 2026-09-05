@@ -95,33 +95,30 @@ workflow/
 ### Pipeline Flow
 
 ```
-POD5 files → merge_pods → rebasecall (Dorado) → ubam_to_fastq → bwa_align →
+POD5 files → stage_pod5 (symlinks) → rebasecall (Dorado) → bwa_align (dorado tags carried through) →
 classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 On an LDX run the first two steps are replaced (there is no per-sample POD5 to
-merge or basecall), and the flow rejoins at `ubam_to_fastq`:
+stage or basecall), and the flow rejoins at `bwa_align`:
 ```
 raw POD5 → escapepod_demux (--annotate, writes .p5s) → rebasecall_ldx_run (whole run, one dorado pass)
          → ldx_split_parent_map + extract_ldx_sample_reads → split_ldx_ubam → (as above)
 ```
 
-For EDX samples (dual barcoding), 3' adapter detection and FASTQ/POD5 splitting happens before alignment:
+For EDX samples (dual barcoding), 3' adapter detection happens on the uBAM before alignment, and the resulting read-id list is the whole filter: `bwa_align` aligns only those reads (`samtools view -N`), and `classify_charging` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written:
 ```
-rebasecall → detect_edx_adapters → extract_edx_read_ids
-                                     ├── filter_fastq_by_edx → bwa_align → ...
-                                     └── filter_pod5_by_edx → classify_charging
+rebasecall → detect_edx_adapters → extract_edx_read_ids → bwa_align → classify_charging → ...
 ```
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
-1. **merge_pods**: Merge all pod5 files per sample into single pod5
-2. **rebasecall**: Use dorado to rebasecall with move tables (required by the charging model). Runs through `workflow/scripts/dorado_basecall_resume.sh`, as does `rebasecall_ldx_run`: the partial BAM of a killed attempt is kept beside the output (where Snakemake will not reap it) and fed back as dorado's `--resume-from`, so an overrun costs the tail of a basecall rather than the whole flowcell. `escapepod_demux` has no equivalent and does not resume
-3. **ubam_to_fastq**: Extract reads from unmapped BAM to FASTQ
-4. **bwa_align**: Align reads to tRNA + adapter reference with BWA MEM
-5. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score
-6. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
-7. **finalize_bam**: Symlink adapter-tagged BAM as final output (EDX filtering now happens before alignment)
+1. **stage_pod5**: Lay a directory of symlinks over the sample's raw POD5 files (`pod5/{sample}/<run>/<pod5_pass|pod5_fail|pod5>/`). Nothing copies the signal: dorado and `escpod classify` both take a directory. Replaced `merge_pods`, which wrote a full second copy of every run per sample
+2. **rebasecall**: Use dorado (`--recursive` over the staged directory) to rebasecall with move tables (required by the charging model). Runs through `workflow/scripts/dorado_basecall_resume.sh`, as does `rebasecall_ldx_run`: the partial BAM of a killed attempt is kept beside the output (where Snakemake will not reap it) and fed back as dorado's `--resume-from`, so an overrun costs the tail of a basecall rather than the whole flowcell. `escapepod_demux` has no equivalent and does not resume
+3. **bwa_align**: Stream the uBAM through `samtools fastq -T '*'` into `bwa mem -C`, so dorado's tags (the `mv`/`ns`/`ts` move table, MM/ML modbase calls, RG) ride the FASTQ comment onto the aligned records. `-H` inserts the uBAM's own @RG lines with SM/LB/BC stamped (`stamp_read_groups.py`), and on demux runs a constant `BC` tag goes onto every read. No FASTQ is written and there is no tag-injection step (`inject_ubam_tags` is retired). `-K 100000000` pins bwa's batch so the tag payload (~13x the read) costs a few GB, not the OOM PR #86 saw with the default per-thread batch. Output is primary forward alignments (`-F 2324`)
+4. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score. It is handed the sample's whole signal store (staged directory, WarpDemuX split POD5, or the raw LDX run) and looks reads up by the BAM's ids, so no EDX-filtered POD5 exists
+5. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
+6. **finalize_bam**: Hardlink adapter-tagged BAM as final output
 
 ### Summary Generation
 
@@ -169,7 +166,7 @@ After classification, generates (split across three rule files):
 - **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
 - **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
 - **charging.ml_threshold**: 200 (200-255 = charged, <200 = uncharged). Config, not hardcoded. It is the bundle's declared operating point, measured against ligation chemistry at FPR 1.74% / TPR 0.939; its precision depends on the sample's own charged fraction, so low-charging samples need a higher value (see `docs/troubleshooting/faq.md`)
-- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `fastq`, `merged_pod5`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`. `bam/final` and `demux/edx/pod5` (the classification-input POD5) are always kept. On the WarpDemuX path, only enable `split_pod5` for all-EDX runs (where `demux/edx/pod5` is the leaf classification input); for non-EDX/mixed runs `demux/pod5` must be kept. LDX runs produce no `demux/pod5`, so the tier is inert there. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
+- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`; the retired `fastq` and `merged_pod5` tiers are accepted and ignored (nothing writes a FASTQ or a merged POD5 any more), and an unknown name is an error. `bam/final` is always kept. `split_pod5` deletes the WarpDemuX split POD5 once classification and the session file are done; it is that path's classification input, so re-running classification afterwards means re-splitting from the raw run. Unbarcoded and LDX samples have no `demux/pod5` (their store is the raw run, via symlinks for unbarcoded samples), so the tier is inert there. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
 ## Demultiplexing (Optional)
 
@@ -268,7 +265,7 @@ runs:
         edx: "edx02"       # must match adapter name from adapters.three_prime config
 ```
 
-EDX values must directly match adapter names from `adapters.three_prime` in the config (e.g., `edx01`, `edx02`). EDX splitting happens before alignment — the pipeline detects 3' adapter identity on the uBAM, then filters FASTQ and POD5 so downstream rules only process matching reads.
+EDX values must directly match adapter names from `adapters.three_prime` in the config (e.g., `edx01`, `edx02`). EDX splitting happens before alignment — the pipeline detects 3' adapter identity on the uBAM, then aligns only the matching reads; the classifier reads only what the BAM names, so no filtered FASTQ or POD5 is written.
 
 When `edx.enabled: true` in config, the `edx_concordance` rule produces `summary/edx/edx_concordance.tsv.gz` — a concordance table of WDX assignment vs EDX (3' adapter) identity per sample.
 
