@@ -4,6 +4,19 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An LDX code repeated across EDX adapters no longer dies at parse time.**
+  `_check_barcode_tuples` (new in v0.7.0, #156) built its uniqueness tuple from
+  `(ldx, fdx)` and left `edx` out, so any samples file fanning one LDX code
+  across several 3' adapters was refused with "have identical barcode
+  assignments" -- a design the pipeline supports and its own validator accepts,
+  since the sibling check in `run_config.py` keys on `(fdx, edx)`. The two
+  checks disagreed, so `pixi run check-run-config` passed configs the pipeline
+  then rejected. `edx` is now in the tuple. `tests/unit/test_barcode_tuples.py`
+  covers both axes and asserts the two checks return the same verdict; no
+  shipped test config repeated an LDX code, which is why CI missed it (#161).
+
 ## [v0.7.0] - 2026-09-05
 
 ### Added

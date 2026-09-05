@@ -333,6 +333,12 @@ def _check_barcode_tuples(samples, fl):
     alone therefore contains every read of a sample naming `ldx01` + `fdx01`,
     and two samples with identical tuples receive identical reads. Either is a
     mistake in the samples file, caught here rather than in a BAM.
+
+    `edx` counts as an axis here even though it is applied later and elsewhere
+    -- 3' adapter identity on the uBAM, not a signal-level call -- because it
+    still distinguishes the reads a sample ends up with. One LDX code fanned
+    across several EDX adapters is a normal design, so leaving `edx` out of the
+    tuple refuses a legitimate samples file (#161).
     """
     by_run = {}
     for name, info in samples.items():
@@ -354,7 +360,9 @@ def _check_barcode_tuples(samples, fl):
                     "others' reads; give every one of them an `fdx:`, or none. "
                     f"({fl})"
                 )
-            tuples = [(code, samples[n].get("fdx")) for n in names]
+            tuples = [
+                (code, samples[n].get("fdx"), samples[n].get("edx")) for n in names
+            ]
             if len(set(tuples)) != len(tuples):
                 sys.exit(
                     f"Samples {', '.join(sorted(names))} on run {run_id} have identical "
