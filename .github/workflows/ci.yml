@@ -49,6 +49,11 @@ jobs:
       - name: Snakemake dry-run (LDX demux)
         run: pixi run dry-run-ldx
 
+      # The dual-index fixture, same reasoning: real barcoded reads, so
+      # tests/integration/test_fdx_demux.py can hold the config to the data.
+      - name: Snakemake dry-run (LDX + FDX demux)
+        run: pixi run dry-run-fdx
+
   pipeline-test:
     name: Pipeline Integration Test
     runs-on: ubuntu-latest

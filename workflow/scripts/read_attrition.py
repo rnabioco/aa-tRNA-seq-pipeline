@@ -10,6 +10,9 @@ this by default is the cheap way to make the next such loss self-announcing.
 Sources, all of which survive `cleanup_intermediates`:
 
   demux_summary.tsv.gz    barcode assignment, `unclassified` among the barcodes
+  assigned_summary.tsv    per sample, the reads the escpod join handed to the
+                          basecaller: a code some sample claims, and on a
+                          dual-index run one on which every axis agreed
   align_stats.tsv.gz      per sample: `unmapped` (post-basecall), `aligned`,
                           `classified` (carrying a `cl` tag)
   charging_calls.tsv.gz   per sample: one row per read the charging model saw,
@@ -59,6 +62,13 @@ def main() -> None:
     ap.add_argument("--anchor-coverage", type=Path, nargs="*", default=[])
     ap.add_argument("--charging-calls", type=Path, nargs="*", default=[])
     ap.add_argument("--demux-summary", type=Path, nargs="*", default=[])
+    ap.add_argument(
+        "--assigned-summary",
+        type=Path,
+        nargs="*",
+        default=[],
+        help="per-run assigned_summary.tsv from the escpod join (sample, assigned, split_children)",
+    )
     ap.add_argument("--edx-concordance", type=Path)
     ap.add_argument("--output", type=Path, required=True)
     args = ap.parse_args()
@@ -84,6 +94,14 @@ def main() -> None:
         assigned = (assigned or 0) + sum(
             v for k, v in counts.items() if k != "unclassified"
         )
+
+    # Reads a configured sample actually claims: a code some sample names, and
+    # on a dual-index run one on which every axis agrees. Everything demux
+    # assigned that no sample claims is lost HERE, not at the basecaller.
+    sample_assigned = None
+    for p in args.assigned_summary:
+        df = _read_tsv(p)
+        sample_assigned = (sample_assigned or 0) + int(df["assigned"].sum())
 
     anchor = {
         "scored": 0,
@@ -123,13 +141,29 @@ def main() -> None:
                 "no barcode decoded",
             )
         )
+        entered_basecall = assigned
+        if sample_assigned is not None:
+            rows.append(
+                (
+                    "barcode assigned",
+                    "sample assigned",
+                    assigned,
+                    sample_assigned,
+                    assigned - sample_assigned,
+                    "a code no sample claims, or a dual-index pair the axes "
+                    "did not agree on",
+                )
+            )
+            entered_basecall = sample_assigned
         rows.append(
             (
-                "barcode assigned",
+                "sample assigned"
+                if sample_assigned is not None
+                else "barcode assigned",
                 "basecalled",
-                assigned,
+                entered_basecall,
                 totals["basecalled"],
-                max(0, assigned - totals["basecalled"]),
+                max(0, entered_basecall - totals["basecalled"]),
                 "basecaller could not read the signal",
             )
         )
@@ -207,7 +241,8 @@ def main() -> None:
             f"lost {r.lost:>9,} ({r.pct_lost:5.2f}%)"
         )
     if sequenced is not None:
-        gain = totals["basecalled"] - assigned
+        handed_to_dorado = sample_assigned if sample_assigned is not None else assigned
+        gain = totals["basecalled"] - handed_to_dorado
         if gain > 0:
             print(f"  basecalling emitted {gain:+,} sub-reads from split concatemers")
         elif gain < 0:

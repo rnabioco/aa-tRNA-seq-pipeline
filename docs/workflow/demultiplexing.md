@@ -207,6 +207,36 @@ When samples have EDX assignments and `edx.enabled: true`, the `edx_concordance`
 !!! tip "Debugging unmatched reads"
     The full adapter detection TSV at `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` records every read's adapter assignment including `"none"`, useful for debugging.
 
+## Dual Indexing (LDX + FDX)
+
+An FDX library carries a 5' index in addition to the 3' LDX code: a 27-nt code
+inside a 77-nt DNA adapter, read by `barcode_crf_fdx4_rna004` off the **read
+end** (RNA004 translocates 3'→5', so the 5' adapter is where the signal stops).
+Enable `fdx.enabled` beside `ldx.enabled` and name both codes per sample:
+
+```yaml
+runs:
+  - path: /path/to/dual-index/run
+    samples:
+      libA_rep1: { ldx: "ldx01", fdx: "fdx01" }
+      libB_rep1: { ldx: "ldx04", fdx: "fdx02" }
+```
+
+The FDX axis is demultiplexed by `escapepod_demux_fdx`, a second escpod pass
+over the raw POD5 (see the `fdx` block in `config-base.yml` for why not one
+fused pass yet), gated at the bundle's declared 3.5 nats. `ldx_run_read_ids`
+and `extract_ldx_sample_reads` then run `select_demux_reads.py`, which assigns
+a read to a sample only when every axis the sample names agrees. Per run:
+
+| Output | What |
+|---|---|
+| `demux/read_ids/{run}/demux_summary.tsv.gz` | per-code tally, LDX axis |
+| `demux/read_ids/{run}/fdx/demux_summary.tsv.gz` | per-code tally, FDX axis |
+| `demux/read_ids/{run}/assigned_summary.tsv` | per-sample reads surviving the join |
+
+Final BAMs of dual-index samples carry `BC:Z:ldx01-fdx01` on every read and on
+the `@RG`.
+
 ## Pipeline Flow
 
 With demultiplexing enabled, the pipeline adds these steps before standard processing:

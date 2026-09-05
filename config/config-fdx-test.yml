@@ -1,0 +1,57 @@
+# End-to-end test config for dual-index (LDX + FDX) demultiplexing.
+#
+#   pixi run snakemake -n --configfile=config/config-fdx-test.yml     # DAG only
+#   pixi run snakemake --configfile=config/config-fdx-test.yml --cores 8
+#
+# Backed by a real dual-indexed run (.tests/fixtures/fdx-demux): acylated
+# E. coli tRNA, every molecule carrying a 3' LDX code and a 5' FDX code. The
+# donor flowcell (Run2 of the 20260828 FDX pilot) is deliberately NOT in the
+# shipped fdx4 model's training corpus, so what this run measures about the FDX
+# call is a held-out number, not a fit.
+
+samples: config/samples-fdx-test.yml
+output_directory: ".tests/outputs-fdx"
+
+# --- Demultiplexing -------------------------------------------------------
+ldx:
+    enabled: true
+    # CPU, as in config-ldx-test.yml: CI has no GPU, and `ldx.gpu` is resolved
+    # while the DAG is built.
+    gpu: false
+    threads: 4
+
+# The second axis. `model` and `min_crf_margin` are deliberately NOT set: the
+# test exercises whatever config-base.yml ships, so a bump is covered rather
+# than bypassed. The gate matters here -- see the `fdx` block in
+# config-base.yml for the measurement.
+fdx:
+    enabled: true
+
+# --- Adapters -------------------------------------------------------------
+# The 5' adapter is the FDX construct's 23-nt arm + RNA tail, which is the same
+# sequence every other run uses: the 54 nt of poly(C), 27-nt code and A6
+# spacer in front of it are DNA, are not basecalled usefully, and soft-clip.
+#
+# The 3' adapter is the PLAIN one -- the EDX scaffold truncated before the
+# barcode (common arm + AGGA + poly(A)), 30 nt. Recovered from the soft-clipped
+# tails of the donor run (escapepod-models dev-notes/fdx-three-prime-chemistry.md),
+# because no design document recorded it. A single string, not the edx list:
+# every library in this fixture used it, and reference validation requires all
+# 3' adapters to be one length.
+adapters:
+    five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+    three_prime: "GGCTTCTTCTTGCTCTTAGGAAAAAAAAAA"
+    min_score_5p: 25
+    min_score_3p: 20
+    infer_5p_from_alignment: true
+    max_ref_start_for_5p: 20
+
+edx:
+    enabled: false
+
+# --- Reference ------------------------------------------------------------
+# The fixture ships the raw E. coli tRNA bodies (47 collapsed sequences, all
+# ending in CCA); the pipeline builds the adapted reference from them.
+reference:
+    mode: "build"
+    raw_fasta: ".tests/fixtures/fdx-demux/collapsed.fa"

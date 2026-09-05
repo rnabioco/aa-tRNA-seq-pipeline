@@ -1,0 +1,194 @@
+{
+  "id": "barcode_crf_fdx4_rna004",
+  "version": "0.2.0",
+  "full_id": "barcode_crf_fdx4_rna004@v0.2.0",
+  "kind": "barcode",
+  "format": "onnx",
+  "chemistry": "rna004",
+  "created": "2026-09-04",
+  "file": "barcode_crf_fdx4_rna004.onnx",
+  "sha256": "5932e2584d1a7952c651f334177f9d8a59763ff45d5f59bf1d256ed1c6b1b477",
+  "license": "CC-BY-4.0",
+  "license_review": "REQUIRED BEFORE ANY RELEASE, and unresolved. Inherits issue #40 from the ldx lineage. The encoder, loss and decode are leech.crf with no bonito or ont-koi in the training path, but the label chain runs dorado and the per-read labels come from a shipped ldx bundle whose own licence review is open.",
+  "source": {
+    "escapepod_models_commit": "9db3edf2d8681e2c4c3f0484de7543c82e330510",
+    "escapepod_models_dirty": true,
+    "escapepod_rs_commit": null,
+    "escapepod_rs_version": "escpod 0.19.0+3695bf9",
+    "escapepod_rs_binary": "/beevol/home/jhessel/.local/escpod-gpu-0.19.0/bin/escpod",
+    "training_script": "snakemake workflow (config: barcode_crf_fdx4_rna004)",
+    "trainable_source_pt": null
+  },
+  "training": {
+    "label_source": "The 3' ldx barcode, called by barcode_crf_nbc16_rna004@v0.3.0 and mapped to an fdx code through config/fdx4_libraries.yaml. Reads gated on carrying >=80% of the 77-nt adapter, measured from the tRNA 5' alignment edge to the read end (scripts/fdx/adapter_span.py). The label channel is the 3' end read from signal by a trained model; the training signal is the 5' end. Independent.",
+    "dataset": "20260828_FDX1-4_Demux Run1 (PBK54437), acylated E. coli MG1655, RNA004. Five libraries: fdx01-fdx04 with the plain 3' adapter and fdx01 again with EDX7, three ldx codes each. 175,584 labelled reads after the reach gate -- fdx01 60,186 / fdx02 48,657 / fdx03 30,612 / fdx04 36,129. fdx01 leads because it appears in two libraries, which the measured read shares (0.610/0.627) independently agree with.",
+    "barcodes": [
+      "fdx01",
+      "fdx02",
+      "fdx03",
+      "fdx04"
+    ],
+    "n_train": 704932,
+    "n_test": 113021,
+    "pipeline": "",
+    "basecaller": {
+      "model": "rna004_sup@v6.0.0"
+    }
+  },
+  "io_contract": "",
+  "runtime": "",
+  "metrics": {
+    "source": "workflow/rules/barcode_crf.smk (eval_window_ab.py + decode_position_profile.py)",
+    "verified": true,
+    "split": "the corpus's recorded held-out split, carved per code BEFORE the cap by extract_chunks.py, so these reads were never trained on",
+    "n_train": 704932,
+    "n_test": 113021,
+    "n_scored": 60000,
+    "panel": "fdx",
+    "grouped_by": "run",
+    "geometry": {
+      "chunk": 3500,
+      "target_len": 53,
+      "state_len": 4,
+      "emits": 49
+    },
+    "standardisation": {
+      "mean": 68.9185851781432,
+      "stdev": 16.11127550286512
+    },
+    "final_train_loss": 0.019464277514502477,
+    "selected_train_loss": 0.019464277514502477,
+    "weights_from_epoch": 64,
+    "epochs": 64,
+    "lr": 0.0005,
+    "exact_match_to_emitted_reference": 0.9539166666666666,
+    "median_decoded_len": 49.0,
+    "per_base_error": {
+      "all_emitted": 0.012030612244897957,
+      "shared_constant": 0.012030612244897957,
+      "lead": null
+    },
+    "balanced_precision@0.97": 0.96372072054548,
+    "balanced_recall@0.97": 0.937805216067116,
+    "per_group": {
+      "Run1": {
+        "n": 60000,
+        "ref_min_pairwise": 16,
+        "median_edit_distance": 0.0,
+        "median_margin": 16.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9615893747515735,
+            "bal_precision": 0.9604589041587176,
+            "errors": 2307,
+            "per_code": {
+              "fdx01": {
+                "recall": 0.9581749049429658,
+                "precision": 0.9658018867924528,
+                "n": 20514
+              },
+              "fdx02": {
+                "recall": 0.9670210195699445,
+                "precision": 0.9663206180589088,
+                "n": 16556
+              },
+              "fdx03": {
+                "recall": 0.9601937046004843,
+                "precision": 0.9594503048485435,
+                "n": 10325
+              },
+              "fdx04": {
+                "recall": 0.9609678698928996,
+                "precision": 0.9502628069349651,
+                "n": 12605
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9567373344490401,
+            "bal_precision": 0.9634689005646423,
+            "errors": 2059,
+            "per_code": {
+              "fdx01": {
+                "recall": 0.9469630496246466,
+                "precision": 0.9765244055697985,
+                "n": 20514
+              },
+              "fdx02": {
+                "recall": 0.9620681323991302,
+                "precision": 0.9662117076129815,
+                "n": 16556
+              },
+              "fdx03": {
+                "recall": 0.9598062953995158,
+                "precision": 0.9606436603334626,
+                "n": 10325
+              },
+              "fdx04": {
+                "recall": 0.9581118603728679,
+                "precision": 0.9504958287423264,
+                "n": 12605
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.937805216067116,
+            "bal_precision": 0.96372072054548,
+            "errors": 1998,
+            "per_code": {
+              "fdx01": {
+                "recall": 0.928195378765721,
+                "precision": 0.9776146223751091,
+                "n": 20514
+              },
+              "fdx02": {
+                "recall": 0.942558589031167,
+                "precision": 0.9660744134216555,
+                "n": 16556
+              },
+              "fdx03": {
+                "recall": 0.9417917675544795,
+                "precision": 0.9606797075676744,
+                "n": 10325
+              },
+              "fdx04": {
+                "recall": 0.9386751289170964,
+                "precision": 0.9505141388174807,
+                "n": 12605
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9185046669609309,
+            "bal_precision": 0.9636585968050219,
+            "errors": 1960,
+            "per_code": {
+              "fdx01": {
+                "recall": 0.9092327191186507,
+                "precision": 0.9775169016298936,
+                "n": 20514
+              },
+              "fdx02": {
+                "recall": 0.9222638318434404,
+                "precision": 0.9660255599139568,
+                "n": 16556
+              },
+              "fdx03": {
+                "recall": 0.923680387409201,
+                "precision": 0.9604229607250755,
+                "n": 10325
+              },
+              "fdx04": {
+                "recall": 0.9188417294724316,
+                "precision": 0.9506689649511615,
+                "n": 12605
+              }
+            }
+          }
+        }
+      }
+    },
+    "note": "Reported per run, never pooled: for ldx the pilot aliases code identity with flowcell (issue #26), and for a panel whose codes are crossed with batch the run is the only honest holdout. Edit distances are against the reference the model EMITS (target[state_len:]); scoring against the full-length target inflates every distance and compresses the margin (issue #36)."
+  },
+  "notes": "FOUR codes, trained on ONE flow cell. Run2 is now fully processed -- basecalled, aligned, spanned and demuxed -- and is deliberately NOT in this model's corpus (`manifest_runs: [Run1]`), so it stands as a held-out replicate rather than training data. Scoring these weights on it is the honest cross-batch number and the cheap first answer to #99. Training on both runs was measured and is NOT what shipped: at the same training budget that arm had 4-8x the seed spread (sd 0.0076 against 0.0009, range 0.9466-0.9670 over six seeds) and its best seed still did not beat this corpus's best. See dev-notes/fdx-corpus-arms.md. fdx01/fdx02 reuse the ldx01/ldx02 codes, so per-code accuracy on those two against the ldx model's on the same codes is the cleanest available cross-panel comparison."
+}

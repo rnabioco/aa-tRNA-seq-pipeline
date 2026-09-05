@@ -1,0 +1,26 @@
+# Test sample file for dual-index (LDX + FDX) demultiplexing.
+#
+# Points at the checked-in fixture, a real dual-indexed run cut down to 365
+# reads -- see .tests/fixtures/fdx-demux/README.md for how it was built and what
+# it contains.
+#
+# Each library of the donor pool carried one 5' FDX code and three 3' LDX codes
+# (config/fdx4_libraries.yaml in escapepod-models), so the LDX call is the
+# independent per-read truth for the FDX one. The fixture holds five
+# populations, each exercising a branch:
+#
+#   ldx01 + fdx01  -> fdx01_ldx01, a dual-index sample (library A)
+#   ldx04 + fdx02  -> fdx02_ldx04, a dual-index sample (library B)
+#   ldx07 + fdx03  -> fdx03_ldx07, a dual-index sample (library C)
+#   ldx10 + fdx04  -> claimed by no sample, so demux must route it nowhere
+#   unclassified   -> reads the LDX CRF could not call
+#
+# No `edx:` keys: every library here used the plain 3' adapter, and the EDX
+# filter is exercised by the LDX fixture.
+
+runs:
+  - path: .tests/fixtures/fdx-demux/run
+    samples:
+      fdx01_ldx01: {ldx: "ldx01", fdx: "fdx01"}
+      fdx02_ldx04: {ldx: "ldx04", fdx: "fdx02"}
+      fdx03_ldx07: {ldx: "ldx07", fdx: "fdx03"}

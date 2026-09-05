@@ -544,6 +544,67 @@ ldx:
 
   threads: 16
 
+# FDX: the 5' index, demultiplexed as a SECOND AXIS of the escpod path.
+#
+# An FDX library carries two barcodes on every molecule: the 3' LDX code above,
+# read off the adapter boundary, and a 27-nt 5' code inside a 77-nt DNA adapter
+# (poly(C) leader + code + A6 spacer + the 23-nt arm the reference already
+# carries), read off the READ END -- RNA004 translocates 3'->5', so the 5'
+# adapter is simply where the signal stops. The shipped 4-code bundle anchors
+# its window there and consumes no boundary detector.
+#
+# It is a second axis, not a replacement: a sample is `{ldx: ldx01, fdx: fdx01}`
+# and owns the reads on which BOTH calls agree. `fdx.enabled` therefore needs
+# `ldx.enabled`, and the read-level accounting (demux_summary, read_attrition)
+# stays keyed on the LDX pass.
+#
+# One pass or two. escpod can call both models in ONE sweep of the POD5
+# (`escpod demux --model ldx=... --model fdx=...`), decoding each read's signal
+# once, and that is the shape to want on a 600 GB flowcell where the sweep is
+# hours of IO-bound wall. `fused: true` selects it. It is OFF by default because
+# escpod 0.19.0 -- and the 0.20.0 source -- applies `--boundary-margin` /
+# `--clamp-max-shift` to every model of the run and REFUSES them outright when
+# any model anchors on the read end, which the fdx bundle does:
+#
+#   Error: --boundary-margin is not applicable: this model anchors its window
+#   on the read end, so no boundary margin or window shift is involved.
+#
+# The LDX axis cannot give those flags up (boundary_margin 0 recovers ~14% of a
+# run, see above), so until escpod scopes them to the axis that has a boundary,
+# `fused: false` runs the FDX axis as a second pass over the raw POD5
+# (escapepod_demux_fdx) and select_demux_reads.py joins the two CSVs per read.
+# Flip to `true` once the pinned escpod accepts the flags in a fused run;
+# nothing downstream changes -- the join reads either shape.
+#
+# The join also applies each axis's lattice gate itself (`--gate ldx=…
+# --gate fdx=…`), because a fused pass has one `--min-crf-margin` for every
+# model and the two axes want different operating points. In the two-pass
+# shape escpod has already applied each gate and the join's re-application is a
+# no-op; in the fused shape the join is where the FDX gate happens.
+#
+# Sidecar: the LDX pass, unnamed, annotates `barcode`; the FDX pass annotates
+# `fdx`; a fused pass annotates `ldx` and `fdx`. The lattice columns (`crf_*`)
+# are shared between two passes and belong to whichever ran last -- the FDX
+# pass is ordered after the LDX one so the two writes cannot race. The per-axis
+# classifications CSVs are the record the pipeline reads.
+fdx:
+  enabled: false
+  model: "resources/models/demux/barcode_crf_fdx4_rna004@v0.2.0"
+  fused: false
+
+  # The lattice gate for this axis, in nats. 3.5 is the operating point the
+  # bundle itself declares (metadata `gate.min_crf_margin`, calibrated on 4,000
+  # reads: yield 0.964, precision 0.977), and it is LOAD-BEARING in a way the
+  # LDX gate is not. A CRF snaps a read that carries none of its codes onto the
+  # nearest one at a normal edit-distance margin, so a read without an FDX
+  # adapter is not refused, it is confidently mis-assigned -- and the ldx gate
+  # of 1.0 would let most of those through. Measured on the 415-read LDX fixture,
+  # whose reads carry NO 5' index: at 1.0 nats 69 reads (17%) are still called
+  # an fdx code; at 3.5, 9 (2.2%). Reads below the gate are `unclassified` on
+  # this axis, and so drop out of every dual-index sample.
+  min_crf_margin: 3.5
+  min_crf_prob: null
+
 # EDX (3' adapter barcode) handling.
 #
 # Two independent things live here, and they are deliberately separable:

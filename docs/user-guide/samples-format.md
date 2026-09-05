@@ -116,6 +116,24 @@ Sample values can be:
 - **Dict**: `wdx` and/or `edx` keys (e.g., `{wdx: "barcode03", edx: "edx1"}`)
 - **Null** (`~`): Skip demultiplexing for this sample
 
+### Dual-Index Samples (LDX + FDX)
+
+A library carrying both a 3' LDX code and a 5' FDX code names both; the sample
+owns the reads on which both calls agree:
+
+```yaml
+runs:
+  - path: /path/to/dual-index/run
+    samples:
+      libA_rep1: { ldx: "ldx01", fdx: "fdx01" }
+      libA_rep2: { ldx: "ldx02", fdx: "fdx01" }
+```
+
+`fdx:` needs `fdx.enabled` (and `ldx.enabled`) in the config. Within one run,
+every sample sharing an `ldx:` code must name an `fdx:` or none of them may, and
+no two samples may name the same pair; both are refused when the samples file
+is parsed.
+
 ### Barcode Names
 
 For WarpDemuX-tRNA kits:

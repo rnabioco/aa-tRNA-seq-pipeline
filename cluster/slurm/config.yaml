@@ -253,6 +253,28 @@ set-resources:
     # default-resources overrides a rule's own `threads:`.
     cpus_per_task: 16
 
+  # The FDX (5' index) pass: the same escpod demux over the same raw POD5, with
+  # a read-end-anchored bundle and no boundary CNN. Nothing measured yet, so it
+  # inherits escapepod_demux's shape wholesale -- the sweep of the POD5 is the
+  # same IO-bound work, and the encoder is the same size of model. Like
+  # escapepod_demux it has no resume. Re-derive from the first real run.
+  escapepod_demux_fdx:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:2"
+    runtime: "12h"
+    mem_mb: 48000
+    cpus_per_task: 16
+
+  # Joins the per-axis classifications into the run's basecall list. Holds
+  # the primary axis's assigned reads in a dict (one UUID string per read),
+  # so memory follows the assigned fraction of the run: ~30M reads is a few
+  # GB. Same shape as extract_ldx_sample_reads below.
+  ldx_run_read_ids:
+    runtime: "1h"
+    mem_mb: 16000
+    cpus_per_task: 1
+
   # The LDX run basecall. Same work as `rebasecall`, gathered into one job
   # instead of one per sample, so it needs a runtime that covers the whole
   # flowcell rather than a barcode's share of it.

@@ -1,7 +1,13 @@
 # Tabulate escapepod's per-read classifications into a per-barcode summary.
 #
-# Input:  read_id,barcode,confidence  (CSV, header row)
+# Input:  an `escpod demux --classifications` CSV, header row first. Either the
+#         single-model shape, read_id,barcode,confidence,..., or the fused
+#         multi-model shape, read_id,ldx,ldx_confidence,...,fdx,fdx_confidence,...
 # Output: predicted_barcode<TAB>n_reads<TAB>pct
+#
+# Which column is tallied: `-v col=NAME` names it (an axis of a fused CSV, e.g.
+# `fdx`); without it the second column is used, which is `barcode` in the
+# single-model shape and the first axis in the fused one.
 #
 # Column names match parse_warpdemux's output so the QC report reads one format
 # regardless of which demux backend produced it.
@@ -12,7 +18,20 @@
 # a real newline and breaks the awk string literal it sits in. Keeping the
 # program here means awk reads it verbatim.
 
-NR > 1 { n[$2]++; total++ }
+NR == 1 {
+    c = 0
+    for (i = 1; i <= NF; i++) if (col != "" && $i == col) c = i
+    if (c == 0) {
+        if (col != "") {
+            print "summarize_demux.awk: no column named " col " in " FILENAME > "/dev/stderr"
+            exit 1
+        }
+        c = 2
+    }
+    next
+}
+
+{ n[$c]++; total++ }
 
 END {
     printf "predicted_barcode\tn_reads\tpct\n"

@@ -2,6 +2,17 @@
 
 Edit config.yml to specify the following parameters.
 
+## Writing a new run's config
+
+`pixi run new-run-config -- --name <name> --run <dir> --sample <name>=<spec> …`
+writes `config/config-<name>.yml` and its samples file from a description of the
+libraries, and refuses a plan the pipeline would refuse; `pixi run
+check-run-config -- config/config-<name>.yml --dry-run` validates an existing
+pair. Sample specs: `ldx01`, `ldx01+fdx01`, `ldx01/edx01`, `ldx01+fdx01/edx07`,
+`wdx:barcode03`, `-` (unbarcoded). See `.claude/skills/new-run-config/SKILL.md`
+for the workflow and `workflow/scripts/run_config.py` for the checks. The
+formats it writes are the ones described below.
+
 ## Sample File Configuration
 
 The pipeline supports two sample file formats depending on whether you need barcode demultiplexing.
@@ -111,6 +122,49 @@ ldx:
     clamp_max_shift: 300 # likewise. See resources/models/demux/README.md
     threads: 32
 ```
+
+#### Dual-index libraries: the FDX 5' axis
+
+An FDX library carries a second barcode on every molecule: a 27-nt 5' code in a
+77-nt DNA adapter, read off the read end (`barcode_crf_fdx4_rna004`, four codes
+`fdx01`..`fdx04`). Name it with `fdx:` beside `ldx:`, and enable the axis:
+
+```yaml
+runs:
+  - path: /path/to/dual-index/run
+    samples:
+      libA_rep1: { ldx: "ldx01", fdx: "fdx01" }
+      libA_rep2: { ldx: "ldx02", fdx: "fdx01" }
+      libB_rep1: { ldx: "ldx04", fdx: "fdx02" }
+```
+
+```yaml
+fdx:
+    enabled: true        # needs ldx.enabled; the join is keyed on the LDX call
+    model: "resources/models/demux/barcode_crf_fdx4_rna004@v0.2.0"
+    min_crf_margin: 3.5  # the bundle's declared gate -- load-bearing, see below
+    fused: false         # one escpod pass for both axes, once escpod allows it
+```
+
+A sample owns the reads on which BOTH calls agree (`select_demux_reads.py`); its
+reads carry `BC:Z:ldx01-fdx01`, the SAM dual-index form. Within a run, every
+sample sharing an `ldx:` code must name an `fdx:` or none of them may — a sample
+named by `ldx01` alone would swallow the reads of `ldx01` + `fdx01` — and tuples
+must be unique. Both are refused at parse time.
+
+The gate matters more here than on the LDX axis: a CRF snaps a read that carries
+none of its codes onto the nearest one, so a read with no 5' index is not
+refused but confidently mis-assigned. On the 415-read LDX fixture (no 5' index
+at all) the fdx model still calls 17% of reads a code at 1.0 nats and 2.2% at
+3.5. Reads below the gate are `unclassified` on the FDX axis and drop out of
+every dual-index sample.
+
+`fused` is off by default because escpod 0.19.0 refuses `--boundary-margin` /
+`--clamp-max-shift` whenever a read-end model is in the run, and the LDX axis
+needs them; until then the FDX axis is a second pass over the raw POD5 and the
+two passes share one sidecar (`barcode` and `fdx` columns). `config-base.yml`
+records the measurement. Test it with `pixi run dry-run-fdx` / `pixi run
+test-fdx` against `.tests/fixtures/fdx-demux`.
 
 `warpdemux.enabled` and `ldx.enabled` are mutually exclusive — they populate
 the same per-sample barcode field and their rules write the same outputs, so
