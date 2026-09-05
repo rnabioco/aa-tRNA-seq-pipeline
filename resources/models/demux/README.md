@@ -48,7 +48,8 @@ measurements that justify them are recorded below.
 
 Held at **v0.1.0 on purpose**, though upstream has since published v0.1.1 —
 see `resources/models/pins.yml` for the measurement behind that, and run
-`pixi run check-models` to see it reported rather than silently drifting.
+`pixi run check-models` (weekly in CI as `.github/workflows/currency.yml`) to
+see it reported rather than silently drifting.
 
 Successor to the `barcode_crf_nbc16_rna004` family, which is **closed at
 v0.3.1**. It is a retrain, not just a rename: corrected geometry

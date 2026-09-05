@@ -6,6 +6,19 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Added
 
+- **Pins are checked against upstream on a schedule.** `scripts/check-currency.py`
+  (was `check-model-currency.py`; `pixi run check-currency`, with
+  `check-models` and `check-escpod` for either half) now also reports
+  `escpod_version` and `dorado_version` against the escapepod-rs and dorado
+  releases, and compares the escpod checksums in `scripts/setup-tools.sh` with
+  the pinned release's `SHA256SUMS.txt` -- a pin and its checksums have to move
+  together, and that is what a hand bump forgets. `.github/workflows/currency.yml`
+  runs it every Monday (plus `verify-demux-model` / `verify-charging-model`);
+  the private escapepod-models half needs the repository secret
+  `ESCAPEPOD_MODELS_TOKEN`, without which that step fails visibly rather than
+  passing silently. Holds for tools live in `resources/models/pins.yml` under
+  `tools:`; dorado 2.1.1 is recorded there, held to the basecaller the charging
+  bundle declares while upstream is at 2.1.2.
 - **The FDX 5' index, as a second demux axis.** `fdx.enabled` (with
   `ldx.enabled`) calls the 5' barcode of a dual-index library with the vendored
   `barcode_crf_fdx4_rna004@v0.2.0` bundle — four codes `fdx01`..`fdx04`, anchored

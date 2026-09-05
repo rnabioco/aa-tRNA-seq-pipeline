@@ -117,6 +117,10 @@ charging:
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
 # https://github.com/nanoporetech/dorado/releases
+# The dorado pin is also coupled to the CHARGING BUNDLE, which declares the
+# basecaller it was trained against (2.1.1+d66c17c today; see `charging`
+# below), so it is held in resources/models/pins.yml rather than following
+# upstream. `pixi run check-escpod` reports the drift with that reason.
 dorado_version: 2.1.1
 dorado_model: rna004_sup@v6.0.0
 
@@ -125,6 +129,12 @@ dorado_model: rna004_sup@v6.0.0
 # `escpod merge`/`escpod filter` do the POD5 handling that used to shell out to
 # the `pod5` CLI, `escpod classify` is the charging classifier, and
 # `escpod demux` is the LDX barcode demultiplexer.
+#
+# A bump is TWO edits that have to agree: this pin and the SHA256 constants in
+# scripts/setup-tools.sh, copied from the release's SHA256SUMS.txt. `pixi run
+# check-escpod` (weekly in CI as .github/workflows/currency.yml) reports a pin
+# upstream has superseded and a checksum that disagrees with the pinned release;
+# a deliberate hold goes in resources/models/pins.yml under `tools:`.
 #
 # 0.19.0 is the FLOOR FOR THE VENDORED CHARGING BUNDLE, which is why the two
 # are bumped together. `charging_feature_nn_rna004@v0.1.1` declares a top-level
