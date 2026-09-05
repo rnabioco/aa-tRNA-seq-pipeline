@@ -1,12 +1,29 @@
-# Vendored bundles deliberately held BEHIND the newest upstream release.
+# Pins deliberately held BEHIND the newest upstream release: vendored model
+# bundles (one entry per family, at the top level) and the tool versions
+# config-base.yml pins (under `tools:`).
 #
-# Read by `pixi run check-models` (scripts/check-model-currency.py), which
-# otherwise warns about every bundle upstream has superseded. An entry here is a
-# recorded decision, not a suppression: it must name the version actually
-# vendored, so a later bump that leaves this file untouched is reported as a
-# stale pin rather than silently inheriting the old justification.
+# Read by `pixi run check-currency` (scripts/check-currency.py; weekly in CI as
+# .github/workflows/currency.yml), which otherwise reports every pin upstream
+# has superseded. An entry here is a recorded decision, not a suppression: it
+# must name the version actually pinned, so a later bump that leaves this file
+# untouched is reported as a stale hold rather than silently inheriting the old
+# justification.
 #
-# A family that is simply current needs no entry.
+# A pin that is simply current needs no entry.
+
+tools:
+  dorado:
+    version: 2.1.1
+    reason: >
+      The charging bundle declares the basecaller it was trained against --
+      charging_feature_nn_sup6_rna004@v0.1.0 names dorado 2.1.1+d66c17c and
+      rna004_sup@v6.0.0 -- and its dominant feature is the k-mer residual
+      against the read's own basecall, so a basecaller change is a domain shift
+      on that feature (measured upstream at ~0.0097 AUROC and 3.9% of per-read
+      calls flipped, with the aggregate charged fraction moving only 0.04 pp).
+      `pixi run verify-basecaller` proves the installed binary is the declared
+      one byte-for-byte. dorado moves when a charging bundle trained on the new
+      release does, not before; upstream is at 2.1.2 (2026-08-26).
 
 barcode_crf_ldx16_rna004:
   version: 0.1.0

@@ -416,6 +416,7 @@ Rules requiring GPU (rebasecall) must set:
 
 - The pipeline requires Snakemake 8.0+
 - Modkit is managed by pixi; dorado and escpod are downloaded by `pixi run setup`
+- Pins are checked against upstream weekly (`.github/workflows/currency.yml`, by hand `pixi run check-currency`): vendored model bundles against escapepod-models releases, `escpod_version`/`dorado_version` against escapepod-rs/dorado releases, and the escpod checksums in `scripts/setup-tools.sh` against the pinned release's SHA256SUMS. A red run is a decision, not an order to bump: hold a pin by recording why in `resources/models/pins.yml` (families at the top level, tools under `tools:`)
 - The charging and demux model bundles are vendored under `resources/models/`
   rather than fetched: upstream `rnabioco/escapepod-models` is private and
   compute nodes have no route to GitHub
