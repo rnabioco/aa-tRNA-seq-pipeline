@@ -1,6 +1,6 @@
 [workspace]
 name = "aa-tRNA-seq-pipeline"
-version = "0.7.0"
+version = "0.7.1"
 description = "Snakemake pipeline for analyzing Oxford Nanopore direct RNA sequencing of aminoacylated tRNAs"
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64"]
