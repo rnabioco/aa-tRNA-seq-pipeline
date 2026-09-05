@@ -35,7 +35,8 @@ OUT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixtures/fdx-demux
 # gitignored), so point PIPELINE at the main checkout when running from one.
 PIPELINE=${PIPELINE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 PY=$PIPELINE/.pixi/envs/default/bin/python
-export PATH=$PIPELINE/resources/tools/escpod/0.19.0/bin:$PIPELINE/.pixi/envs/default/bin:$PATH
+ESCPOD_VERSION=$(awk '/^escpod_version:/ {print $2}' "$PIPELINE/config/config-base.yml")
+export PATH=$PIPELINE/resources/tools/escpod/$ESCPOD_VERSION/bin:$PIPELINE/.pixi/envs/default/bin:$PATH
 
 # Reads per population. ~11 KB of POD5 per read, so 365 reads is ~4 MB.
 KEEP=100          # aligned reads per claimed (ldx, fdx) pair

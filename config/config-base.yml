@@ -148,7 +148,19 @@ dorado_model: rna004_sup@v6.0.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
-# 0.19.0 is what we run, and it changes two things this pipeline depends on:
+# 0.20.0 is what we run. It changes nothing this pipeline calls -- flags,
+# outputs and sidecar shape are 0.19.0's -- and brings performance and
+# hardening: the CPU boundary CNN loads with its input shape pinned and its
+# padding hoisted (600 -> 380 CPU-seconds on 119k reads, sorted per-read
+# classifications identical), per-read work on the LLR path is bounded so one
+# stalled-pore read no longer holds a worker for seconds, a failed GPU
+# `--ref-scores` panel upload is reported once at the end of the run instead of
+# retried every batch, and a reads-table row that fails to decode is warned
+# about instead of vanishing from every demux stage. It does NOT change the
+# rule that keeps the FDX axis a second pass: in a multi-model run the boundary
+# flags are still refused when any model anchors on the read end (see `fdx`).
+#
+# 0.19.0 changed two things this pipeline depends on:
 #   - ONE `.p5s` per DIRECTORY. `escpod demux --annotate` pointed at a directory
 #     now writes a single COLLECTION sidecar beside it (`run/pod5/` gets one
 #     `run/pod5.p5s`) instead of one per member file: a run of fifty POD5s
@@ -252,7 +264,7 @@ dorado_model: rna004_sup@v6.0.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.19.0
+escpod_version: 0.20.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -562,7 +574,7 @@ ldx:
 # (`escpod demux --model ldx=... --model fdx=...`), decoding each read's signal
 # once, and that is the shape to want on a 600 GB flowcell where the sweep is
 # hours of IO-bound wall. `fused: true` selects it. It is OFF by default because
-# escpod 0.19.0 -- and the 0.20.0 source -- applies `--boundary-margin` /
+# escpod -- 0.19.0 and 0.20.0, both measured -- applies `--boundary-margin` /
 # `--clamp-max-shift` to every model of the run and REFUSES them outright when
 # any model anchors on the read end, which the fdx bundle does:
 #

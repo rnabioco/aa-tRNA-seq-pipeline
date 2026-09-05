@@ -750,8 +750,8 @@ if is_fdx_enabled() and not is_fdx_fused():
 
         escpod can call both axes in ONE sweep (`--model ldx=... --model fdx=...`,
         `fdx.fused: true`), and that is the shape to want on a 600 GB flowcell
-        where the sweep is hours of IO. This rule exists because escpod 0.19.0
-        cannot yet run that pass the way the LDX axis needs it: in a fused run
+        where the sweep is hours of IO. This rule exists because escpod (0.19.0 and
+        0.20.0, both measured) cannot yet run that pass the way the LDX axis needs it: in a fused run
         every model shares one `--boundary-margin` / `--clamp-max-shift`, and
         escpod refuses those flags outright when any axis anchors on the read
         end -- which this bundle does ("--boundary-margin is not applicable:

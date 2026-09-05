@@ -42,6 +42,18 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`escpod` bumped 0.19.0 -> 0.20.0.** Nothing the pipeline calls changed:
+  every flag the rules pass exists with the same meaning, the sidecar and CSV
+  shapes are 0.19.0's, and the vendored bundles load as before. What it brings
+  is performance and hardening -- the CPU boundary CNN is ~1.6x faster (input
+  shape pinned, padding hoisted; per-read classifications identical), per-read
+  work on the LLR path is bounded so one stalled-pore read cannot hold a worker
+  for seconds, a failed GPU `--ref-scores` upload is reported once rather than
+  retried every batch, and a reads-table row that fails to decode is warned
+  about rather than dropped. `pixi run setup` installs it; the checksums in
+  `scripts/setup-tools.sh` are the release's. Measured, not assumed: the fused
+  `--model ldx=… --model fdx=…` pass still refuses `--boundary-margin` with a
+  read-end model in the run, so `fdx.fused` stays off by default.
 - **`read_attrition` names the join's loss.** On the escpod path the
   `barcode assigned -> basecalled` row is now two: `barcode assigned -> sample
   assigned` (a code no sample claims, or a dual-index pair the axes did not
