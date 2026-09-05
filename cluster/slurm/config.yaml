@@ -37,12 +37,20 @@ slurm-status-command: squeue
 # partition's default QOS.
 
 # Default resources (CPU)
+#
+# No cpus_per_task here, deliberately. The slurm executor plugin uses
+# `cpus_per_task` when the resource is set and falls back to a rule's
+# `threads:` only when it is not (snakemake_executor_plugin_slurm/partitions.py,
+# get_cpu_setting) -- so a default of 1 clamped every rule without an explicit
+# set-resources entry to a single core, whatever it declared. bam_to_coverage
+# ran `bamCoverage -p 4` on one CPU, compute_reference_similarity likewise, and
+# every `samtools -@` in a pipe was oversubscribed. Rules that need more than
+# `threads:` says still get it from set-resources below.
 default-resources:
   slurm_partition: rna
   slurm_account: rbi
   runtime: "2h"
   mem_mb: 8000
-  cpus_per_task: 1
 
 # Rule-specific resource overrides
 set-resources:
@@ -60,12 +68,6 @@ set-resources:
     runtime: "4h"
     mem_mb: 24000
     cpus_per_task: 8
-
-  # Tag transfer rules
-  inject_ubam_tags:
-    runtime: "6h"
-    mem_mb: 48000
-    cpus_per_task: 4
 
   # CPU-intensive rules
   bwa_align:
@@ -99,6 +101,13 @@ set-resources:
     # if a future reference is denser still. Raising max_mismatch in the project
     # config is a third: it shrinks the reference and with it the 6-mer hit
     # density that causes this.
+    #
+    # Since v0.7 this rule also carries dorado's tags through `bwa mem -C`
+    # (retiring inject_ubam_tags and its 48 GB). The FASTQ comment is ~13x the
+    # read, and bwa holds one batch of input plus output in memory; the rule
+    # pins the batch with `-K 100000000`, which bounds that at a few GB and is
+    # inside the margin above. Re-measure MaxRSS on the first full flowcell
+    # through this path before trusting the number further.
     mem_mb: 160000
     cpus_per_task: 16
 

@@ -39,10 +39,9 @@ flowchart TB
     end
 
     subgraph Processing[aatrnaseq-process.smk]
-        B[merge_pods<br/>Merge POD5s]
+        B[stage_pod5<br/>Symlink raw POD5s]
         C[rebasecall<br/>Dorado basecalling]
-        D[ubam_to_fastq<br/>Extract FASTQ]
-        E[bwa_align<br/>Align to reference]
+        E[bwa_align<br/>Align, dorado tags carried through]
         F[classify_charging<br/>escpod classify]
         G2[add_adapter_tags<br/>PT tags]
         G3[finalize_bam<br/>Symlink final BAM]
@@ -74,7 +73,7 @@ flowchart TB
         R[render_combined_qc_report<br/>QC report]
     end
 
-    A --> B --> C --> D --> E --> F --> G2 --> G3
+    A --> B --> C --> E --> F --> G2 --> G3
 
     G3 --> H --> I
     G3 --> J
@@ -113,9 +112,7 @@ flowchart TB
 
     subgraph EDX[EDX Early Splitting]
         G[detect_edx_adapters<br/>3' adapter ID per read]
-        H[extract_edx_read_ids]
-        I[filter_fastq_by_edx]
-        J[filter_pod5_by_edx]
+        H[extract_edx_read_ids<br/>the read list bwa_align aligns]
     end
 
     subgraph Downstream[Downstream Processing]
@@ -123,8 +120,7 @@ flowchart TB
     end
 
     A --> B --> C --> D --> E --> F --> G --> H
-    H --> I --> K
-    H --> J --> K
+    H --> K
 ```
 
 ## Rule Categories
@@ -135,11 +131,10 @@ Core data processing from raw signal to classified reads:
 
 | Rule | Purpose | GPU |
 |------|---------|-----|
-| `merge_pods` | Combine POD5 files per sample | No |
+| `stage_pod5` | Symlink a sample's raw POD5 files into one directory | No |
 | `rebasecall` | Basecall with Dorado | Yes |
-| `ubam_to_fastq` | Extract reads for alignment | No |
 | `bwa_idx` | Build BWA index | No |
-| `bwa_align` | Align reads to reference | No |
+| `bwa_align` | Align reads to reference, carrying dorado's tags through | No |
 | `classify_charging` | ML charging classification (`escpod classify`) | No |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Symlink final BAM | No |
@@ -203,9 +198,7 @@ Optional WarpDemuX barcode demultiplexing:
 | `extract_sample_reads` | Filter reads by WDX barcode |
 | `split_pod5` | Create per-sample WDX POD5s |
 | `detect_edx_adapters` | Detect 3' adapter identity per read |
-| `extract_edx_read_ids` | Extract matching read IDs for EDX |
-| `filter_fastq_by_edx` | Create EDX-filtered FASTQ |
-| `filter_pod5_by_edx` | Create EDX-filtered POD5 |
+| `extract_edx_read_ids` | Extract matching read IDs for EDX (bwa_align aligns only these) |
 | `edx_concordance` | WDX vs EDX concordance table |
 
 ## Key Processing Steps
@@ -281,8 +274,7 @@ These rules require GPU access:
 
 | Rule | Threads | Memory |
 |------|---------|--------|
-| `merge_pods` | 12 | 16 GB |
-| `bwa_align` | 12 | 24 GB |
+| `bwa_align` | 16 | 160 GB (see `cluster/slurm/config.yaml`) |
 | `classify_charging` | 8 | 24 GB |
 | `modkit_extract_full` | 12 | 48 GB |
 

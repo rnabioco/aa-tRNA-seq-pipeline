@@ -32,7 +32,7 @@ bwa_align                    2
 classify_charging            2
 get_cca_trna                 2
 get_cca_trna_cpm             2
-merge_pods                   2
+stage_pod5                   2
 rebasecall                   2
 ...
 total                       XX

@@ -60,8 +60,8 @@ onstart:
         ("samtools", [conda_prefix]),
         ("bwa", [conda_prefix]),
         ("modkit", [conda_prefix]),
-        # escpod is unconditional: merge_pods and classify_charging use it on
-        # every run, not just demux runs.
+        # escpod is unconditional: classify_charging uses it on every run, not
+        # just demux runs.
         ("escpod", [os.path.join(repo_root, "resources")]),
     ]
     if config.get("warpdemux", {}).get("enabled", False):
@@ -114,6 +114,7 @@ include: "rules/clean.smk"
 
 localrules:
     download_mod_models,
+    stage_pod5,
     generate_squiggy_session,
     clean,
 

@@ -4,6 +4,54 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Alignment carries dorado's tags through bwa; `inject_ubam_tags` and
+  `ubam_to_fastq` are gone.** `bwa_align` now streams the uBAM through
+  `samtools fastq -T '*'` into `bwa mem -C`, so the move table (`mv`/`ns`/`ts`),
+  the MM/ML modbase calls and `RG` land on the aligned records directly. That
+  removes one full BAM copy per sample (`bam/tagged`), the on-disk FASTQ, and a
+  Python job budgeted at 48 GB and 6 h that re-read the uBAM to put the same
+  tags back. The dangling-@RG repair (#121) moved with it: a small
+  `stamp_read_groups.py` emits the uBAM's `@RG` lines with SM/LB/BC stamped for
+  `bwa mem -H`, kept beside the BAM as `{sample}.rg.sam`; the per-read `BC:Z:`
+  on demux runs is written into the FASTQ comment. Output is primary forward
+  alignments (`-F 2324`), which is what the tagged BAM used to contain.
+
+  This is the `-C` that v0.1.1 (#86) removed over an OOM at 48 GB. The tag
+  payload is real — the FASTQ comment is ~13x the read, the move table dominates
+  — but bwa only holds one input batch of it, and the rule now pins that batch
+  with `-K 100000000` (bwa's default is 10 Mbases *per thread*), which bounds
+  the comment text at a few GB. The 160 GB this rule is budgeted for today is
+  set by `-k 6` on a dense reference and dwarfs it. Re-measure MaxRSS on the
+  first full flowcell through this path; the profile comment says so too.
+- **No POD5 is copied any more.** `merge_pods` — a full second copy of every
+  run per sample, kept for the life of the analysis — is replaced by
+  `stage_pod5`, which lays a directory of symlinks over the raw files
+  (`pod5/{sample}/<run>/<pod5_pass|pod5_fail|pod5>/`). dorado basecalls it
+  with `--recursive` and `escpod classify` walks it, exactly as the LDX path
+  has always handed both tools the raw run. `filter_pod5_by_edx` (an
+  EDX-filtered POD5 per sample, kept forever) and `filter_fastq_by_edx` are
+  gone for the same reason: the classifier only touches reads the BAM names,
+  and `bwa_align` bounds the alignment with `samtools view -N` on the uBAM.
+  The `fastq` and `merged_pod5` cleanup tiers are retired (accepted and
+  ignored; an unknown tier name is now an error), and `split_pod5` now
+  describes the WarpDemuX split POD5 as that path's classification input.
+- **The Slurm profile no longer clamps every rule to one CPU.** The plugin uses
+  `cpus_per_task` when the resource is set and falls back to `threads:` only
+  when it is not, so the `cpus_per_task: 1` in `default-resources` overrode
+  every rule without its own `set-resources` entry — `bamCoverage -p 4` and
+  `compute_seq_similarity --threads 4` ran on a single core. Removed; the
+  per-rule entries are unchanged.
+- The Squiggy session lists each sample's real POD5 files (new
+  `generate_squiggy_session.py --pod5 SAMPLE=PATH`). Before, it wrote
+  `pod5/{sample}/{sample}.pod5` for every sample, which on an LDX run never
+  existed.
+
+### Removed
+
+- `transfer_tags.py` and its tests, superseded by `stamp_read_groups.py`.
+
 ## [v0.6.0] - 2026-09-04
 
 ### Added

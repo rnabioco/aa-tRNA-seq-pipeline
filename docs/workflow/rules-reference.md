@@ -6,23 +6,26 @@ Complete documentation for all Snakemake rules in the pipeline.
 
 These rules form the core data processing pipeline.
 
-### merge_pods
+### stage_pod5
 
-Merge all POD5 files for a sample into a single file.
+Lay a directory of symlinks over a sample's raw POD5 files. Nothing copies the
+signal: dorado basecalls the directory with `--recursive`, and `escpod classify`
+walks it, looking each aligned read up by id. This replaced `merge_pods`, which
+wrote a full second copy of every run per sample.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
 | Property | Value |
 |----------|-------|
 | Input | All POD5 files for sample |
-| Output | `pod5/{sample}/{sample}.pod5` |
-| Threads | 12 |
+| Output | `pod5/{sample}/<run>/<pod5_pass\|pod5_fail\|pod5>/<file>.pod5` (symlinks) |
 | GPU | No |
 
-**Command:**
-```bash
-pod5 merge -t {threads} -f -o {output} {input}
-```
+**Notes:**
+
+- Links mirror the source layout so runs pooled into one sample cannot collide on a basename
+- Targets are canonical paths; the directory works from anywhere
+- A local rule: it is not submitted to the cluster
 
 ---
 
@@ -34,14 +37,14 @@ Re-basecall POD5 files with Dorado, emitting move tables for the charging model.
 
 | Property | Value |
 |----------|-------|
-| Input | Merged POD5, mod model sentinel |
+| Input | Staged POD5 directory (WarpDemuX: the split POD5), mod model sentinel |
 | Output | `bam/rebasecall/{sample}/{sample}.rbc.bam` |
 | GPU | Yes |
 | Parameters | `base_calling_model`, `opts.dorado`, `models_dir` |
 
 **Command:**
 ```bash
-dorado basecaller --models-directory {models_dir} {opts.dorado} {model} {input} > {output}
+dorado_basecall_resume.sh {output} --models-directory {models_dir} {opts.dorado} {model} {input} --recursive
 ```
 
 **Notes:**
@@ -49,24 +52,6 @@ dorado basecaller --models-directory {models_dir} {opts.dorado} {model} {input} 
 - Depends on `download_mod_models` rule to pre-download modification models
 - Respects `CUDA_VISIBLE_DEVICES` environment variable
 - Default options include `--modified-bases pseU m5C inosine_m6A --emit-moves`
-
----
-
-### ubam_to_fastq
-
-Extract reads from unmapped BAM to FASTQ format.
-
-**File:** `workflow/rules/aatrnaseq-process.smk`
-
-| Property | Value |
-|----------|-------|
-| Input | Rebasecalled BAM |
-| Output | `fq/{sample}/{sample}.fq.gz` |
-
-**Command:**
-```bash
-samtools fastq -T "*" {input} | gzip > {output}
-```
 
 ---
 
@@ -95,28 +80,43 @@ bwa index {input}
 
 ### bwa_align
 
-Align reads to tRNA reference with BWA MEM.
+Align reads to the tRNA reference with BWA MEM, carrying dorado's tags through.
+`samtools fastq -T '*'` writes every uBAM tag into the FASTQ comment and
+`bwa mem -C` appends it to each aligned record, so the move table (`mv`, `ns`,
+`ts`), the MM/ML modbase calls and `RG` arrive on the aligned BAM in one
+streaming pass. No FASTQ is written and there is no separate tag-injection step.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
 | Property | Value |
 |----------|-------|
-| Input | FASTQ (EDX-filtered for EDX samples), BWA index |
-| Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai` |
-| Threads | 12 |
+| Input | Rebasecalled uBAM, EDX read-id list (EDX samples only), BWA index |
+| Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai`, `{sample}.rg.sam` |
+| Threads | 16 |
 | Parameters | `fasta`, `opts.bwa` |
 
 **Command:**
 ```bash
-bwa mem -C -t {threads} {opts.bwa} {index} {reads} \
-    | samtools view -F 20 -Sb - \
-    | samtools sort -o {output}
+python stamp_read_groups.py {ubam} --sample {sample} [--library {run_id}] [--barcode {bc}] > {rg.sam}
+
+samtools view -u [-N {edx_read_ids}] {ubam} \
+    | samtools fastq -T '*' - \
+    | awk 'NR % 4 == 1 && bc != "" { $0 = $0 "\t" bc } { print }' bc="BC:Z:{barcode}" \
+    | bwa mem -C -K 100000000 -t {threads} -H {rg.sam} {opts.bwa} {index} - \
+    | samtools view -u -F 2324 - \
+    | samtools sort -m 2G -@ 4 -o {output}
 samtools index {output}
 ```
 
 **Filtering:**
 
-- `-F 20`: Remove unmapped reads (`0x4`) and reverse-strand reads (`0x10`)
+- `-F 2324`: Remove unmapped (`0x4`), reverse-strand (`0x10`), secondary (`0x100`) and supplementary (`0x800`) records
+
+**Notes:**
+
+- `-H` inserts the uBAM's own `@RG` lines with `SM`/`LB`/`BC` stamped, so the per-read `RG:Z:` that `-C` copies through resolves to a declared read group
+- On demultiplexed runs a constant `BC:Z:` is added to every read via the FASTQ comment
+- `-K 100000000` pins bwa's input batch at 100 Mbases regardless of thread count. The FASTQ comment is ~13x the read (the move table dominates), and bwa holds a batch plus its output in memory; pinning keeps that at a few GB where the default per-thread batch is what PR #86 saw OOM at 48 GB
 
 **Default BWA options:**
 
@@ -132,7 +132,7 @@ Classify charged vs uncharged reads with `escpod classify`.
 
 | Property | Value |
 |----------|-------|
-| Input | POD5, tagged aligned BAM, reference FASTA |
+| Input | POD5 store (staged directory, split POD5, or raw LDX run), aligned BAM, reference FASTA |
 | Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai`, `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` |
 | Threads | 8 |
 | GPU | No (CPU) |
@@ -153,28 +153,11 @@ samtools index {output}
 
 **Output tags:**
 
-- `ML`: Modification likelihood (0-255)
-- `MM`: Modification metadata
+- `cl`: `round(P(charged) * 255)`, on every record the model scored; unscored records pass through untouched and are listed with a `reason` in the calls TSV
 
----
+**Notes:**
 
-**Command:**
-```bash
-python transfer_tags.py \
-    --tags ML MM \
-    --rename ML=CL MM=CM \
-    --source {charging_bam} \
-    --target {aligned_bam} \
-    --output {output}
-samtools index {output}
-```
-
-**Tag renaming:**
-
-- `ML` → `CL`: Charging likelihood
-- `MM` → `CM`: Charging metadata
-
-This prevents interference with standard SAM modification tags.
+- The POD5 argument is the sample's whole signal store, never a subset: classify looks each aligned read up by id, so reads the BAM does not name are never touched
 
 ---
 
@@ -218,7 +201,7 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 ### finalize_bam
 
-Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM as the final output. EDX filtering now happens early in the pipeline (before alignment) via the `detect_edx_adapters` / `filter_fastq_by_edx` / `filter_pod5_by_edx` rules.
+Produce the final BAM for downstream analysis. Hardlinks the adapter-tagged BAM as the final output. EDX filtering happens before alignment: `detect_edx_adapters` / `extract_edx_read_ids` produce the read list `bwa_align` aligns.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -229,7 +212,7 @@ Produce the final BAM for downstream analysis. Symlinks the adapter-tagged BAM a
 
 **Notes:**
 
-- Creates symlinks to the adapter-tagged BAM (zero-copy passthrough)
+- Hardlinks the adapter-tagged BAM (zero-copy passthrough that survives `cascade` cleanup)
 - This is the final BAM with all tags: `cl` (charging), `pt` (adapters) and `BC` (barcode, demultiplexed runs only), plus dorado's MM/ML modbase tags
 - The header carries a valid `@RG` whose `SM`/`LB`/`BC` are the pipeline's sample, run and barcode, with dorado's `ID` and basecall-model provenance preserved
 
@@ -675,18 +658,6 @@ Extract read IDs matching the sample's EDX adapter assignment.
 
 | Output | `demux/edx/{sample}/{sample}.edx_read_ids.txt` |
 
-### filter_fastq_by_edx
-
-Extract FASTQ for reads matching the sample's EDX adapter.
-
-| Output | `demux/edx/fq/{sample}/{sample}.fq.gz` |
-
-### filter_pod5_by_edx
-
-Filter POD5 to keep only reads matching the sample's EDX adapter.
-
-| Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
-
 ### edx_concordance
 
 Build concordance table of WDX vs EDX adapter identity from adapter detection TSVs.
@@ -699,17 +670,13 @@ Build concordance table of WDX vs EDX adapter identity from adapter detection TS
 
 ```mermaid
 flowchart LR
-    merge_pods --> rebasecall
-    rebasecall --> ubam_to_fastq
+    stage_pod5 --> rebasecall
+    rebasecall --> bwa_align
     rebasecall --> detect_edx_adapters
     detect_edx_adapters --> extract_edx_read_ids
-    extract_edx_read_ids --> filter_fastq_by_edx
-    extract_edx_read_ids --> filter_pod5_by_edx
-    ubam_to_fastq -.-> bwa_align
-    filter_fastq_by_edx -.-> bwa_align
-    bwa_align --> inject_ubam_tags
-    inject_ubam_tags --> classify_charging
-    filter_pod5_by_edx -.-> classify_charging
+    extract_edx_read_ids -.-> bwa_align
+    bwa_align --> classify_charging
+    stage_pod5 --> classify_charging
     classify_charging --> add_adapter_tags
     add_adapter_tags --> finalize_bam
     finalize_bam --> get_cca_trna
@@ -722,7 +689,7 @@ flowchart LR
     get_cca_trna --> compute_odds_ratios
     modkit_extract_calls --> compute_odds_ratios
     finalize_bam --> generate_squiggy_session
-    merge_pods --> generate_squiggy_session
+    stage_pod5 --> generate_squiggy_session
     finalize_bam --> compute_reference_similarity
     align_stats --> render_combined_qc_report
     get_cca_trna --> render_combined_qc_report
@@ -730,4 +697,4 @@ flowchart LR
     base_calling_error --> render_combined_qc_report
 ```
 
-**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `filter_fastq_by_edx` feeds `bwa_align` and `filter_pod5_by_edx` feeds `classify_charging`. For non-EDX samples, `ubam_to_fastq` feeds `bwa_align` directly.
+**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `extract_edx_read_ids` bounds what `bwa_align` aligns; every other sample aligns its whole uBAM.

@@ -374,26 +374,25 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   - `false` (or omitted): nothing is auto-deleted (all intermediates retained).
   - `true`: all tiers enabled.
   - a list: only the named tiers are deleted. Tiers:
-    - `cascade` — `bam/aln`, `bam/tagged`, `bam/charging`, `bam/classified`,
-      `bam/adapter_tagged` (redundant near-copies; `bam/final` hardlinks the last one)
+    - `cascade` — `bam/aln`, `bam/charging`, `bam/adapter_tagged` (redundant
+      near-copies; `bam/final` hardlinks the last one)
     - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
-    - `fastq` — `fq/`, `demux/edx/fq`
-    - `merged_pod5` — `pod5/` (pre-demux merged per-sample; an LDX run builds
-      none — its classifiers are handed the raw run directory)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
-    - `split_pod5` — `demux/pod5` (WarpDemuX split, pre-EDX-filter)
+    - `split_pod5` — `demux/pod5` (the WarpDemuX split POD5: that path's signal
+      store and classification input). Deleted once classification and the
+      session file are done, so re-running classification afterwards means
+      re-splitting from the raw run. Unbarcoded samples (`pod5/` holds only
+      symlinks to the raw run) and LDX samples (handed the raw run directly)
+      have no `demux/pod5`, so the tier is inert there.
 
-  Always kept regardless of tiers: `bam/final`, `demux/edx/pod5` (the per-sample
-  EDX-filtered POD5 used as the classification input — keeping it lets
-  `classify_charging` be re-run without redoing rebasecall or demux), plus
-  `summary/`, `reference/`, and `logs/`.
+  Two tiers from before v0.7 are accepted and ignored: `fastq` (alignment now
+  streams straight from the uBAM; no `fq/` is written) and `merged_pod5`
+  (`stage_pod5` replaced `merge_pods`; nothing copies the signal any more). Any
+  other unknown name is an error.
 
-  **Constraint (WarpDemuX only):** only enable `split_pod5` for **all-EDX** runs.
-  In non-EDX or mixed runs, `demux/pod5` is the classification input for non-EDX
-  samples and must be kept. LDX runs produce no `demux/pod5` at all — their
-  classification input is the raw POD5 plus the sidecar — so the tier is inert
-  there. The on-demand `clean` rule remains the catch-all for reclaiming space on
-  runs that completed with intermediates retained.
+  Always kept regardless of tiers: `bam/final`, plus `summary/`, `reference/`,
+  and `logs/`. The on-demand `clean` rule remains the catch-all for reclaiming
+  space on runs that completed with intermediates retained.
 
 - `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
 

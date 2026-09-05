@@ -756,8 +756,8 @@ rule split_ldx_ubam:
     Cut one sample's unaligned BAM out of the run-level basecall.
 
     Emits the path `rebasecall` would have, so everything downstream — EDX adapter
-    detection, FASTQ extraction, alignment, tag transfer — is unchanged and cannot
-    tell which backend produced it.
+    detection, alignment, classification — is unchanged and cannot tell which
+    backend produced it.
     """
     input:
         bam=get_sample_run_ubam,
@@ -928,6 +928,10 @@ rule detect_edx_adapters:
 rule extract_edx_read_ids:
     """
     Extract read IDs matching this sample's EDX adapter assignment.
+
+    This list is the whole EDX filter: bwa_align aligns only the reads it names
+    (`samtools view -N`), and the classifier only ever touches reads the BAM
+    names, so neither a filtered FASTQ nor a filtered POD5 is written any more.
     """
     input:
         tsv=rules.detect_edx_adapters.output.tsv,
@@ -954,52 +958,6 @@ rule extract_edx_read_ids:
                 read_id, adapter = fields[0], fields[1]
                 if adapter == params.edx_adapter_name:
                     f_out.write(f"{read_id}\n")
-
-
-rule filter_fastq_by_edx:
-    """
-    Extract FASTQ for reads matching this sample's EDX adapter.
-    """
-    input:
-        bam=lambda wildcards: os.path.join(
-            outdir,
-            "bam",
-            "rebasecall",
-            wildcards.sample,
-            f"{wildcards.sample}.rbc.bam",
-        ),
-        read_ids=rules.extract_edx_read_ids.output.read_ids,
-    output:
-        fq=maybe_temp(
-            os.path.join(outdir, "demux", "edx", "fq", "{sample}", "{sample}.fq.gz"),
-            tier="fastq",
-        ),
-    log:
-        os.path.join(outdir, "logs", "filter_fastq_by_edx", "{sample}"),
-    shell:
-        """
-        samtools view -N {input.read_ids} {input.bam} \
-            | samtools fastq - \
-            | gzip >{output.fq} \
-                2>&1 | tee {log}
-        """
-
-
-rule filter_pod5_by_edx:
-    """
-    Filter POD5 to keep only reads matching this sample's EDX adapter.
-    """
-    input:
-        pod5=get_sample_pod5,
-        read_ids=rules.extract_edx_read_ids.output.read_ids,
-    output:
-        pod5=os.path.join(outdir, "demux", "edx", "pod5", "{sample}", "{sample}.pod5"),
-    log:
-        os.path.join(outdir, "logs", "filter_pod5_by_edx", "{sample}"),
-    shell:
-        """
-        escpod filter {input.pod5} -i {input.read_ids} -o {output.pod5} 2>&1 | tee {log}
-        """
 
 
 # --- EDX (3' adapter barcode) concordance analysis ---

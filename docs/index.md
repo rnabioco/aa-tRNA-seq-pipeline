@@ -20,9 +20,8 @@ flowchart TD
     end
 
     subgraph Processing
-        A[merge_pods] --> B[rebasecall<br/>Dorado + move tables]
-        B --> C[ubam_to_fastq]
-        C --> D[bwa_align<br/>tRNA + adapter reference]
+        A[stage_pod5<br/>symlinks to raw POD5] --> B[rebasecall<br/>Dorado + move tables]
+        B --> D[bwa_align<br/>tRNA + adapter reference<br/>dorado tags carried through]
     end
 
     subgraph Classification

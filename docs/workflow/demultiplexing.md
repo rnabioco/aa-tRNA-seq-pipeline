@@ -178,14 +178,12 @@ runs:
 
 ### EDX Early Splitting
 
-When a sample has an `edx` assignment, the pipeline detects 3' adapter identity on the unaligned BAM right after basecalling, then splits both FASTQ and POD5 by adapter **before alignment**. This avoids redundant processing when two samples share a WDX barcode but have different EDX adapters.
+When a sample has an `edx` assignment, the pipeline detects 3' adapter identity on the unaligned BAM right after basecalling and aligns only the matching reads. The read-id list is the whole filter: `bwa_align` reads the uBAM through `samtools view -N`, and `escpod classify` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written. This avoids redundant processing when two samples share a WDX barcode but have different EDX adapters.
 
 The EDX splitting flow:
 
 ```
-rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids
-                                            ├── filter_fastq_by_edx → bwa_align → ...
-                                            └── filter_pod5_by_edx → classify_charging
+rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → bwa_align → classify_charging → ...
 ```
 
 Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. For samples without an `edx` assignment, the pipeline flow is unchanged.
@@ -300,24 +298,6 @@ Extracts read IDs matching the sample's expected EDX adapter from the detection 
 |----------|-------|
 | Input | Adapter detection TSV |
 | Output | `demux/edx/{sample}/{sample}.edx_read_ids.txt` |
-
-### filter_fastq_by_edx
-
-Extracts FASTQ for reads matching the sample's EDX adapter from the uBAM.
-
-| Property | Value |
-|----------|-------|
-| Input | Rebasecalled uBAM + read IDs |
-| Output | `demux/edx/fq/{sample}/{sample}.fq.gz` |
-
-### filter_pod5_by_edx
-
-Filters POD5 to keep only reads matching the sample's EDX adapter.
-
-| Property | Value |
-|----------|-------|
-| Input | WDX-split (or merged) POD5 + read IDs |
-| Output | `demux/edx/pod5/{sample}/{sample}.pod5` |
 
 ### edx_concordance
 

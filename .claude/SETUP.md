@@ -18,7 +18,7 @@ Runs on: push to main/master/develop/claude/**, pull requests, manual trigger
 - **Pipeline Integration Test Job**
   - Downloads test data
   - Sets up dorado and modkit tools
-  - Runs merge_pods rule (non-GPU test)
+  - Runs stage_pod5 rule (non-GPU test)
   - Validates output directory creation
 
 - **Configuration Validation Job**
@@ -167,7 +167,7 @@ bash .tests/dl_test_data.sh
 snakemake setup_dorado dorado_model setup_modkit --cores 1 --configfile=config/config-test.yml
 
 # Run non-GPU pipeline rules
-snakemake merge_pods --cores 2 --configfile=config/config-test.yml
+snakemake stage_pod5 --cores 2 --configfile=config/config-test.yml
 ```
 
 ### Level 4: Full Pipeline (requires GPU)
