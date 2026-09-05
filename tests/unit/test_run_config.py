@@ -167,9 +167,20 @@ class TestRender:
 
 
 class TestLoadPair:
-    @pytest.mark.parametrize("name", ["config-ldx-test.yml", "config-fdx-test.yml", "config-test.yml"])
-    def test_shipped_test_configs_pass(self, name):
+    @pytest.mark.parametrize("name", ["config-ldx-test.yml", "config-fdx-test.yml"])
+    def test_shipped_fixture_configs_pass(self, name):
+        """The two configs backed by committed fixtures must pass everywhere."""
         cfg = REPO_ROOT / "config" / name
+        p, merged, flags = load_pair(cfg, REPO_ROOT)
+        problems = flags + validate_plan(p, merged, REPO_ROOT)
+        assert errors(problems) == [], problems
+
+    @pytest.mark.skipif(
+        not (REPO_ROOT / ".tests" / "sample1" / "pod5_pass").is_dir(),
+        reason="config-test.yml points at the downloaded test data (pixi run dl-test-data)",
+    )
+    def test_standard_test_config_passes(self):
+        cfg = REPO_ROOT / "config" / "config-test.yml"
         p, merged, flags = load_pair(cfg, REPO_ROOT)
         problems = flags + validate_plan(p, merged, REPO_ROOT)
         assert errors(problems) == [], problems
