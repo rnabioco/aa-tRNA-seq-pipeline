@@ -118,8 +118,8 @@ ldx:
     min_margin: 0        # retired; the lattice gate supersedes it
     ref_scores: true     # record the lattice's own log P(barcode | signal)
     min_crf_margin: 1.0  # the false-positive control; swept, see below
-    boundary_margin: 0   # NOT declared by any bundle; unset means escpod's 200
-    clamp_max_shift: 300 # likewise. See resources/models/demux/README.md
+    boundary_margin: 200 # NOT declared by any bundle; unset means escpod's 200
+    clamp_max_shift: 0   # likewise. See resources/models/demux/README.md
     threads: 32
 ```
 
@@ -175,8 +175,10 @@ DAG.
 *directory* that carries its own barcode references and pins the boundary
 detector it was calibrated against, so neither `--barcodes` nor `--method` is
 passed. It does **not** declare `boundary.margin` or `boundary.clamp_max_shift`
-— no upstream bundle does — so those two are set in config and passed as flags;
-leaving them unset silently costs reads. Inspect one with:
+— no upstream bundle does — so those two are set in config and passed as flags.
+They match escpod's own fallbacks today; the earlier `0` / `300` were withdrawn
+once the reads they recovered were scored against an independent label (see
+`resources/models/demux/README.md`). Inspect a bundle with:
 
 ```bash
 escpod demux --model resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0 --info

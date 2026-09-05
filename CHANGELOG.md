@@ -55,6 +55,19 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`ldx.clamp_max_shift` is off and `ldx.boundary_margin` is back at 200.**
+  The `0` / `300` set in v0.2.0 (#123) rested on "median edit distance 0, 98% within 2
+  edits" for the recovered reads — a metric a window holding no barcode passes,
+  because such a window still decodes to a *perfect* reference. Scored instead
+  against the independent 5′ index on the same molecule (ldx32 v0.2.1, FDX
+  Run1, rnabioco/escapepod-rs#323), the band the clamp reaches is 28%
+  design-consistent with 45% of its calls on codes absent from the pool, and
+  the margin band is 55% (79% under this pipeline's lattice gate of 1.0, at 63%
+  of the band) against 85% for full-window reads. The full table and the
+  method are in `resources/models/demux/README.md`; a run config that gates at
+  `min_crf_margin: 2.0` may set `boundary_margin: 0` for ~1% more reads at 84%.
+  Expect demux yield to drop by roughly 3.8 points on an RNA004 tRNA run, and
+  the reads that leave to have been mostly wrong.
 - **`escpod` bumped 0.19.0 -> 0.20.0.** Nothing the pipeline calls changed:
   every flag the rules pass exists with the same meaning, the sidecar and CSV
   shapes are 0.19.0's, and the vendored bundles load as before. What it brings
