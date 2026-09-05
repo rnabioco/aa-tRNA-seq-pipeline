@@ -402,28 +402,41 @@ ldx:
 
   # Samples of adapter_end a read needs beyond the model's chunk (3000) before
   # the CRF will decode it; below that the read routes to `unclassified` with
-  # confidence 0, undecoded. Unset would inherit escpod's fallback of 200 —
-  # which records only how `extract_chunks.py` FILTERED the training corpus,
-  # not what the encoder needs: adapter_end >= chunk already yields a full
-  # window.
+  # confidence 0, undecoded. 200 is escpod's own fallback and the filter
+  # `extract_chunks.py` applied to the training corpus, so no window the model
+  # decodes reaches closer to the read's start than any it was trained on.
   #
-  # 0, measured: on the 1.0M-read 2026-08-06 nbc16 run the 200 fallback dropped
-  # 145,775 reads (14.56%), every one of which HAD a detected adapter; 0
-  # recovers 36,921 of them at median edit distance 0, 98.3% within 2 edits —
-  # cleaner than the reads that already passed (yield 85.44% -> 89.13%). Reads
-  # with adapter_end < 3000 are out of its reach and need the clamp below.
-  boundary_margin: 0
+  # This was 0 from 2026-08 to 2026-09 on the strength of "36,921 reads
+  # recovered at median edit distance 0, 98.3% within 2 edits" (nbc16,
+  # 2026-08-06 run). That metric cannot see a wrong call: a window with no
+  # barcode in it still decodes to a PERFECT reference, whichever one the
+  # degenerate signal sits nearest. Scored instead against an independent
+  # label — the 5' index on the same molecule, ldx32 v0.2.1 over the
+  # co-barcoded FDX Run1 (rnabioco/escapepod-rs#323) — the [3000, 3200) band
+  # agrees with the design 55% of the time against 85% for reads with a full
+  # window, and only reaches 84% under a lattice gate of 2.0 (at 56% of the
+  # band). Under this file's gate of 1.0 it is 79% at 63%. That is ~1% of a
+  # run at a precision ten points below the rest; a run config that raises
+  # `min_crf_margin` to 2.0 may set this to 0 for that 1%. See
+  # resources/models/demux/README.md.
+  boundary_margin: 200
 
   # Decode a read whose adapter ends BEFORE the chunk from the window
   # [0, chunk], provided chunk - adapter_end is at most this. 0 disables it.
   # `boundary_margin` cannot reach these reads: their window would start before
   # sample 0, so there is nothing to relax. Clamping keeps the window width and
-  # anchors it at the read start instead. Such reads are truncated mid-adapter,
-  # so part of the barcode is already gone; this bounds how much of that we
-  # accept.
+  # anchors it at the read start instead.
   #
-  # 300 on the 415-read LDX fixture is worth 11 reads (379/415 -> 390/415).
-  clamp_max_shift: 300
+  # Off. It was 300 on the same edit-distance evidence as above, plus "11 more
+  # fixture reads" — and against the independent label the band it reaches
+  # (adapter_end 2700-2999, 2% of a run) is 28% design-consistent with 45% of
+  # its calls landing on codes absent from the pool; every larger shift is at
+  # chance. Those reads are not truncated-but-callable, they are junk at both
+  # ends (the 5' call degrades across the same bands). Turn it on per run only
+  # from a measurement of that kind (rnabioco/escapepod-rs#323 has the
+  # method: split the calls by adapter_end band, compare each band's EDX or
+  # second-index concordance to the full-window band).
+  clamp_max_shift: 0
   # Run the CRF encoder and boundary CNN on the GPU. Measured on the 2026-08-06
   # flowcell (1,001,307 reads, --ref-scores on), one GPU + 8 cores against the
   # released CPU binary on 32 cores:

@@ -149,15 +149,21 @@ detector costs 17.2 points of balanced recall, and the failure is silent — it
 runs and produces plausible output. `escpod` refuses `--method llr` against a
 bundle pinned to `cnn`, so do not pass `--method` at all.
 
-### Why `ldx.boundary_margin: 0` and `ldx.clamp_max_shift: 300`
+### Why `ldx.boundary_margin: 200` and `ldx.clamp_max_shift: 0`
 
 Both are set in `config-base.yml` and passed to `escpod` as flags. No bundle
 declares them, so leaving them unset does not mean "the model decides" — it
-means escpod's fallback of margin 200 and no clamp. On the 415-read fixture that
-fallback costs 24 reads (390/415 -> 366/415).
+means escpod's fallback of margin 200 and no clamp, which is also what the
+config now says explicitly. From 2026-08-20 (#123, v0.2.0) to 2026-09-05 the config said `0`
+and `300`, on the measurements recorded in the next two sections; those were
+withdrawn on 2026-09-05 for the reason in the section after them, and the
+history is kept here because the earlier numbers are not wrong on their own
+terms — they measure something that turned out not to be correctness.
 
-The measurements below are what justify the two values. They were made on the
-nbc16 model; the geometry they describe (`chunk` 3000) is unchanged in ldx16.
+#### What `0` / `300` were measured on (nbc16, 2026-08-06 run)
+
+They were made on the nbc16 model; the geometry they describe (`chunk` 3000) is
+unchanged in ldx16 and ldx32.
 
 `margin` is the samples of `adapter_end` a read needs *beyond* `signal.chunk`
 before the CRF will decode it. Absent, escpod falls back to 200 — the filter
@@ -204,11 +210,49 @@ two things decay together across it:
 | 300-399 | 94.9% | 60.4% |
 | 400-499 | 92.9% | 50.0% |
 
-**300 is a judgement, not a measurement**: it keeps agreement above ~95% and the
-aligning fraction near two thirds, and gives up the ~5,800 reads past it where
-half no longer align. The alignment decay is a property of these reads — a bigger
-shift means more of the adapter was truncated to begin with — not of the model,
-so raise `ldx.clamp_max_shift` per run if an analysis wants the tail.
+**300 was a judgement, not a measurement**: it kept agreement above ~95% and the
+aligning fraction near two thirds, and gave up the ~5,800 reads past it where
+half no longer align.
+
+#### Why both were withdrawn (ldx32, FDX Run1, 2026-09-05)
+
+Every number above is an edit distance from the decode to the *nearest
+reference*, or "still aligns to a tRNA". Neither is a label. A CTC-CRF window
+that holds no barcode at all still decodes to a perfect reference — whichever
+one the degenerate signal happens to sit nearest — so "median edit distance 0,
+98% within 2 edits" is what a band of unusable reads looks like too. On a
+16-code panel every such attractor is *in* the pool, so nothing could show it.
+
+The FDX Run1 pool carries an independent label per read: every molecule has a
+5′ index (`fdx`, read-end anchored, never sees `adapter_end`) and a 3′ index
+(`ldx`), with ldx codes nested inside fdx libraries. 20,000 reads stratified by
+CNN `adapter_end`, decoded by ldx32 v0.2.1 under `--boundary-margin 0
+--clamp-max-shift 2000`, each ldx call scored against the fdx call on the same
+molecule (chance ≈ 12%; ldx16–32 are absent from the pool, so any such call is
+a known error):
+
+| `adapter_end` | share of run | rule that reaches it | design-consistent | calls to ldx16–32 | gate 2.0: kept / consistent | gate 1.0: kept / consistent |
+|---|---|---|---|---|---|---|
+| ≥ 3200 | 85.1% | none | 85.2% | 5.1% | 91% / 91% | 93% / 90% |
+| 3000–3199 | 1.74% | margin 0 | 54.6% | 27.2% | 56% / 84% | 63% / 79% |
+| 2700–2999 | 2.02% | clamp ≤ 300 | 28.5% | 45.2% | 25% / 76% | 33% / 63% |
+| 2500–2699 | 1.37% | clamp ≤ 500 | 16.8% | 56.4% | 10% / 75% | 17% / 50% |
+| < 2500 | 8.5% | clamp > 500 | 9–11% | 58–67% | ~2% / 30–46% | ~8% / 17–22% |
+
+The clamp band is not "truncated but callable": the decodes pile onto a few
+attractor codes (ldx17, ldx18, ldx20), and the *fdx* call — at the other end of
+the molecule — degrades across the same bands (gate pass 83% → 32%), so these
+reads are poor overall. The margin band is usable only under a lattice gate,
+and even then sits ten points below full-window reads. Hence the defaults:
+clamp off; margin 200 under this pipeline's gate of 1.0, with 0 available to a
+run config that gates at 2.0 and wants the ~1%.
+
+Method, harness and per-band CSVs: rnabioco/escapepod-rs#323 and
+`~/scratch/escpod-clamp-sweep/` on Beevol. Reuse it for any other panel before
+turning either knob: split the calls by `adapter_end` band (the fix for rnabioco/escapepod-rs#323
+adds `adapter_end` to escpod's classifications CSV and breaks `unclassified`
+down by reason in the summary) and compare each band's EDX or second-index
+concordance to the full-window band.
 
 ### Published accuracy
 
