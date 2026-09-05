@@ -107,6 +107,34 @@ def is_ldx_enabled():
     return config.get("ldx", {}).get("enabled", False)
 
 
+def is_fdx_enabled():
+    """Whether the 5' FDX index is demultiplexed as a second escpod axis.
+
+    FDX is a second barcode on the SAME molecule as the LDX one -- a 5' index
+    read off the read end, where LDX is a 3' index read off the adapter
+    boundary -- so it is an additional axis of the escpod path, not a backend
+    of its own. It requires `ldx.enabled`: a library carrying only a 5' index
+    is not a case this pipeline has seen yet, and the LDX pass is what the
+    read-level accounting (demux_summary, read_attrition) is keyed on.
+    """
+    return config.get("fdx", {}).get("enabled", False)
+
+
+def is_fdx_fused():
+    """Whether both escpod axes are called in ONE pass over the raw POD5.
+
+    `escpod demux --model ldx=... --model fdx=...` decodes each read's signal
+    once and calls both axes, writing one classifications CSV with per-axis
+    columns. It is the shape upstream recommends and the one to want on a
+    600 GB flowcell, where the POD5 sweep is hours of IO-bound wall. It is off
+    by default because escpod 0.19.0 (and the 0.20.0 source) refuses
+    `--boundary-margin` / `--clamp-max-shift` whenever a model in the run
+    anchors on the read end, which the fdx bundle does, and the LDX axis cannot
+    give those flags up. See the `fdx` block in config-base.yml.
+    """
+    return is_fdx_enabled() and config.get("fdx", {}).get("fused", False)
+
+
 def get_sample_barcode_label(sample):
     """The project-facing barcode name for a sample, or None if it has none.
 
@@ -122,6 +150,10 @@ def get_sample_barcode_label(sample):
     config/README.md and resources/models/demux/README.md), so nothing is lost.
     When one applies, the upstream name is also recorded in an @CO line on the
     BAM, so a reader never has to guess which naming a file is using.
+
+    A dual-index sample gets both codes joined with `-`, the SAM convention for
+    a dual index in `BC` (`ldx01-fdx01`), 3' code first because that is the
+    axis the run is keyed on.
     """
     barcode = samples.get(sample, {}).get("barcode")
     if not barcode:
@@ -131,13 +163,19 @@ def get_sample_barcode_label(sample):
     # samples file says `barcode03`, so the rename is a property of the
     # vocabulary and not of the config. `emitted_to_label` is the identity on
     # every name that is already project-facing, which since the ldx16 switch
-    # includes every LDX one.
-    return emitted_to_label(barcode)
+    # includes every LDX one, and every FDX one.
+    label = emitted_to_label(barcode)
+    fdx = samples[sample].get("fdx")
+    return f"{label}-{emitted_to_label(fdx)}" if fdx else label
 
 
 def get_sample_barcode_upstream(sample):
-    """The raw barcode name as configured, for provenance. None if unbarcoded."""
-    return samples.get(sample, {}).get("barcode") or None
+    """The raw barcode name(s) as configured, for provenance. None if unbarcoded."""
+    barcode = samples.get(sample, {}).get("barcode")
+    if not barcode:
+        return None
+    fdx = samples[sample].get("fdx")
+    return f"{barcode}-{fdx}" if fdx else barcode
 
 
 def is_demux_enabled():
@@ -151,6 +189,13 @@ def is_demux_enabled():
         sys.exit(
             "Config enables both `warpdemux` and `ldx` demultiplexing. "
             "These are alternative backends for the same step — enable exactly one."
+        )
+    if is_fdx_enabled() and not is_ldx_enabled():
+        sys.exit(
+            "Config enables `fdx` without `ldx`. The 5' FDX index is a second axis "
+            "of the escpod demux path and is joined against the 3' LDX call per "
+            "read; a library carrying only an FDX index is not supported yet. "
+            "Enable `ldx` as well, or disable `fdx`."
         )
     return is_warpdemux_enabled() or is_ldx_enabled()
 
@@ -177,6 +222,7 @@ def parse_samples_tsv(fl):
                 samples[sample] = {
                     "path": {path},
                     "barcode": None,
+                    "fdx": None,
                     "edx": None,
                     "run_id": None,
                 }
@@ -195,9 +241,19 @@ def parse_samples_yaml(fl):
           sample_name: "barcode04"
           another_sample: "barcode05"
 
+      - path: /path/to/dual-index/run
+        samples:
+          lib_a_rep1: {ldx: "ldx01", fdx: "fdx01"}   # 3' LDX code + 5' FDX code
+          lib_a_rep2: {ldx: "ldx02", fdx: "fdx01"}
+
       - path: /path/to/non-demux/run
         samples:
           direct_sample: ~  # null barcode = no demux
+
+    `fdx:` needs `fdx.enabled` in the config, and within one run every sample
+    sharing an `ldx:` code must either all name an `fdx:` or none of them: a
+    sample named by `ldx01` alone would otherwise swallow the reads of one named
+    by `ldx01` + `fdx01`. Tuples must be unique per run.
     """
     samples = {}
     with open(fl) as f:
@@ -226,6 +282,7 @@ def parse_samples_yaml(fl):
             # Backward compat: plain string or null = signal barcode only
             if isinstance(sample_val, str) or sample_val is None:
                 barcode = sample_val
+                fdx = None
                 edx = None
             elif isinstance(sample_val, dict):
                 # `wdx` (WarpDemuX) and `ldx` (escapepod CRF) both name the
@@ -239,19 +296,70 @@ def parse_samples_yaml(fl):
                         "give exactly one."
                     )
                 barcode = wdx_bc if wdx_bc is not None else ldx_bc
+                fdx = sample_val.get("fdx")
                 edx = sample_val.get("edx")
+                if fdx is not None and not is_fdx_enabled():
+                    sys.exit(
+                        f"Sample '{sample_name}' names an `fdx:` code but `fdx.enabled` "
+                        "is off. Enable the FDX axis in the config, or drop the key."
+                    )
+                if fdx is not None and ldx_bc is None:
+                    sys.exit(
+                        f"Sample '{sample_name}' names an `fdx:` code without an "
+                        "`ldx:` one. The FDX axis is joined against the LDX call per "
+                        "read, so a dual-index sample needs both."
+                    )
             else:
                 sys.exit(f"Invalid sample value for '{sample_name}': {sample_val}")
 
             samples[sample_name] = {
                 "path": {run_path},
                 "barcode": barcode,
+                "fdx": fdx,
                 "edx": edx,
                 "run_id": run_id,
                 "barcode_kit": barcode_kit,
             }
 
+    _check_barcode_tuples(samples, fl)
     return samples
+
+
+def _check_barcode_tuples(samples, fl):
+    """Refuse sample tuples that would overlap on a run.
+
+    The per-sample read selection (select_demux_reads.py) assigns a read to a
+    sample when every axis the sample names agrees. A sample naming `ldx01`
+    alone therefore contains every read of a sample naming `ldx01` + `fdx01`,
+    and two samples with identical tuples receive identical reads. Either is a
+    mistake in the samples file, caught here rather than in a BAM.
+    """
+    by_run = {}
+    for name, info in samples.items():
+        if not info.get("barcode"):
+            continue
+        by_run.setdefault(info["run_id"], {}).setdefault(info["barcode"], []).append(
+            name
+        )
+    for run_id, by_code in by_run.items():
+        for code, names in by_code.items():
+            if len(names) < 2:
+                continue
+            with_fdx = [n for n in names if samples[n].get("fdx")]
+            if with_fdx and len(with_fdx) != len(names):
+                sys.exit(
+                    f"Samples {', '.join(sorted(names))} share barcode {code} on run "
+                    f"{run_id}, but only {', '.join(sorted(with_fdx))} name an `fdx:` "
+                    "code. A sample named by the LDX code alone would swallow the "
+                    "others' reads; give every one of them an `fdx:`, or none. "
+                    f"({fl})"
+                )
+            tuples = [(code, samples[n].get("fdx")) for n in names]
+            if len(set(tuples)) != len(tuples):
+                sys.exit(
+                    f"Samples {', '.join(sorted(names))} on run {run_id} have identical "
+                    f"barcode assignments ({fl})."
+                )
 
 
 def parse_samples(fl):
@@ -418,6 +526,50 @@ def get_demux_summaries(wildcards=None):
     ]
 
 
+def get_assigned_summaries(wildcards=None):
+    """Per-run `assigned_summary.tsv` from the escpod join, or nothing.
+
+    Written by ldx_run_read_ids, so only the LDX path has one. read_attrition
+    uses it to split the barcode-assigned -> basecalled gate into "no sample
+    claims this read" (unclaimed code, or a dual-index pair the axes did not
+    agree on) and "the basecaller could not read it", which that row otherwise
+    conflates -- on the LDX fixture the 40 decoy reads looked like basecaller
+    loss.
+    """
+    if not config.get("ldx", {}).get("enabled", False):
+        return []
+    run_ids = {
+        info["run_id"]
+        for info in samples.values()
+        if info.get("barcode") and info.get("run_id")
+    }
+    return [
+        os.path.join(outdir, "demux", "read_ids", rid, "assigned_summary.tsv")
+        for rid in sorted(run_ids)
+    ]
+
+
+def get_fdx_summaries():
+    """Per-run tallies of the FDX axis, or nothing when it is off.
+
+    Requested as a pipeline output because nothing downstream consumes them:
+    the join reads the classifications, not the tally. In the two-pass shape
+    the tally is written beside the fdx classifications anyway; in the fused
+    shape it is what makes summarize_fdx_axis run at all.
+    """
+    if not is_fdx_enabled():
+        return []
+    run_ids = {
+        info["run_id"]
+        for info in samples.values()
+        if info.get("barcode") and info.get("run_id")
+    }
+    return [
+        os.path.join(outdir, "demux", "read_ids", rid, "fdx", "demux_summary.tsv.gz")
+        for rid in sorted(run_ids)
+    ]
+
+
 def pipeline_outputs():
     outs = expand(
         os.path.join(
@@ -563,6 +715,9 @@ def pipeline_outputs():
     # EDX (3' adapter barcode) concordance table
     if config.get("edx", {}).get("enabled", False) and get_edx_samples():
         outs.append(os.path.join(outdir, "summary", "edx", "edx_concordance.tsv.gz"))
+
+    # Per-run tally of the FDX (5' index) axis, beside the LDX one
+    outs += get_fdx_summaries()
 
     return outs
 

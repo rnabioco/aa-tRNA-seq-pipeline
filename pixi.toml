@@ -61,6 +61,13 @@ test-lsf = { cmd = "snakemake --configfile=config/config-test.yml --profile=clus
 test-slurm = { cmd = "snakemake --configfile=config/config-test.yml --profile=cluster/slurm", description = "Run test pipeline on SLURM cluster" }
 run-preprint = { cmd = "snakemake --configfile=config/config-preprint.yml --profile=cluster/generic --rerun-incomplete", description = "Run preprint pipeline on cluster" }
 clean-test = { cmd = "snakemake clean --configfile=config/config-test.yml --cores 1", description = "Delete large regenerable intermediates for the test run (keeps summaries + final BAM)" }
+# Configuring a run. `new` writes config/config-<name>.yml + its samples file
+# from a description of the libraries and refuses a plan the pipeline would
+# refuse (codes against the vendored bundles, adapters, run dirs, reference);
+# `check` applies the same rules to an existing pair. Both take --json. See
+# .claude/skills/new-run-config/SKILL.md for the workflow.
+new-run-config = { cmd = "python workflow/scripts/run_config.py new", description = "Write a run's config + samples file from --run/--sample/--reference-raw/--three-prime (pass args after --)" }
+check-run-config = { cmd = "python workflow/scripts/run_config.py check", description = "Validate an existing config + samples pair (pass the config path after --; --dry-run builds the DAG)" }
 # Development
 fmt = { cmd = "snakefmt workflow/Snakefile workflow/rules/*.smk", description = "Format Snakemake files" }
 dag = { cmd = "snakemake --configfile=config/config-test.yml --dag | dot -Tpng > workflow/workflow_dag.png", description = "Generate workflow DAG image" }
@@ -79,6 +86,10 @@ dry-run-demux = { cmd = "snakemake -n --configfile=config/config-demux-test.yml"
 # test-ldx needs a GPU for dorado.
 dry-run-ldx = { cmd = "snakemake -n --configfile=config/config-ldx-test.yml", description = "Dry run the LDX demux test DAG" }
 test-ldx = { cmd = "snakemake --configfile=config/config-ldx-test.yml --cores 8", description = "Run the LDX demux test end-to-end on the committed fixture (needs a GPU)" }
+# Dual-index (LDX + FDX) demux, against the second committed fixture. Same
+# shape as the pair above: the dry-run is a CI check, the run needs a GPU.
+dry-run-fdx = { cmd = "snakemake -n --configfile=config/config-fdx-test.yml", description = "Dry run the dual-index (LDX + FDX) demux test DAG" }
+test-fdx = { cmd = "snakemake --configfile=config/config-fdx-test.yml --cores 8", description = "Run the dual-index (LDX + FDX) demux test end-to-end on the committed fixture (needs a GPU)" }
 # Basecall resume (#149). Also a GPU job, and it DESTROYS and rebuilds
 # .tests/outputs-ldx -- see the header of the script for why it is shaped the
 # way it is, and for the two traps that make a naive version of it pass while
@@ -86,6 +97,7 @@ test-ldx = { cmd = "snakemake --configfile=config/config-ldx-test.yml --cores 8"
 test-ldx-resume = { cmd = ".tests/run_ldx_resume_e2e.sh", description = "End-to-end test of basecall resume against the committed fixture (needs a GPU)" }
 escpod-model-info = { cmd = "escpod demux --model resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0 --info", description = "Describe the vendored LDX (ldx16) CRF demux bundle" }
 escpod-model-info-wdx = { cmd = "escpod demux --model resources/models/demux/barcode_crf_wdx4_rna004@v0.2.0 --info", description = "Describe the vendored WDX4 CRF demux bundle" }
+escpod-model-info-fdx = { cmd = "escpod demux --model resources/models/demux/barcode_crf_fdx4_rna004@v0.2.0 --info", description = "Describe the vendored FDX4 (5' index) CRF demux bundle" }
 # Verifies vendored demux bundles against the hashes UPSTREAM declares, not
 # against any checksum file we could have written. Catches a locally patched
 # bundle, which is what #107/#108 left behind for eleven days.

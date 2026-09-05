@@ -28,6 +28,13 @@ set-resources:
   - escapepod_demux:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
   - escapepod_demux:ngpu=1
   - escapepod_demux:mem_mb=48
+  # The FDX (5' index) pass: same sweep of the raw POD5 with a second CRF
+  # bundle, so the same shape until measured.
+  - escapepod_demux_fdx:lsf_queue="gpu"
+  - escapepod_demux_fdx:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+  - escapepod_demux_fdx:ngpu=1
+  - escapepod_demux_fdx:mem_mb=48
+  - ldx_run_read_ids:mem_mb=16
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
 

@@ -225,3 +225,49 @@ already carries the emitted form, which is the reason to prefer it over a
 hand-written `--barcodes` CSV: full-length targets still call the same barcode
 but inflate every distance and compress the confidence margin that
 `--min-margin` gates on.
+
+## `barcode_crf_fdx4_rna004@v0.2.0`  (FDX, the 5' index; `fdx.enabled`)
+
+4-plex CTC-CRF for the **5' index**: `fdx01`..`fdx04`, a 27-nt code in a 77-nt
+DNA adapter (`C×20 + code + AAAAAA + CCTAAGAGCAAGAAGAAGC + CUGGN`; the last 23 nt
+are the 5' adapter every reference already carries). Released 2026-09-05 from
+`https://github.com/rnabioco/escapepod-models/releases/tag/barcode_crf_fdx4_rna004%40v0.2.0`.
+Current upstream, so no `pins.yml` entry.
+
+**Anchored on the read end, not on the boundary detector.** RNA004 translocates
+3'→5', so the 5' adapter is simply where the signal stops: the bundle declares
+`signal.anchor: read_end`, window `[read_end - 3500, read_end]`, and consumes no
+boundary CNN (`--method`, `--boundary-margin` and `--clamp-max-shift` are all
+refused). That is also why it is demultiplexed as its own pass rather than as a
+second `--model` on the LDX pass under escpod 0.19.0 — see `fdx` in
+`config-base.yml`.
+
+**Trained on ONE flowcell (Run1 of the 20260828 FDX pilot), Run2 held out.**
+Upstream measured training on both runs and shipped the single-run corpus: the
+two-run arm had 4–8x the seed spread and its best seed did not beat this one.
+`fdx01`/`fdx02` reuse the byte-identical 27-nt codes of `ldx01`/`ldx02`;
+`fdx03`/`fdx04` are novel. Published on its held-out split: exact match 0.954,
+balanced precision 0.964 / recall 0.938 at the 0.97 recovery point. The
+pipeline's fixture (`.tests/fixtures/fdx-demux`) is cut from Run2, so
+`pixi run test-fdx` is a cross-flowcell measurement.
+
+**The gate is load-bearing.** `gate.min_crf_margin: 3.5` is declared in the
+bundle (calibrated on 4,000 reads: yield 0.964, precision 0.977) and
+`fdx.min_crf_margin` ships it. A CRF snaps a read that carries none of its codes
+onto the nearest reference at a normal edit-distance margin; on the 415-read LDX
+fixture, whose reads carry no 5' index, this model calls 69 (17%) a code at 1.0
+nats and 9 (2.2%) at 3.5. Do not lower it to buy yield without measuring what
+it admits.
+
+**Licence review outstanding upstream** (escapepod-models#40 lineage): the
+encoder, loss and decode are leech.crf, but the label chain runs dorado and a
+shipped ldx bundle whose own review is open. Recorded here so the state is not
+mistaken for settled.
+
+```bash
+pixi run escpod-model-info-fdx   # geometry, references, published metrics
+```
+
+Ships no `SHA256SUMS.txt`; the ONNX is pinned by `provenance.sha256`, which
+`verify-demux-model` checks. The bundle declares no boundary detector, so that
+check is skipped for it.

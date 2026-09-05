@@ -145,6 +145,20 @@ After classification, generates (split across three rule files):
 
 ## Configuration
 
+### Writing a new run's config
+
+Do not hand-write the pair. `pixi run new-run-config -- --name <name> --run <dir>
+--sample <name>=<spec> ... --reference-raw <fa> --three-prime <name>=<seq>
+--dry-run` writes `config/config-<name>.yml` and its samples file with every
+override explained, and refuses what the pipeline would refuse (codes not
+emitted by the vendored bundles, `fdx` without `ldx`, overlapping barcode
+tuples, `edx` names not in `adapters.three_prime`, 3' adapters of unequal
+length or not starting with GGC, run dirs without POD5, missing references).
+`pixi run check-run-config -- config/config-<name>.yml --dry-run` re-applies the
+same checks to an existing pair. The sample spec grammar and the questions to
+ask first are in `.claude/skills/new-run-config/SKILL.md`; the logic is
+`workflow/scripts/run_config.py`.
+
 ### Main Config Files
 
 - `config/config-base.yml`: Base configuration included by Snakefile
@@ -177,6 +191,7 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 |---|---|---|---|---|
 | WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `escpod filter` per sample → basecall each split POD5 |
 | escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux --annotate` | One fused pass records each read's barcode in a `.p5s` sidecar beside the raw POD5 → basecall the run once → split the uBAM per sample |
+| escapepod, second axis | `fdx.enabled` (needs `ldx.enabled`) | FDX (`fdx01`), the 5' index | `escpod demux --model fdx=…` | A dual-index sample is `{ldx: ldx01, fdx: fdx01}` and owns the reads on which BOTH calls agree; `select_demux_reads.py` joins the axes per read |
 
 Both converge on the same per-sample uBAM (`bam/rebasecall/{sample}/`), and
 everything downstream is identical. Enabling both is rejected at parse time.
@@ -192,8 +207,19 @@ the raw run and rely on the per-sample BAM to bound what they read.
 
 LDX is the successor path; see `config/README.md` for the LDX sample-file
 format, the self-describing model bundle, the sidecar's semantics, and its CPU
-cost. The vendored model lives in `resources/models/demux/` (see the README
-there for why it is committed rather than fetched).
+cost. The vendored models live in `resources/models/demux/` (see the README
+there for why they are committed rather than fetched).
+
+**FDX** is a 5' index on the same molecule (a 27-nt code in a 77-nt DNA adapter,
+read off the READ END, where LDX is read off the adapter boundary). It is a
+second axis of the escpod path, not a backend: `fdx.enabled` requires
+`ldx.enabled`, a sample names both codes, and `select_demux_reads.py` assigns a
+read to a sample only when every axis agrees. escpod can call both models in
+one sweep (`fdx.fused: true`), but escpod 0.19.0 refuses the LDX boundary flags
+whenever a read-end model is in the run, so the default is a second pass
+(`escapepod_demux_fdx`) — see the `fdx` block in `config-base.yml`. The FDX
+gate (3.5 nats, the bundle's declared operating point) is load-bearing: the CRF
+snaps reads without a 5' index onto a code, and only the gate refuses them.
 
 ### Testing the demux path
 
@@ -205,7 +231,14 @@ pooled run — see the README there):
 pixi run dry-run-ldx      # DAG only, no GPU, runs in CI
 pixi run test-ldx         # full run against the fixture (needs a GPU for dorado)
 pixi run test-ldx-resume  # basecall resume, #149 (needs a GPU; rebuilds .tests/outputs-ldx)
+pixi run dry-run-fdx      # dual-index (LDX + FDX) DAG, runs in CI
+pixi run test-fdx         # dual-index run against .tests/fixtures/fdx-demux (needs a GPU)
 ```
+
+The FDX fixture (`.tests/fixtures/fdx-demux`, 365 reads) is Run2 of the FDX
+pilot, which the shipped fdx4 model was NOT trained on, so its per-sample
+recovery is a held-out number; `tests/integration/test_fdx_demux.py` asserts
+its shape.
 
 `test-ldx-resume` (`.tests/run_ldx_resume_e2e.sh`) is the only thing that
 exercises `dorado_basecall_resume.sh` against real dorado — run it after any

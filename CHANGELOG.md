@@ -4,7 +4,51 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **The FDX 5' index, as a second demux axis.** `fdx.enabled` (with
+  `ldx.enabled`) calls the 5' barcode of a dual-index library with the vendored
+  `barcode_crf_fdx4_rna004@v0.2.0` bundle — four codes `fdx01`..`fdx04`, anchored
+  on the read end, Run2 of the pilot held out of its training — and a sample is
+  now `{ldx: ldx01, fdx: fdx01}`, owning the reads on which both calls agree.
+  New `select_demux_reads.py` does that join for the run's basecall list
+  (`ldx_run_read_ids`) and per sample, replacing the awk in `rebasecall_ldx_run`;
+  it reads escpod's two-pass CSVs and its fused per-axis CSV alike, applies each
+  axis's lattice gate itself, and refuses sample tuples that would overlap.
+  Final BAMs of dual-index samples carry `BC:Z:ldx01-fdx01`.
+
+  escpod can call both models in one sweep and `fdx.fused: true` asks for it,
+  but escpod 0.19.0 refuses `--boundary-margin`/`--clamp-max-shift` whenever a
+  read-end model is in the run and the LDX axis cannot give those up, so the
+  default is a second pass (`escapepod_demux_fdx`) that annotates the same
+  sidecar (`fdx` column beside `barcode`). The bundle's declared 3.5-nat gate
+  ships as `fdx.min_crf_margin`; measured on the LDX fixture, whose reads carry
+  no 5' index, it cuts confident mis-assignments from 17% to 2.2%.
+
+  A second committed fixture, `.tests/fixtures/fdx-demux` (365 reads of Run2,
+  E. coli, plain 3' adapter), with `config-fdx-test.yml`, `pixi run dry-run-fdx`
+  (in CI) / `test-fdx`, and `tests/integration/test_fdx_demux.py`.
+  `summarize_demux.awk` takes `-v col=` to tally an axis of a fused CSV.
+- **`pixi run new-run-config` / `check-run-config`** (`workflow/scripts/
+  run_config.py`): write a run's `config-<name>.yml` + samples file from
+  `--run`/`--sample NAME=SPEC` (`ldx01`, `ldx01+fdx01`, `ldx01/edx01`,
+  `wdx:barcode03`, `-`)/`--reference-raw`/`--three-prime`, or validate an
+  existing pair, refusing what the pipeline would refuse: codes the vendored
+  bundles do not emit, fdx without ldx, overlapping tuples, undeclared edx
+  names, 3' adapters of unequal length or not starting with GGC, run dirs
+  without POD5, missing references. `--json` for callers that are programs;
+  `--dry-run` builds the DAG. `.claude/skills/new-run-config/SKILL.md` is the
+  agent-facing walkthrough.
+
 ### Changed
+
+- **`read_attrition` names the join's loss.** On the escpod path the
+  `barcode assigned -> basecalled` row is now two: `barcode assigned -> sample
+  assigned` (a code no sample claims, or a dual-index pair the axes did not
+  agree on, read from the new per-run `assigned_summary.tsv`) and `sample
+  assigned -> basecalled` (what the basecaller could not read). The two were
+  one number before, labelled as basecaller loss -- which is how the LDX
+  fixture's 40 decoy reads had always appeared.
 
 - **Alignment carries dorado's tags through bwa; `inject_ubam_tags` and
   `ubam_to_fastq` are gone.** `bwa_align` now streams the uBAM through

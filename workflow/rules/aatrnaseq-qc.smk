@@ -256,6 +256,7 @@ rule read_attrition:
             sample=samples.keys(),
         ),
         demux=get_demux_summaries,
+        assigned=get_assigned_summaries,
     output:
         tsv=os.path.join(outdir, "summary", "read_attrition.tsv.gz"),
     log:
@@ -265,6 +266,13 @@ rule read_attrition:
         demux_arg=lambda wildcards, input: (
             f"--demux-summary {' '.join(input.demux)}" if input.demux else ""
         ),
+        # The per-sample join on the escpod path: separates "a code no sample
+        # claims, or a dual-index pair the axes did not agree on" from what the
+        # basecaller could not read, which the barcode-assigned -> basecalled
+        # row otherwise lumps together.
+        assigned_arg=lambda wildcards, input: (
+            f"--assigned-summary {' '.join(input.assigned)}" if input.assigned else ""
+        ),
     shell:
         """
         python {params.src}/read_attrition.py \
@@ -272,5 +280,6 @@ rule read_attrition:
             --anchor-coverage {input.anchor} \
             --charging-calls {input.charging_calls} \
             {params.demux_arg} \
+            {params.assigned_arg} \
             --output {output.tsv} 2>&1 | tee {log}
         """
