@@ -10,6 +10,10 @@ default-resources:
 
 resources:
   - ngpu=8
+  # Concurrent POD5-sweeping jobs; see the slurm profile for the measurement
+  # this is sized from, and rule classify_charging for why the cap and not the
+  # core count is the lever.
+  - pod5_readers=8
 
 # set rule specific requirements
 set-resources:
@@ -17,8 +21,10 @@ set-resources:
   - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-  # CPU only: escpod signal classify has no GPU path
-  - classify_charging:mem_mb=24
+  # CPU only: escpod classify has no GPU path. 40 GB: MaxRSS on the 2026-09-04
+  # results_v05 jobs was 23.31 G against a 24 GB request, and it scales with
+  # read count.
+  - classify_charging:mem_mb=40
   - bwa_align:mem_mb=24
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48
