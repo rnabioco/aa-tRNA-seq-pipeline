@@ -107,12 +107,43 @@ charging:
   # and the charging calls silently become noise. If the deep samples of a run
   # disagree with each other, do not set this at all -- something else is wrong.
   #
-  # Note what this buys. It makes a thin sample COMPLETE, not meaningful: a
+  # Note what forcing buys. It makes a thin sample COMPLETE, not meaningful: a
   # sample that fails `auto` has tens of reads, and a charging fraction over ~8
-  # reads carries a Wilson interval wide enough to be useless. Set it so a run
-  # finishes and every sample owns a table; keep excluding those samples from
+  # reads carries a Wilson interval wide enough to be useless. It lets a run
+  # finish with every sample owning a table; keep excluding those samples from
   # means and fits on a depth guard downstream.
   orientation: auto
+
+  # The frame to use for a sample `auto` could not decide, INSTEAD of failing
+  # it. Only consulted when `orientation: auto` and only for the specific
+  # "orientation check underpowered" error -- any other classify failure is
+  # still a failure, and is not retried or masked.
+  #
+  # This is the default rather than a bare `orientation: reversed` because
+  # detection is worth keeping wherever it is possible. The two inputs that
+  # determine the frame are already pinned and enforced here --
+  # `base_calling_model` is rna004_sup@v6.0.0 and `charging.basecaller_check`
+  # is a hard error on a mismatch -- so the frame is effectively a constant,
+  # and `reversed` is what 8,057,646 votes across 446 samples of the
+  # 2026-09-05 GlnRS flow cells returned, with zero dissent. But forcing it
+  # everywhere would stop escpod computing that consensus at all, and it is a
+  # free tripwire: if the chemistry or basecaller ever shifted in a way the
+  # pins did not catch, a deep sample would say so in its log. Detect where
+  # detection works, inherit the known value where it cannot.
+  #
+  #   reversed  the measured frame for rna004_sup@v6.0.0 (default)
+  #   time      the other frame
+  #   none      no fallback -- an underpowered sample fails the run, which is
+  #             the v0.7.2 behaviour
+  #
+  # The measurement behind `reversed` is specific to rna004_sup@v6.0.0. The
+  # other vendored bundle (charging_feature_nn_rna004@v0.1.1, for v5.3.0
+  # basecalls) has NOT been measured; on that path, confirm from a deep
+  # sample's own log with the grep above before trusting this default.
+  #
+  # Every fallback is announced in the sample's classify log, so a run always
+  # records which samples had a frame supplied rather than detected.
+  orientation_fallback: reversed
 
   # `cl` at or above this is called charged. The bundle declares its own
   # recommended operating point (`operating_point.cl`) and this must match it
