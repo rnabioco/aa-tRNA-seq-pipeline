@@ -219,3 +219,67 @@ class TestMain:
                 ]
             )
         assert "no reads were assigned" in str(exc.value)
+
+
+class TestDownstreamAxis:
+    """
+    `edx` is a sample-distinguishing axis that this script does NOT select on:
+    the 3' adapter is read off the uBAM by detect_edx_adapters, long after the
+    demux pass, so there is no classifications CSV for it here.
+
+    It still has to reach the uniqueness checks. Without it, one LDX code fanned
+    across several EDX adapters -- a normal design, and the whole shape of the
+    GlnRS 7 x 32 grid -- looks like a pile of duplicate samples and the run dies
+    AFTER the GPU demux has been paid for (#163).
+    """
+
+    def test_one_ldx_across_two_edx_is_accepted(self):
+        axes = parse_axes(["ldx=a.csv"])
+        samples = parse_samples(
+            ["a:ldx=ldx01,edx=edx01", "b:ldx=ldx01,edx=edx02"], axes, ["edx"]
+        )
+        assert samples["a"] == {"ldx": "ldx01", "edx": "edx01"}
+        assert samples["b"] == {"ldx": "ldx01", "edx": "edx02"}
+
+    def test_one_ldx_fanned_across_seven_edx(self):
+        axes = parse_axes(["ldx=a.csv"])
+        items = [f"s{i}:ldx=ldx01,edx=edx{i:02d}" for i in range(1, 8)]
+        assert len(parse_samples(items, axes, ["edx"])) == 7
+
+    def test_identical_ldx_and_edx_still_refused(self):
+        axes = parse_axes(["ldx=a.csv"])
+        with pytest.raises(SelectionError, match="identical"):
+            parse_samples(
+                ["a:ldx=ldx01,edx=edx01", "b:ldx=ldx01,edx=edx01"], axes, ["edx"]
+            )
+
+    def test_bare_ldx_beside_an_edx_sample_is_refused(self):
+        """The bare sample is never EDX-filtered, so it swallows the other."""
+        axes = parse_axes(["ldx=a.csv"])
+        with pytest.raises(SelectionError, match="different axis sets"):
+            parse_samples(["a:ldx=ldx01", "b:ldx=ldx01,edx=edx01"], axes, ["edx"])
+
+    def test_edx_is_unknown_unless_declared_downstream(self):
+        axes = parse_axes(["ldx=a.csv"])
+        with pytest.raises(SelectionError, match="no --axis"):
+            parse_samples(["a:ldx=ldx01,edx=edx01"], axes)
+
+    def test_downstream_axis_does_not_filter_reads(self, tmp_path):
+        """
+        The regression that matters most. A downstream axis has no calls, so if
+        select_reads matched on it every read would compare against None and
+        each sample would come back EMPTY -- a silent wrong answer rather than
+        an error.
+        """
+        csv = tmp_path / "ldx.csv"
+        csv.write_text(
+            "read_id,barcode,crf_margin\nr1,ldx01,9.0\nr2,ldx01,9.0\nr3,ldx02,9.0\n"
+        )
+        axes = parse_axes([f"ldx={csv}"])
+        samples = parse_samples(
+            ["a:ldx=ldx01,edx=edx01", "b:ldx=ldx01,edx=edx02"], axes, ["edx"]
+        )
+        assigned = select_reads(axes, samples, downstream=["edx"])
+        # Both get every ldx01 read; extract_edx_read_ids splits them later.
+        assert assigned["a"] == {"r1", "r2"}
+        assert assigned["b"] == {"r1", "r2"}

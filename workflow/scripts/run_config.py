@@ -192,6 +192,11 @@ def validate_plan(plan, base, repo_root=REPO_ROOT):
                 err(
                     f"samples {', '.join(n for n, _ in group)} share {code} but only {', '.join(with_fdx)} name an fdx; all or none"
                 )
+            with_edx = [n for n, c in group if "edx" in c]
+            if with_edx and len(with_edx) != len(group):
+                err(
+                    f"samples {', '.join(n for n, _ in group)} share {code} but only {', '.join(with_edx)} name an edx; all or none"
+                )
             tuples = [(c.get("fdx"), c.get("edx")) for _, c in group]
             if len(set(tuples)) != len(tuples):
                 err(

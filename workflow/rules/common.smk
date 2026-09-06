@@ -107,6 +107,17 @@ def is_ldx_enabled():
     return config.get("ldx", {}).get("enabled", False)
 
 
+def is_edx_enabled():
+    """Whether the 3' adapter (EDX) is in use as a sample-distinguishing axis.
+
+    Unlike LDX and FDX this is NOT a signal axis: the adapter is read off the
+    uBAM by detect_edx_adapters, after basecalling. It still separates samples,
+    so anything reasoning about whether two samples can collide has to account
+    for it -- see get_sample_downstream_codes in demux.smk.
+    """
+    return config.get("edx", {}).get("enabled", False)
+
+
 def is_fdx_enabled():
     """Whether the 5' FDX index is demultiplexed as a second escpod axis.
 
@@ -359,6 +370,15 @@ def _check_barcode_tuples(samples, fl):
                     "code. A sample named by the LDX code alone would swallow the "
                     "others' reads; give every one of them an `fdx:`, or none. "
                     f"({fl})"
+                )
+            with_edx = [n for n in names if samples[n].get("edx")]
+            if with_edx and len(with_edx) != len(names):
+                sys.exit(
+                    f"Samples {', '.join(sorted(names))} share barcode {code} on run "
+                    f"{run_id}, but only {', '.join(sorted(with_edx))} name an `edx:` "
+                    "code. EDX filtering is applied per sample, so one named by the "
+                    "LDX code alone is never filtered and swallows the others' reads; "
+                    f"give every one of them an `edx:`, or none. ({fl})"
                 )
             tuples = [
                 (code, samples[n].get("fdx"), samples[n].get("edx")) for n in names

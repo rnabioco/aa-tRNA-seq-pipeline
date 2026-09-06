@@ -4,6 +4,32 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **One LDX code fanned across several EDX adapters no longer dies mid-run.**
+  v0.7.1 fixed the parse-time uniqueness check (#161) but left two more copies
+  of the same EDX-blind reasoning, and the run got further before failing --
+  past `escapepod_demux`, so the GPU pass was paid for first (#163).
+
+  `select_demux_reads.py` refused the design outright. Its `--sample` specs
+  carry only the SIGNAL axes (`ldx`, `fdx`), because `edx` is read off the uBAM
+  by `detect_edx_adapters` and has no classifications CSV at that point, so
+  samples differing only by adapter arrived as identical tuples. `edx` is now
+  passed as a `--downstream-axis`: it counts towards the uniqueness checks and
+  is explicitly skipped when selecting reads. That second half is load-bearing
+  -- a downstream axis has no calls, so matching on it would compare every read
+  against `None` and hand back empty samples rather than an error.
+
+  The all-or-none rule that exists for `fdx` was also missing for `edx`, in both
+  `_check_barcode_tuples` and `run_config.py`. A sample naming the LDX code
+  alone beside one naming `ldx01` + `edx01` is never EDX-filtered, so it
+  swallows the other's reads. Both now refuse it, and `is_edx_enabled()` joins
+  its `is_ldx_enabled` / `is_fdx_enabled` siblings.
+
+  Verified against the run that hit this: 224 samples and a real 387 MB
+  `classifications.csv`, EXIT=0 and 4,200,833 read ids, per-sample counts
+  non-zero.
+
 ## [v0.7.1] - 2026-09-05
 
 ### Fixed
