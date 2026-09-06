@@ -277,6 +277,9 @@ rule classify_charging:
     params:
         model=get_charging_model(),
         min_mapq=config["charging"]["min_mapq"],
+        # Empty unless the config forces a frame, so `auto` stays escpod's own
+        # default rather than something this pipeline restates.
+        orientation=get_charging_orientation_arg(),
         # LDX samples have no POD5 of their own: input.pod5 is the raw run's
         # files (for dependency tracking) but the tool takes one path — a
         # directory, which it walks recursively.
@@ -293,6 +296,7 @@ rule classify_charging:
             --output {output.charging_bam} \
             --tsv {params.tsv} \
             --min-mapq {params.min_mapq} \
+            {params.orientation} \
             --threads {threads} \
             >{log} 2>&1
 

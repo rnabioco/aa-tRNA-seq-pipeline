@@ -97,6 +97,40 @@ def get_charging_model():
     return model
 
 
+# escpod's own accepted values for `classify --orientation`.
+_ORIENTATIONS = ("auto", "time", "reversed")
+
+
+def get_charging_orientation_arg():
+    """The `--orientation` flag for `escpod classify`, or "" to leave it alone.
+
+    `auto` is escpod's default and passing it explicitly would say nothing, so
+    the default emits no flag at all: the command line stays exactly what it was
+    before this knob existed, and a run that never sets it is unaffected.
+
+    Forcing a frame is a correctness decision, not a convenience. `auto` errors
+    below 50 informative reads, which on a heavily multiplexed run fails an
+    otherwise fine sample; a forced frame that is WRONG does not error at all --
+    it mis-anchors every feature and the calls become noise. Validated here so a
+    typo stops the DAG rather than 448 jobs.
+
+    The frame is a property of the RUN (chemistry plus basecaller), not of a
+    sample, so the value belongs to one run and must be re-derived for the next.
+    Every sample deep enough for `auto` logs the frame it found and its vote
+    counts, which is where the value comes from; see config-base.yml.
+    """
+    value = config.get("charging", {}).get("orientation", "auto")
+    if value not in _ORIENTATIONS:
+        sys.exit(
+            f"charging.orientation is {value!r}; expected one of "
+            f"{', '.join(_ORIENTATIONS)}. `auto` detects the frame per sample "
+            "and is right unless a sample is too shallow for it (fewer than 50 "
+            "informative reads); force a frame only from a value `auto` agreed "
+            "on for the same chemistry and basecaller on a deeper run."
+        )
+    return "" if value == "auto" else f"--orientation {value}"
+
+
 def is_warpdemux_enabled():
     """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)

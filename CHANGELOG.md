@@ -4,6 +4,38 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`charging.orientation`**, forcing the move-table frame for samples too thin
+  for `escpod classify` to detect it. `auto` (the default) needs >= 50
+  informative reads and a 95% consensus, and below that floor it is a hard
+  ERROR, not a warning -- so on a heavily multiplexed run a sparse condition
+  (~20 anchored reads at 224 samples per flow cell) fails, and since every
+  sample owes a charging table, one such sample fails `rule all` for the whole
+  corpus. `auto` emits no flag at all, so an existing run's command line is
+  byte-identical to before; `time` / `reversed` force the frame, and anything
+  else stops the DAG rather than 448 individual jobs.
+
+  The frame is a property of the RUN -- chemistry plus basecaller -- not of a
+  sample, so the value must be re-derived per run rather than carried between
+  projects. Every sample deep enough for `auto` logs what it found, so a run
+  can be asked directly:
+
+  ```
+  grep -h "move-table frame" <outdir>/logs/classify_charging/* | sort | uniq -c
+  ```
+
+  In practice it is unanimous: on the 2026-09-05 GlnRS flow cells, 446 samples
+  and 8,057,646 votes returned `reversed` with not one dissenter. Forcing it for
+  the few samples below the floor inherits that measurement rather than guessing.
+  A forced frame that is WRONG does not error -- it mis-anchors every feature and
+  the calls silently become noise -- so if a run's deep samples disagree with
+  each other, do not set it.
+
+  Note what it buys: completeness, not signal. A sample that fails `auto` has
+  tens of reads and its charging fraction carries a Wilson interval too wide to
+  use. It makes the run finish; keep excluding those samples on a depth guard.
+
 ## [v0.7.2] - 2026-09-05
 
 ### Fixed

@@ -75,6 +75,45 @@ charging:
   # records (56%); 0 classifies exactly the 187 reads Remora did.
   min_mapq: 0
 
+  # Which way round the move table runs against the signal. `escpod classify`
+  # normally works this out from the data (`auto`), but that needs >= 50
+  # informative reads and a 95% consensus, and below that floor it is a hard
+  # ERROR rather than a warning: the sample fails with "orientation check
+  # underpowered: N informative reads (need 50)".
+  #
+  # A sample only gets that shallow when a run is split many ways. At 224
+  # samples per flow cell a sparse condition can land ~20 anchored reads, and
+  # one such sample fails `rule all` for the whole run, since every sample owes
+  # a charging table.
+  #
+  #   auto      detect per sample (default, and the only safe choice at depth)
+  #   time      force the frame RNA004 basecalls use
+  #   reversed  force the opposite
+  #
+  # DO NOT carry a value between projects. The frame follows the chemistry and
+  # the basecaller, so it has to be re-derived per run -- and it can be, because
+  # every sample deep enough for `auto` records what it found:
+  #
+  #   grep -h "move-table frame" <outdir>/logs/classify_charging/* \
+  #     | sort | uniq -c
+  #
+  # It is a RUN-level property and in practice unanimous. Measured on the
+  # 2026-09-05 GlnRS flow cells: 446 samples, 8,057,646 votes, `reversed`
+  # every time and not one `time` vote. So forcing a frame for the handful of
+  # samples below the floor is inheriting what the same flow cells measured
+  # hundreds of times over, not guessing -- provided you read it off THIS run.
+  #
+  # A forced frame that is wrong does not error: it mis-anchors every feature
+  # and the charging calls silently become noise. If the deep samples of a run
+  # disagree with each other, do not set this at all -- something else is wrong.
+  #
+  # Note what this buys. It makes a thin sample COMPLETE, not meaningful: a
+  # sample that fails `auto` has tens of reads, and a charging fraction over ~8
+  # reads carries a Wilson interval wide enough to be useless. Set it so a run
+  # finishes and every sample owns a table; keep excluding those samples from
+  # means and fits on a depth guard downstream.
+  orientation: auto
+
   # `cl` at or above this is called charged. The bundle declares its own
   # recommended operating point (`operating_point.cl`) and this must match it
   # — 200, i.e. P(charged) >= 0.7824. It is a RECOMMENDATION measured on
