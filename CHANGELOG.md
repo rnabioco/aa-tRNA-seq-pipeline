@@ -4,6 +4,18 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-09-06
+
+### Upgrading
+
+**If you carry a forked cluster profile, copy `classify_charging`'s new settings
+into it by hand.** This release changes that rule to `threads: 4` and gates it
+on a new `pod5_readers` resource, and both live in `cluster/slurm/config.yaml`
+and `cluster/lsf/config.yaml`. A fork that predates them keeps allocating 8
+cores against a rule that now declares 4, and applies no `pod5_readers` ceiling
+at all -- so the throttle below is simply absent. Nothing errors: you get the
+old fan-out and a changelog that says otherwise.
+
 ### Changed
 
 - **`verify-demux-model.py --record` merges into the manifest instead of
