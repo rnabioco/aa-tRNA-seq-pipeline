@@ -6,6 +6,16 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`verify-demux-model.py --record` merges into the manifest instead of
+  replacing it.** It rewrote the file from the bundles named on the command
+  line, so recording one bundle by path dropped the digests of every other
+  bundle in that directory -- and since a missing digest fails closed, the next
+  `verify-demux-model` refused all of them. That is the failure the
+  tracked/local split was built to prevent, arriving through a different door:
+  a deployment carrying several hand-vendored bundles would lose the lot the
+  moment it recorded a new one by path. Entries whose bundle is no longer on
+  disk are still dropped, so the manifest keeps describing what is there.
+
 - **`escpod` bumped 0.20.0 -> 0.21.0.** No demux call moves: no signal
   orientation change, no `.p5s` format change (still `p5s_version` 3), no GPU
   behaviour change, and the CPU boundary CNN emits identical sorted

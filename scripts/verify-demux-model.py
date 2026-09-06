@@ -149,7 +149,16 @@ def verify(bundle):
 
 
 def record(targets, local=False):
-    """Rewrite the sidecar digest manifest from what is on disk.
+    """Record sidecar digests for `targets`, MERGING into the manifest.
+
+    Merging, not replacing: recording one bundle by path must not drop the
+    digests of every other bundle in the directory. Replacing would make
+    `--record --local some-new-bundle` fail every other local bundle closed --
+    which is the failure the tracked/local split exists to prevent, arriving
+    through a different door.
+
+    Entries whose bundle is no longer on disk are dropped, so the manifest keeps
+    describing what is actually there rather than accumulating forever.
 
     With `local`, only bundles absent from the tracked manifest are written,
     into the gitignored overlay — so a deployment's own bundles are recorded
@@ -162,11 +171,23 @@ def record(targets, local=False):
             by_dir.setdefault(bundle.parent, []).append(bundle)
 
     for demux_dir, bundles in sorted(by_dir.items()):
+        tracked = parse_record(demux_dir / RECORD_NAME) if local else {}
         if local:
-            tracked = parse_record(demux_dir / RECORD_NAME)
             bundles = [b for b in bundles
                        if f"{b.name}/{SIDECARS[0]}" not in tracked]
         path = demux_dir / (LOCAL_RECORD_NAME if local else RECORD_NAME)
+
+        digests = {
+            key: want
+            for key, want in parse_record(path).items()
+            if (demux_dir / key.split("/")[0]).is_dir() and key not in tracked
+        }
+        for bundle in sorted(bundles, key=lambda b: b.name):
+            for name in SIDECARS:
+                f = bundle / name
+                if f.is_file():
+                    digests[f"{bundle.name}/{name}"] = sha256(f)
+
         lines = [
             "# Digests of the bundle sidecars, which no upstream hash covers.",
             "# Tamper-evidence only: recorded at vendoring time, so it proves a",
@@ -174,13 +195,9 @@ def record(targets, local=False):
             "# Regenerate with `scripts/verify-demux-model.py --record"
             + (" --local`." if local else "`."),
         ]
-        for bundle in sorted(bundles, key=lambda b: b.name):
-            for name in SIDECARS:
-                f = bundle / name
-                if f.is_file():
-                    lines.append(f"{sha256(f)}  {bundle.name}/{name}")
+        lines += [f"{digests[key]}  {key}" for key in sorted(digests)]
         path.write_text("\n".join(lines) + "\n")
-        print(f"recorded {len(lines) - 4} digests in {path}")
+        print(f"recorded {len(digests)} digests in {path}")
 
 
 if __name__ == "__main__":
