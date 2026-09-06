@@ -8,6 +8,22 @@ executor: slurm
 jobs: 100
 latency-wait: 60
 
+# Global resource ceilings, counted across every running job.
+#
+# `jobs: 100` bounds the job COUNT and nothing else, so a rule whose cost is a
+# shared filesystem rather than a core can still fan out until that filesystem
+# is the bottleneck. `pod5_readers` is that bound for the rules that sweep a
+# POD5 store: each declares `pod5_readers=1`, so at most eight of them page one
+# at a time.
+#
+# Sized 2026-09-06 from the contrast between production runs -- 5-6 concurrent
+# classify jobs gave 1436-1809 us/read, 34-36 gave 3300-3603, on the same escpod
+# version and the same model bundle. Eight is inside the fast band with margin;
+# it is not itself a measured optimum, and the 1/4/8/16/32-way curve has not
+# been run. Raise it if the cluster is idle and classify is not I/O-starved.
+resources:
+  - pod5_readers=8
+
 rerun-incomplete: true
 keep-going: true
 printshellcmds: true
@@ -63,11 +79,20 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 4
 
-  # CPU only: escpod signal classify has no GPU path
+  # CPU only: escpod classify has no GPU path.
+  #
+  # runtime and mem_mb both carried no headroom and both are read-count-driven,
+  # which is the wrong shape for a corpus that keeps growing. Measured on the
+  # 2026-09-04 results_v05 jobs: MaxRSS 23.31 G against the old 24000 (97% of
+  # the request), and 258380 ran 3:48:45 of the old 4h, with 263197 already
+  # TIMEOUT at 4:00:13. The `_b4` samples are the largest yet -- LysRS_U_all20_b4
+  # alone is 3.88M scored reads, 2h17m of classify plus 4.5m of BAM write.
+  #
+  # cpus_per_task tracks the rule's own `threads: 4`; see the reasoning there.
   classify_charging:
-    runtime: "4h"
-    mem_mb: 24000
-    cpus_per_task: 8
+    runtime: "8h"
+    mem_mb: 40000
+    cpus_per_task: 4
 
   # CPU-intensive rules
   bwa_align:

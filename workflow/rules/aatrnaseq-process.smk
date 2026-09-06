@@ -273,7 +273,27 @@ rule classify_charging:
         ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
-    threads: 8
+    # Four, not eight. Measured 2026-09-06 on identical input (65,821 scored
+    # reads, warm 12 GB POD5, `--threads 8`): the process kept 3.1-4.1 cores
+    # busy -- wall 55-68 s against 211-270 CPU-seconds. The August profiling of
+    # a 1.06M-read sample on `-c 48` agrees: 305% average CPU. classify does not
+    # scale past ~4 cores because it is waiting on the POD5, so the other four
+    # were held idle, blocking the rest of the DAG behind them.
+    threads: 4
+    resources:
+        # How many classify jobs may page a POD5 store at once; capped globally
+        # in the cluster profiles. This is the throttle that matters. `jobs: 100`
+        # with no per-rule cap let 36 of these run together on 2026-09-04
+        # (results_v05) and 34 on 09-05 (glnrs_tc_pilot), and per-read cost
+        # doubled against runs with 5-6 in flight -- 3603 and 3300 against
+        # 1436-1809 us/read, on the SAME escpod version and the same bundle.
+        #
+        # It is not CPU contention: Slurm allocates the cores. It is 36
+        # processes demand-paging one shared multi-hundred-GB POD5 set off
+        # BeeGFS. So lower the cap, not the cores, when a run is I/O-starved --
+        # and note that cutting `threads` WITHOUT this cap makes it worse, by
+        # letting more of them fit at once.
+        pod5_readers=1,
     params:
         model=get_charging_model(),
         min_mapq=config["charging"]["min_mapq"],
