@@ -6,6 +6,37 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`verify-demux-model.py` no longer refuses a bundle that declares
+  `boundary.margin` / `boundary.clamp_max_shift`.** It refused any bundle that
+  did, on the reasoning that no upstream CRF bundle ever had -- true until
+  escapepod-models#127/#128 (2026-09-06), which reissued
+  `barcode_crf_wdx4_rna004@v0.2.1` and `barcode_crf_ldx32_rna004@v0.2.2`
+  declaring both keys deliberately, stating escpod's own fallbacks (200 / 0) so
+  a run cannot silently differ from the values the bundle was characterised at.
+  The check had become unsatisfiable: `verify-demux-model` failed on the current
+  `latest` of two families while `check-models` reported those same versions as
+  BEHIND.
+
+  The refusal was compensating for a real gap, so it is replaced rather than
+  dropped. A bundle's internal hashes cover the ONNX files only -- `metadata.json`
+  is *where those hashes live*, so nothing upstream can attest it without being
+  self-referential, and an edit to it (adding window rules, as #107/#108 did to
+  nbc16) passes every other check. Both sidecars are now checked against digests
+  recorded at vendoring time in `resources/models/demux/sidecars.sha256`, and a
+  bundle with no recorded digest **fails**, rather than skipping. That is
+  tamper-evidence rather than authenticity -- it proves a bundle has not changed
+  since it was vendored, not that it is upstream's -- but it is what the old
+  check was approximating, it is version-agnostic, and it stays offline, which
+  matters because compute nodes have no route to GitHub.
+
+  A deployment that vendors bundles this repo does not ship records them in
+  `sidecars.local.sha256` (gitignored) via `--record --local`, so pulling an
+  updated tracked manifest cannot drop their digests and fail them closed.
+
+- **`barcode_crf_wdx4_rna004` vendored at v0.2.1**, the reissue described above.
+  Weights are byte-identical to v0.2.0 (`a33459d1...` CRF, `b59f8667...`
+  boundary) and every published metric is unchanged, so no demux call moves.
+
 - **`get_bcerror_freqs.py` reads each reference sequence once** instead of
   calling `faidx.fetch()` for every aligned base. The per-base fetch was inside
   the CIGAR loop, so it ran once per base of every read in the sample. On a real

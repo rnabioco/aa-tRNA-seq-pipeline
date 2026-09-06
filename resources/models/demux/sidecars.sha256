@@ -1,0 +1,12 @@
+# Digests of the bundle sidecars, which no upstream hash covers.
+# Tamper-evidence only: recorded at vendoring time, so it proves a
+# bundle has not changed since, not that it is upstream's.
+# Regenerate with `scripts/verify-demux-model.py --record`.
+f2d52dcc5efcdbf94184ec6d1a3b28b3902ad84a8ddfda77e3ce836cc8c3c712  barcode_crf_fdx4_rna004@v0.2.0/metadata.json
+3b86f8572bb450d3103337f1d04380bc14c0df20f171657ff8180f1ddb4b97d3  barcode_crf_fdx4_rna004@v0.2.0/provenance.json
+9f08f88b26eec7ff54e7d1725d2d2d3f796f31110a2cb668a7c6e0de711c3cc9  barcode_crf_ldx16_rna004@v0.1.0/metadata.json
+ae431b307285fc4aaf5e934624d4b7f3b382c2ed14f0bf08f0962a71571d4585  barcode_crf_ldx16_rna004@v0.1.0/provenance.json
+4986ceb574081c123dc14f2be0bf700d0fd1eeb8610bdcce8dc323f609d82af2  barcode_crf_wdx4_rna004@v0.2.0/metadata.json
+b46e6ef009ec1fa2c7adfb3245f0025ba5a4aeb7096b82a715571fb0a2e69820  barcode_crf_wdx4_rna004@v0.2.0/provenance.json
+d8f4b51e4cb7525b778684cd1b5e2d46b288d1f12db09ef43faf09dd24dc379f  barcode_crf_wdx4_rna004@v0.2.1/metadata.json
+977a922912be3c0057300229387a1e4fabeeba8f18aaf966d0c4ddb7762ab097  barcode_crf_wdx4_rna004@v0.2.1/provenance.json

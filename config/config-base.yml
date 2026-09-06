@@ -461,14 +461,25 @@ ldx:
   model: "resources/models/demux/barcode_crf_ldx16_rna004@v0.1.0"
 
   # --- Boundary gating -----------------------------------------------------
-  # BOTH of the next two values are set HERE, not in the bundle, and that is
-  # deliberate. No CRF bundle upstream has ever declared either key —
-  # `build_crf_bundle.py` cannot write them — so a bundle that appears to
-  # declare one has been edited locally. We did exactly that to nbc16 in #107
-  # and #108; it broke that bundle's own SHA256SUMS for eleven days and then
-  # read as evidence that a later release had *removed* the keys. Vendored
-  # bundles are now byte-for-byte upstream, and the overrides live here where
-  # they are visible and diffable.
+  # BOTH of the next two values are set HERE as well as, possibly, in the
+  # bundle. escpod treats the flags as OVERRIDES, so what is written here wins;
+  # setting them explicitly keeps the effective values visible and diffable
+  # next to the measurements that justify them.
+  #
+  # Upstream bundles began declaring `boundary.margin` and
+  # `boundary.clamp_max_shift` in escapepod-models#127/#128 (2026-09-06) —
+  # `barcode_crf_wdx4_rna004@v0.2.1` and `barcode_crf_ldx32_rna004@v0.2.2` are
+  # the first, both stating escpod's own fallbacks (200 / 0) so a run cannot
+  # silently differ from them. Before that no bundle could: `build_crf_bundle.py`
+  # cannot write the keys, so a bundle declaring one HAD been edited locally.
+  # We did exactly that to nbc16 in #107 and #108; it broke that bundle's own
+  # SHA256SUMS for eleven days and then read as evidence that a later release
+  # had *removed* the keys.
+  #
+  # That heuristic is retired — `scripts/verify-demux-model.py` now records a
+  # digest of each vendored bundle's sidecars instead, which catches the same
+  # edit without forbidding legitimate upstream content. If a bundle declares
+  # values that DIFFER from the ones below, the ones below are what runs.
 
   # Samples of adapter_end a read needs beyond the model's chunk (3000) before
   # the CRF will decode it; below that the read routes to `unclassified` with
