@@ -63,6 +63,15 @@ def orientation_arg(value=...):
     return _load("get_charging_orientation_arg", {"charging": charging})()
 
 
+def fallback(orientation=..., fallback_value=...):
+    charging = {}
+    if orientation is not ...:
+        charging["orientation"] = orientation
+    if fallback_value is not ...:
+        charging["orientation_fallback"] = fallback_value
+    return _load("get_charging_orientation_fallback", {"charging": charging})()
+
+
 class TestDefaultIsSilent:
     def test_unset_emits_nothing(self):
         assert orientation_arg() == ""
@@ -101,3 +110,44 @@ class TestRejectsBadValues:
         """The near-miss a person actually types."""
         with pytest.raises(SystemExit):
             orientation_arg("reverse")
+
+
+class TestFallbackResolution:
+    """
+    `orientation_fallback` supplies a frame for a sample too thin for `auto`,
+    instead of failing it. It is a fallback rather than a forced default so that
+    detection keeps running on every deep sample -- the frame's two inputs are
+    already pinned (`base_calling_model`) and enforced
+    (`charging.basecaller_check: error`), so the consensus escpod computes is a
+    free tripwire for the case where those pins stop being true.
+    """
+
+    def test_default_is_reversed(self):
+        """The measured frame: 8,057,646 votes across 446 samples, no dissent."""
+        assert fallback() == "reversed"
+
+    def test_explicit_value_is_used(self):
+        assert fallback(fallback_value="time") == "time"
+
+    @pytest.mark.parametrize("off", ["none", None, False])
+    def test_can_be_switched_off(self, off):
+        """Restores v0.7.2: an underpowered sample fails the run."""
+        assert fallback(fallback_value=off) == ""
+
+    @pytest.mark.parametrize("forced", ["time", "reversed"])
+    def test_unused_when_a_frame_is_already_forced(self, forced):
+        """Nothing to fall back from, so the retry branch stays off."""
+        assert fallback(orientation=forced, fallback_value="reversed") == ""
+
+    def test_applies_when_orientation_is_explicitly_auto(self):
+        assert fallback(orientation="auto", fallback_value="time") == "time"
+
+    @pytest.mark.parametrize("bad", ["auto", "Reversed", "reverse", "", 1])
+    def test_bad_value_stops_the_dag(self, bad):
+        with pytest.raises(SystemExit, match="orientation_fallback"):
+            fallback(fallback_value=bad)
+
+    def test_auto_is_not_a_valid_fallback(self):
+        """`auto` is what failed; naming it as its own fallback is a loop."""
+        with pytest.raises(SystemExit):
+            fallback(fallback_value="auto")

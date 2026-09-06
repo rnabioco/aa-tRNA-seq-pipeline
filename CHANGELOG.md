@@ -36,6 +36,31 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   tens of reads and its charging fraction carries a Wilson interval too wide to
   use. It makes the run finish; keep excluding those samples on a depth guard.
 
+- **`charging.orientation_fallback`** (default `reversed`), which supplies that
+  frame automatically for a sample `auto` could not decide, instead of failing
+  it. This is the part that matters by default: shipping `auto` alone meant
+  every high-multiplex run met the failure, diagnosed it and opted out, which
+  is a footgun rather than a safeguard.
+
+  It is a fallback rather than a forced default because detection is worth
+  keeping wherever it works. The frame's two inputs are already pinned and
+  enforced -- `base_calling_model` is `rna004_sup@v6.0.0` and
+  `charging.basecaller_check` is a hard error on a mismatch -- so the frame is
+  effectively constant, and forcing it everywhere would stop escpod computing
+  the per-sample consensus that would notice if that ever stopped being true.
+  Deep samples detect; only the thin ones inherit.
+
+  `escpod classify` now runs through `workflow/scripts/escpod_classify_fallback.sh`,
+  which retries ONLY on `orientation check underpowered`. Any other failure --
+  OOM, a missing POD5, an unreadable model -- propagates unchanged and is never
+  retried, so a real problem is never masked. Every supplied frame is announced
+  in the sample's log, so a run records which samples had one rather than
+  detecting their own. `orientation_fallback: none` restores the v0.7.2
+  failure.
+
+  The measurement behind `reversed` is specific to `rna004_sup@v6.0.0`; the
+  other vendored bundle has not been measured, and the config says so.
+
 ## [v0.7.2] - 2026-09-05
 
 ### Fixed

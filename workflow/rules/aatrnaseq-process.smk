@@ -280,6 +280,10 @@ rule classify_charging:
         # Empty unless the config forces a frame, so `auto` stays escpod's own
         # default rather than something this pipeline restates.
         orientation=get_charging_orientation_arg(),
+        # The frame to retry with when detection comes back underpowered; ""
+        # disables the retry. See get_charging_orientation_fallback.
+        orientation_fallback=get_charging_orientation_fallback(),
+        fallback_sh=os.path.join(SCRIPT_DIR, "escpod_classify_fallback.sh"),
         # LDX samples have no POD5 of their own: input.pod5 is the raw run's
         # files (for dependency tracking) but the tool takes one path — a
         # directory, which it walks recursively.
@@ -289,7 +293,12 @@ rule classify_charging:
         tsv=lambda wildcards, output: output.calls[: -len(".gz")],
     shell:
         """
-        escpod classify {params.pod5_src} \
+        # Through the fallback wrapper rather than a bare redirect, so a sample
+        # too thin for `auto` to decide the frame is classified with the frame
+        # the rest of the run measured instead of failing `rule all` for the
+        # whole corpus. It retries ONLY that error; see the script.
+        bash {params.fallback_sh} "{params.orientation_fallback}" {log} \
+            {params.pod5_src} \
             --bam {input.bam} \
             --reference {input.reference} \
             --model {params.model} \
@@ -297,8 +306,7 @@ rule classify_charging:
             --tsv {params.tsv} \
             --min-mapq {params.min_mapq} \
             {params.orientation} \
-            --threads {threads} \
-            >{log} 2>&1
+            --threads {threads}
 
         gzip -f {params.tsv}
 

@@ -131,6 +131,36 @@ def get_charging_orientation_arg():
     return "" if value == "auto" else f"--orientation {value}"
 
 
+def get_charging_orientation_fallback():
+    """The frame to supply when `auto` is underpowered, or "" for none.
+
+    Empty whenever a frame is already forced -- there is nothing to fall back
+    from -- and whenever the fallback is switched off, which restores v0.7.2's
+    behaviour of failing an underpowered sample.
+
+    This is a fallback rather than a forced default because detection is worth
+    keeping wherever it works. `base_calling_model` and
+    `charging.basecaller_check` already pin and enforce the two things the frame
+    depends on, so it is effectively a constant -- but letting escpod reach its
+    own consensus on every deep sample keeps a free tripwire for the case where
+    that assumption stops holding, and forcing everywhere would silence it.
+    """
+    charging = config.get("charging", {})
+    if charging.get("orientation", "auto") != "auto":
+        return ""
+    value = charging.get("orientation_fallback", "reversed")
+    if value in (None, "none", False):
+        return ""
+    if value not in ("time", "reversed"):
+        sys.exit(
+            f"charging.orientation_fallback is {value!r}; expected time, "
+            "reversed, or none. It supplies the frame for a sample too thin for "
+            "`auto` to detect one (fewer than 50 informative reads) instead of "
+            "failing it; `none` restores the failure."
+        )
+    return value
+
+
 def is_warpdemux_enabled():
     """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)
