@@ -777,16 +777,17 @@ if is_fdx_enabled() and not is_fdx_fused():
 
         escpod can call both axes in ONE sweep (`--model ldx=... --model fdx=...`,
         `fdx.fused: true`), and that is the shape to want on a 600 GB flowcell
-        where the sweep is hours of IO. This rule exists because escpod (0.19.0 and
-        0.20.0, both measured) cannot yet run that pass the way the LDX axis needs it: in a fused run
-        every model shares one `--boundary-margin` / `--clamp-max-shift`, and
-        escpod refuses those flags outright when any axis anchors on the read
-        end -- which this bundle does ("--boundary-margin is not applicable:
-        this model anchors its window on the read end"). boundary_margin 0 is
-        worth ~14% of a run's LDX reads, so until upstream scopes the flags to
-        the axis that has a boundary, each axis runs on its own terms and
-        select_demux_reads.py joins them per read. The join is the same in both
-        shapes, so flipping `fdx.fused` changes nothing downstream.
+        where the sweep is hours of IO. This rule exists because escpod 0.19.0
+        and 0.20.0 (both measured) could not run that pass the way the LDX axis
+        needs it: in a fused run every model shared one `--boundary-margin` /
+        `--clamp-max-shift`, and escpod refused those flags outright when any
+        axis anchored on the read end -- which this bundle does
+        ("--boundary-margin is not applicable: this model anchors its window on
+        the read end"). escpod 0.21.0 scopes the flags to the heads that have a
+        boundary detector (escapepod-rs#323), so the fused path is available on
+        the pinned version and this second pass is now a default rather than a
+        constraint. The join is the same in both shapes, so flipping
+        `fdx.fused` changes nothing downstream.
 
         `--model fdx=` names the axis, which is what the sidecar column is called
         (the LDX pass, unnamed, writes `barcode`), so both calls live in the one

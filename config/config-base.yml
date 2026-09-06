@@ -344,7 +344,7 @@ dorado_model: rna004_sup@v6.0.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.20.0
+escpod_version: 0.21.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
@@ -677,20 +677,30 @@ ldx:
 # One pass or two. escpod can call both models in ONE sweep of the POD5
 # (`escpod demux --model ldx=... --model fdx=...`), decoding each read's signal
 # once, and that is the shape to want on a 600 GB flowcell where the sweep is
-# hours of IO-bound wall. `fused: true` selects it. It is OFF by default because
-# escpod -- 0.19.0 and 0.20.0, both measured -- applies `--boundary-margin` /
-# `--clamp-max-shift` to every model of the run and REFUSES them outright when
-# any model anchors on the read end, which the fdx bundle does:
+# hours of IO-bound wall. `fused: true` selects it. It is OFF by default
+# because escpod -- 0.19.0 and 0.20.0, both measured -- applied
+# `--boundary-margin` / `--clamp-max-shift` to every model of the run and
+# REFUSED them outright when any model anchored on the read end, which the fdx
+# bundle does:
 #
 #   Error: --boundary-margin is not applicable: this model anchors its window
 #   on the read end, so no boundary margin or window shift is involved.
 #
-# The LDX axis cannot give those flags up (boundary_margin 0 recovers ~14% of a
-# run, see above), so until escpod scopes them to the axis that has a boundary,
-# `fused: false` runs the FDX axis as a second pass over the raw POD5
-# (escapepod_demux_fdx) and select_demux_reads.py joins the two CSVs per read.
-# Flip to `true` once the pinned escpod accepts the flags in a fused run;
-# nothing downstream changes -- the join reads either shape.
+# The LDX axis cannot give those flags up (they are what keeps the window rules
+# explicit and diffable; the "~14% recovered" figure that used to appear here
+# rested on the edit-distance evidence #155 retired -- a window holding no
+# barcode still decodes to a PERFECT reference, so edit distance cannot see a
+# wrong call). So `fused: false` runs the FDX axis as a second pass over the raw
+# POD5 (escapepod_demux_fdx) and select_demux_reads.py joins the two CSVs per
+# read.
+#
+# FIXED IN escpod 0.21.0 (escapepod-rs#323), which is what this pins: the flags
+# are now scoped to the heads that have a boundary detector, read-end heads
+# ignore them and are named as doing so, and only a run with read-end models
+# ALONE is refused. So `fused: true` is now legal. It stays off by default
+# because nothing in this project has measured the fused path end to end --
+# flipping it is a throughput change to make deliberately, with a run to
+# compare against. Nothing downstream changes -- the join reads either shape.
 #
 # The join also applies each axis's lattice gate itself (`--gate ldx=…
 # --gate fdx=…`), because a fused pass has one `--min-crf-margin` for every

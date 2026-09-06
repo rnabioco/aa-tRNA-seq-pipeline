@@ -297,7 +297,8 @@ Current upstream, so no `pins.yml` entry.
 `signal.anchor: read_end`, window `[read_end - 3500, read_end]`, and consumes no
 boundary CNN (`--method`, `--boundary-margin` and `--clamp-max-shift` are all
 refused). That is also why it is demultiplexed as its own pass rather than as a
-second `--model` on the LDX pass under escpod 0.19.0 and 0.20.0 — see `fdx` in
+second `--model` on the LDX pass under escpod 0.19.0 and 0.20.0 (lifted in
+0.21.0, escapepod-rs#323) — see `fdx` in
 `config-base.yml`.
 
 **Trained on ONE flowcell (Run1 of the 20260828 FDX pilot), Run2 held out.**
