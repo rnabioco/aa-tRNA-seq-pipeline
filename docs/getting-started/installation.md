@@ -171,7 +171,7 @@ missing field `gbm`
 ```
 
 The installed `escpod` predates the per-base-feature bundle format. The model
-and the runtime are pinned together — `escpod_version` must be >= 0.10.0. Run
+and the runtime are pinned together — `escpod_version` must be >= 0.19.0 (the floor the charging bundle's `basecaller` block enforces). Run
 `pixi run setup` to install the pinned version, and check that the `escpod` on
 your PATH is the one under `resources/tools/escpod/`, not an older one from
 `~/.local/bin`.

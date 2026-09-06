@@ -243,7 +243,7 @@ Error: missing field `gbm`
 **Solution:**
 
 The `escpod` on your PATH predates the per-base-feature bundle format. The
-runtime and the model are pinned together — `escpod_version` must be >= 0.10.0.
+runtime and the model are pinned together — `escpod_version` must be >= 0.19.0 (the floor the charging bundle's `basecaller` block enforces).
 
 ```bash
 pixi run setup

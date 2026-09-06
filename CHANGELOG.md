@@ -6,6 +6,36 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`escpod` bumped 0.20.0 -> 0.21.0.** No demux call moves: no signal
+  orientation change, no `.p5s` format change (still `p5s_version` 3), no GPU
+  behaviour change, and the CPU boundary CNN emits identical sorted
+  classifications.
+
+  What it unblocks is `fdx.fused: true`. escapepod-rs#323 scopes
+  `--boundary-margin` / `--clamp-max-shift` to the heads that actually have a
+  boundary detector: read-end heads ignore them and are named as doing so, and
+  only a run of read-end models ALONE is refused. The blocker this repo
+  documented under `fdx:` -- "Flip to `true` once the pinned escpod accepts the
+  flags in a fused run" -- is gone. The default stays `false` until the fused
+  path is measured here; the win when it is taken is collapsing the FDX second
+  pass into one POD5 sweep, hours of IO-bound wall on a large flow cell.
+
+  Two diagnostics also arrive. The classifications CSV carries **`adapter_end`**
+  as a trailing column wherever a boundary detector ran, so calls can be split
+  by `adapter_end` band against an independent label per run -- present on the
+  LDX pass, absent on the FDX pass, so the two axes' CSVs now differ in column
+  count. Both consumers read by name (`summarize_demux.awk` resolves by header
+  with a `c = 2` positional fallback a trailing column cannot move;
+  `select_demux_reads.py` uses `csv.DictReader`), so nothing breaks. And
+  **`Demux summary:` breaks `unclassified` down by reason** per axis -- boundary
+  margin, window clamp, the `adapter_end = 0` sentinel, short read, encoder
+  error, no-match decode, and the gates, only the last of which is a classifier
+  decision. Nothing parses that output; it reaches logs only.
+
+  Also corrects the documented escpod floor in `docs/`, which still said
+  `>= 0.10.0` where the real floor is 0.19.0, and the stale `"0.12.0"` fallback
+  in `workflow/Snakefile` (inert, since config-base.yml always sets the key).
+
 - **`verify-demux-model.py` no longer refuses a bundle that declares
   `boundary.margin` / `boundary.clamp_max_shift`.** It refused any bundle that
   did, on the reasoning that no upstream CRF bundle ever had -- true until

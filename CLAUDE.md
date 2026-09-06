@@ -215,9 +215,11 @@ read off the READ END, where LDX is read off the adapter boundary). It is a
 second axis of the escpod path, not a backend: `fdx.enabled` requires
 `ldx.enabled`, a sample names both codes, and `select_demux_reads.py` assigns a
 read to a sample only when every axis agrees. escpod can call both models in
-one sweep (`fdx.fused: true`), but escpod (0.19.0 and 0.20.0) refuses the LDX boundary flags
-whenever a read-end model is in the run, so the default is a second pass
-(`escapepod_demux_fdx`) — see the `fdx` block in `config-base.yml`. The FDX
+one sweep (`fdx.fused: true`); escpod 0.19.0 and 0.20.0 refused the LDX
+boundary flags whenever a read-end model was in the run. 0.21.0 scopes them per
+head (escapepod-rs#323), so fusing is legal on the pinned version, but the
+default stays a second pass (`escapepod_demux_fdx`) until it is measured here —
+see the `fdx` block in `config-base.yml`. The FDX
 gate (3.5 nats, the bundle's declared operating point) is load-bearing: the CRF
 snaps reads without a 5' index onto a code, and only the gate refuses them.
 
