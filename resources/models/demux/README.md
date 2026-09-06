@@ -33,11 +33,24 @@ This rule exists because it was broken. PRs #107 and #108 patched
 `boundary.margin: 0` and `boundary.clamp_max_shift: 300` into the nbc16
 `metadata.json`. `SHA256SUMS.txt` was not regenerated, so that bundle failed its
 own integrity check for eleven days, and the patched copy then read as evidence
-that a later upstream release had *removed* those keys — it had not; **no
-upstream CRF bundle has ever declared either key**, because
-`build_crf_bundle.py` cannot write them. Both values now live in
-`config-base.yml` under `ldx:`, where they are visible and diffable, and the
-measurements that justify them are recorded below.
+that a later upstream release had *removed* those keys — it had not. At the
+time, no upstream CRF bundle could declare either key, because
+`build_crf_bundle.py` cannot write them.
+
+**That changed on 2026-09-06.** escapepod-models#127/#128 reissued
+`barcode_crf_wdx4_rna004@v0.2.1` and `barcode_crf_ldx32_rna004@v0.2.2` — weights
+byte-identical to their predecessors — declaring `margin: 200` and
+`clamp_max_shift: 0`, escpod's own fallbacks, so that a run cannot silently
+differ from them and a fused multi-axis run needs no flags. A bundle declaring
+these keys is therefore no longer evidence of a local edit, and
+`verify-demux-model.py` no longer refuses one; it records a digest of each
+vendored bundle's sidecars instead, which catches the nbc16 edit without
+forbidding legitimate upstream content.
+
+Both values are still set in `config-base.yml` under `ldx:`, where they are
+visible and diffable, and the measurements that justify them are recorded below.
+escpod applies the flags as **overrides**, so the config wins over a bundle that
+declares something different.
 
 ## `barcode_crf_ldx16_rna004@v0.1.0`  (default)
 

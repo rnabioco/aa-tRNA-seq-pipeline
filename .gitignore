@@ -63,3 +63,7 @@ resources/kmers/*.pkl
 
 # generated at render time by Snakemake rule
 workflow/report/_custom.qmd
+
+# Digests of demux bundles vendored by a deployment but not shipped in git.
+# Written by `scripts/verify-demux-model.py --record --local`.
+resources/models/demux/sidecars.local.sha256

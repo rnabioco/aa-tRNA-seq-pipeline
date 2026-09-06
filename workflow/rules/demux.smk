@@ -672,11 +672,13 @@ rule escapepod_demux:
             if config.get("ldx", {}).get("min_crf_prob") is not None
             else ""
         ),
-        # Boundary gating. NO upstream CRF bundle declares `boundary.margin` or
-        # `boundary.clamp_max_shift` — build_crf_bundle.py cannot write them —
-        # so unset does not mean "the bundle decides", it means escpod's
-        # fallback of margin 200 and no clamp. Both are therefore configured
-        # explicitly in config-base.yml, which documents the measurements.
+        # Boundary gating. Unset means "whatever the bundle declares, else
+        # escpod's fallback of margin 200 and no clamp" — bundles have been
+        # able to declare `boundary.margin` / `boundary.clamp_max_shift` since
+        # escapepod-models#127/#128, and the first ones to do so state exactly
+        # that fallback. Both are configured explicitly in config-base.yml
+        # anyway, which documents the measurements; escpod applies the flags as
+        # OVERRIDES, so the config wins over a bundle that disagrees.
         # Needs escpod with the flags (escapepod-rs#193).
         boundary_margin=lambda wildcards: (
             f"--boundary-margin {config['ldx']['boundary_margin']}"

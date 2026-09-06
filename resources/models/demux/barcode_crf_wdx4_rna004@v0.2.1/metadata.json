@@ -1,0 +1,2215 @@
+{
+  "format": "escapepod-crf-encoder/1",
+  "onnx": "barcode_crf_wdx4_rna004.onnx",
+  "opset": 17,
+  "input": {
+    "name": "signal",
+    "shape": [
+      "batch",
+      1,
+      2000
+    ],
+    "dtype": "float32",
+    "layout": "batch-major",
+    "domain": "raw pA, standardised"
+  },
+  "output": {
+    "name": "scores",
+    "shape": [
+      200,
+      "batch",
+      1280
+    ],
+    "dtype": "float32",
+    "layout": "time-major",
+    "note": "T = CHUNK / stride; NOT batch-major like the boundary CNN"
+  },
+  "standardisation": {
+    "mean": 63.619585852188436,
+    "stdev": 10.458663980022045,
+    "source": "float(X.mean())/float(X.std()) over st_data.npz",
+    "warning": "config.toml's [standardisation] block holds SeqTagger's 80.8758975922949/17.26975967138176, which these weights were NOT trained with. Using those silently degrades the decode."
+  },
+  "signal": {
+    "chunk": 2000,
+    "stride": 10,
+    "window": "[adapter_end - chunk, adapter_end]"
+  },
+  "crf": {
+    "state_len": 4,
+    "n_base": 4,
+    "alphabet": [
+      "N",
+      "A",
+      "C",
+      "G",
+      "T"
+    ],
+    "blank_score": 2.0,
+    "n_score": 1280,
+    "n_states": 256,
+    "scores_per_state": 5,
+    "decode": "Viterbi over n_states x scores_per_state; not expressible in standard ONNX ops, so it stays in the consumer"
+  },
+  "provenance": {
+    "checkpoint": "results/barcode_crf_wdx4_rna004/barcode_crf_wdx4_rna004.pt",
+    "config": "/beevol/home/jhessel/devel/rnabioco/escapepod-models/.claude/worktrees/wdx-crf/scripts/ldx/crf_config.toml",
+    "encoder": [
+      "conv",
+      "rnns",
+      "linear"
+    ]
+  },
+  "barcodes": [
+    {
+      "name": "bc03",
+      "sequence": "CGTCATTTTCCACGTCGGTAGTAGGTTC"
+    },
+    {
+      "name": "bc04",
+      "sequence": "AGGCCAGGCGGACCGAGGTAGTAGGTTC"
+    },
+    {
+      "name": "bc05",
+      "sequence": "GGACCTTTTGACTTAAGGTAGTAGGTTC"
+    },
+    {
+      "name": "bc07",
+      "sequence": "ACGGAGGGAGGATTGGGGTAGTAGGTTC"
+    }
+  ],
+  "boundary": {
+    "method": "cnn",
+    "onnx": "adapter_rna004.onnx",
+    "model_id": "adapter_rna004@v1.1.0",
+    "sha256": "b59f8667187ef9fa7e940cd37b108f8d5f3c6d6213ca841cda6eced0e33d26b5",
+    "input": {
+      "min_obs_adapter": 1000,
+      "max_obs_trace": 16000,
+      "downscale_factor": 10,
+      "input_len": 1500,
+      "pad_value": -5.0,
+      "source": "escapepod_models.config.DataConfig"
+    },
+    "margin": 200,
+    "clamp_max_shift": 0
+  },
+  "model": {
+    "id": "barcode_crf_wdx4_rna004",
+    "version": "0.2.1",
+    "chemistry": "rna004",
+    "notes": "First CTC-CRF over the WarpDemuX panel. Distinct model_id from the shipped GBM `barcode_wdx4_rna004`, which stays as it is: shipped ids are immutable and the registry keys kind/format per id.\nThe panel is only 4 codes because that is all the data covers. bc11 and the other seven WarpDemuX codes need new sequencing, not a config change."
+  },
+  "metrics": {
+    "source": "workflow/rules/barcode_crf.smk (eval_window_ab.py + decode_position_profile.py)",
+    "verified": true,
+    "split": "the corpus's recorded held-out split, carved per code BEFORE the cap by extract_chunks.py, so these reads were never trained on",
+    "n_train": 3560360,
+    "n_test": 396753,
+    "n_scored": 60000,
+    "panel": "wdx",
+    "grouped_by": "run",
+    "geometry": {
+      "chunk": 2000,
+      "target_len": 32,
+      "state_len": 4,
+      "emits": 28
+    },
+    "standardisation": {
+      "mean": 63.619585852188436,
+      "stdev": 10.458663980022045
+    },
+    "final_train_loss": 0.004508308603145632,
+    "selected_train_loss": 0.004508308603145632,
+    "weights_from_epoch": 32,
+    "epochs": 32,
+    "exact_match_to_emitted_reference": 0.96075,
+    "median_decoded_len": 28.0,
+    "per_base_error": {
+      "all_emitted": 0.01170535714285714,
+      "shared_constant": 0.01170535714285714,
+      "lead": null
+    },
+    "balanced_precision@0.97": 0.9667058574912016,
+    "balanced_recall@0.97": 0.9393301777173465,
+    "per_group": {
+      "20260130_1421_P2S-01617-B_PBG59663_3da4ea82": {
+        "n": 3509,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9892807841496364,
+            "bal_precision": 0.9897418781198941,
+            "errors": 38,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9959555106167847,
+                "precision": 0.9949494949494949,
+                "n": 989
+              },
+              "bc05": {
+                "recall": 0.9805137289636847,
+                "precision": 0.9892761394101877,
+                "n": 1129
+              },
+              "bc07": {
+                "recall": 0.99137311286844,
+                "precision": 0.985,
+                "n": 1391
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9797631231862868,
+            "bal_precision": 0.990785311133859,
+            "errors": 34,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9929221435793731,
+                "precision": 0.9949341438703141,
+                "n": 989
+              },
+              "bc05": {
+                "recall": 0.9557130203720107,
+                "precision": 0.9917279411764706,
+                "n": 1129
+              },
+              "bc07": {
+                "recall": 0.9906542056074766,
+                "precision": 0.9856938483547926,
+                "n": 1391
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9602087003074448,
+            "bal_precision": 0.9908389824559847,
+            "errors": 33,
+            "per_code": {
+              "bc04": {
+                "recall": 0.961577350859454,
+                "precision": 0.9947698744769874,
+                "n": 989
+              },
+              "bc05": {
+                "recall": 0.9557130203720107,
+                "precision": 0.9917279411764706,
+                "n": 1129
+              },
+              "bc07": {
+                "recall": 0.9633357296908699,
+                "precision": 0.986019131714496,
+                "n": 1391
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.94129128692947,
+            "bal_precision": 0.9906272894984888,
+            "errors": 33,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9393326592517695,
+                "precision": 0.9946466809421841,
+                "n": 989
+              },
+              "bc05": {
+                "recall": 0.9557130203720107,
+                "precision": 0.9917279411764706,
+                "n": 1129
+              },
+              "bc07": {
+                "recall": 0.9288281811646297,
+                "precision": 0.9855072463768116,
+                "n": 1391
+              }
+            }
+          }
+        }
+      },
+      "20260130_1421_P2S-01618-A_PBG59723_c2daa806": {
+        "n": 3360,
+        "ref_min_pairwise": 10,
+        "median_edit_distance": 0.0,
+        "median_margin": 10.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.993969226027891,
+            "bal_precision": 0.9935610898254577,
+            "errors": 21,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9987523393636931,
+                "precision": 0.9882716049382716,
+                "n": 1603
+              },
+              "bc05": {
+                "recall": 0.9891861126920888,
+                "precision": 0.9988505747126437,
+                "n": 1757
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9885076040193561,
+            "bal_precision": 0.9981510364622705,
+            "errors": 6,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9975046787273861,
+                "precision": 0.9968827930174564,
+                "n": 1603
+              },
+              "bc05": {
+                "recall": 0.9795105293113261,
+                "precision": 0.9994192799070848,
+                "n": 1757
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9687848729846676,
+            "bal_precision": 0.9981199252116615,
+            "errors": 6,
+            "per_code": {
+              "bc04": {
+                "recall": 0.982532751091703,
+                "precision": 0.9968354430379747,
+                "n": 1603
+              },
+              "bc05": {
+                "recall": 0.9550369948776323,
+                "precision": 0.9994044073853484,
+                "n": 1757
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9487067326452145,
+            "bal_precision": 0.9980765655808996,
+            "errors": 6,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9594510293200249,
+                "precision": 0.9967595593000648,
+                "n": 1603
+              },
+              "bc05": {
+                "recall": 0.9379624359704041,
+                "precision": 0.9993935718617344,
+                "n": 1757
+              }
+            }
+          }
+        }
+      },
+      "20260130_1421_P2S-01618-B_PBG48744_df12536f": {
+        "n": 3450,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9955144599645878,
+            "bal_precision": 0.9950530670676536,
+            "errors": 16,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9966555183946488,
+                "precision": 0.9926715522984677,
+                "n": 1495
+              },
+              "bc07": {
+                "recall": 0.9943734015345268,
+                "precision": 0.9974345818368394,
+                "n": 1955
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9883533346448947,
+            "bal_precision": 0.9987100103199175,
+            "errors": 5,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9879598662207358,
+                "precision": 1.0,
+                "n": 1495
+              },
+              "bc07": {
+                "recall": 0.9887468030690537,
+                "precision": 0.9974200206398349,
+                "n": 1955
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9682667715915798,
+            "bal_precision": 0.9986842105263158,
+            "errors": 5,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9672240802675586,
+                "precision": 1.0,
+                "n": 1495
+              },
+              "bc07": {
+                "recall": 0.969309462915601,
+                "precision": 0.9973684210526316,
+                "n": 1955
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9481015148534331,
+            "bal_precision": 0.9986580783682233,
+            "errors": 5,
+            "per_code": {
+              "bc04": {
+                "recall": 0.945819397993311,
+                "precision": 1.0,
+                "n": 1495
+              },
+              "bc07": {
+                "recall": 0.950383631713555,
+                "precision": 0.9973161567364466,
+                "n": 1955
+              }
+            }
+          }
+        }
+      },
+      "20260217_1131_P2S-01618-B_PBE47053_ab105fa3": {
+        "n": 3380,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9796342729659893,
+            "bal_precision": 0.9799283808087956,
+            "errors": 71,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9887410440122825,
+                "precision": 0.9948506694129763,
+                "n": 977
+              },
+              "bc05": {
+                "recall": 0.9757630161579892,
+                "precision": 0.9705357142857143,
+                "n": 1114
+              },
+              "bc07": {
+                "recall": 0.9743987587276959,
+                "precision": 0.9743987587276959,
+                "n": 1289
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9719182213150751,
+            "bal_precision": 0.9817868580813031,
+            "errors": 64,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9866939611054247,
+                "precision": 0.9948400412796697,
+                "n": 977
+              },
+              "bc05": {
+                "recall": 0.9631956912028725,
+                "precision": 0.9763421292083713,
+                "n": 1114
+              },
+              "bc07": {
+                "recall": 0.9658650116369278,
+                "precision": 0.9741784037558685,
+                "n": 1289
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9509476647409189,
+            "bal_precision": 0.9815251004304648,
+            "errors": 64,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9447287615148413,
+                "precision": 0.9946120689655172,
+                "n": 977
+              },
+              "bc05": {
+                "recall": 0.9631956912028725,
+                "precision": 0.9763421292083713,
+                "n": 1114
+              },
+              "bc07": {
+                "recall": 0.9449185415050426,
+                "precision": 0.973621103117506,
+                "n": 1289
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9318264704980549,
+            "bal_precision": 0.9817363386323468,
+            "errors": 62,
+            "per_code": {
+              "bc04": {
+                "recall": 0.9160696008188332,
+                "precision": 0.9944444444444445,
+                "n": 977
+              },
+              "bc05": {
+                "recall": 0.9631956912028725,
+                "precision": 0.9763421292083713,
+                "n": 1114
+              },
+              "bc07": {
+                "recall": 0.9162141194724592,
+                "precision": 0.9744224422442245,
+                "n": 1289
+              }
+            }
+          }
+        }
+      },
+      "20260220_1525_P2S-01618-A_PBC72243_d5777da2": {
+        "n": 3564,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9580274477535144,
+            "bal_precision": 0.9566788306868252,
+            "errors": 152,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9658886894075404,
+                "precision": 0.9684968496849685,
+                "n": 1114
+              },
+              "bc04": {
+                "recall": 0.9918478260869565,
+                "precision": 0.9707446808510638,
+                "n": 736
+              },
+              "bc05": {
+                "recall": 0.9391979301423027,
+                "precision": 0.9391979301423027,
+                "n": 773
+              },
+              "bc07": {
+                "recall": 0.9351753453772582,
+                "precision": 0.9482758620689655,
+                "n": 941
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.94884694103078,
+            "bal_precision": 0.9567354716145553,
+            "errors": 150,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9542190305206463,
+                "precision": 0.9690063810391978,
+                "n": 1114
+              },
+              "bc04": {
+                "recall": 0.9877717391304348,
+                "precision": 0.9706275033377837,
+                "n": 736
+              },
+              "bc05": {
+                "recall": 0.9288486416558862,
+                "precision": 0.938562091503268,
+                "n": 773
+              },
+              "bc07": {
+                "recall": 0.924548352816153,
+                "precision": 0.9487459105779716,
+                "n": 941
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9315517165805037,
+            "bal_precision": 0.958163419471409,
+            "errors": 142,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9344703770197487,
+                "precision": 0.9701770736253494,
+                "n": 1114
+              },
+              "bc04": {
+                "recall": 0.9714673913043478,
+                "precision": 0.9701492537313433,
+                "n": 736
+              },
+              "bc05": {
+                "recall": 0.9159120310478654,
+                "precision": 0.9414893617021277,
+                "n": 773
+              },
+              "bc07": {
+                "recall": 0.9043570669500531,
+                "precision": 0.9508379888268157,
+                "n": 941
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9115876532630506,
+            "bal_precision": 0.9575695885172905,
+            "errors": 141,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9138240574506283,
+                "precision": 0.9695238095238096,
+                "n": 1114
+              },
+              "bc04": {
+                "recall": 0.9497282608695652,
+                "precision": 0.9694868238557559,
+                "n": 736
+              },
+              "bc05": {
+                "recall": 0.8965071151358344,
+                "precision": 0.9402985074626866,
+                "n": 773
+              },
+              "bc07": {
+                "recall": 0.8862911795961743,
+                "precision": 0.95096921322691,
+                "n": 941
+              }
+            }
+          }
+        }
+      },
+      "20260220_1525_P2S-01618-B_PBC99952_c19b8bfa": {
+        "n": 3584,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9624181967192933,
+            "bal_precision": 0.9620849459948824,
+            "errors": 136,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9715099715099715,
+                "precision": 0.9650943396226415,
+                "n": 1053
+              },
+              "bc04": {
+                "recall": 0.9949238578680203,
+                "precision": 0.9727047146401985,
+                "n": 788
+              },
+              "bc05": {
+                "recall": 0.9441747572815534,
+                "precision": 0.956949569495695,
+                "n": 824
+              },
+              "bc07": {
+                "recall": 0.9390642002176278,
+                "precision": 0.9535911602209944,
+                "n": 919
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.952488277216804,
+            "bal_precision": 0.962011236058275,
+            "errors": 135,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9639126305792972,
+                "precision": 0.964828897338403,
+                "n": 1053
+              },
+              "bc04": {
+                "recall": 0.9809644670050761,
+                "precision": 0.9723270440251572,
+                "n": 788
+              },
+              "bc05": {
+                "recall": 0.9368932038834952,
+                "precision": 0.9578163771712159,
+                "n": 824
+              },
+              "bc07": {
+                "recall": 0.9281828073993471,
+                "precision": 0.9530726256983241,
+                "n": 919
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9331718174090325,
+            "bal_precision": 0.96213596560542,
+            "errors": 132,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9487179487179487,
+                "precision": 0.9642857142857143,
+                "n": 1053
+              },
+              "bc04": {
+                "recall": 0.9606598984771574,
+                "precision": 0.9742599742599742,
+                "n": 788
+              },
+              "bc05": {
+                "recall": 0.9223300970873787,
+                "precision": 0.9571788413098237,
+                "n": 824
+              },
+              "bc07": {
+                "recall": 0.9009793253536452,
+                "precision": 0.952819332566168,
+                "n": 919
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9149956172122617,
+            "bal_precision": 0.9634153372476275,
+            "errors": 125,
+            "per_code": {
+              "bc03": {
+                "recall": 0.932573599240266,
+                "precision": 0.9655850540806293,
+                "n": 1053
+              },
+              "bc04": {
+                "recall": 0.9390862944162437,
+                "precision": 0.9775429326287979,
+                "n": 788
+              },
+              "bc05": {
+                "recall": 0.9101941747572816,
+                "precision": 0.9566326530612245,
+                "n": 824
+              },
+              "bc07": {
+                "recall": 0.8781284004352558,
+                "precision": 0.9539007092198581,
+                "n": 919
+              }
+            }
+          }
+        }
+      },
+      "20260227_1101_P2S-01617-A_PBC72446_afbb9929": {
+        "n": 3548,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9579611334517323,
+            "bal_precision": 0.9554953287504685,
+            "errors": 154,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9631255487269534,
+                "precision": 0.9707964601769912,
+                "n": 1139
+              },
+              "bc04": {
+                "recall": 0.9972183588317107,
+                "precision": 0.9728629579375848,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9457364341085271,
+                "precision": 0.9265822784810127,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.925764192139738,
+                "precision": 0.9517396184062851,
+                "n": 916
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9491270054429585,
+            "bal_precision": 0.9563012893350415,
+            "errors": 150,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9508340649692713,
+                "precision": 0.9704301075268817,
+                "n": 1139
+              },
+              "bc04": {
+                "recall": 0.9860917941585535,
+                "precision": 0.9725651577503429,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9392764857881137,
+                "precision": 0.9296675191815856,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.9203056768558951,
+                "precision": 0.9525423728813559,
+                "n": 916
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9299785554014945,
+            "bal_precision": 0.9559847672426429,
+            "errors": 148,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9297629499561019,
+                "precision": 0.9697802197802198,
+                "n": 1139
+              },
+              "bc04": {
+                "recall": 0.972183588317107,
+                "precision": 0.972183588317107,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.917312661498708,
+                "precision": 0.9293193717277487,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.9006550218340611,
+                "precision": 0.9526558891454965,
+                "n": 916
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9099471332669892,
+            "bal_precision": 0.9558498109487822,
+            "errors": 145,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9165935030728709,
+                "precision": 0.9702602230483272,
+                "n": 1139
+              },
+              "bc04": {
+                "recall": 0.9541029207232267,
+                "precision": 0.9744318181818182,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.8837209302325582,
+                "precision": 0.926829268292683,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.8853711790393013,
+                "precision": 0.9518779342723005,
+                "n": 916
+              }
+            }
+          }
+        }
+      },
+      "20260227_1101_P2S-01618-A_PBE36356_24babc10": {
+        "n": 3620,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9740989567229767,
+            "bal_precision": 0.9717401192356058,
+            "errors": 98,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9755458515283842,
+                "precision": 0.9867491166077739,
+                "n": 1145
+              },
+              "bc04": {
+                "recall": 0.9957264957264957,
+                "precision": 0.972183588317107,
+                "n": 702
+              },
+              "bc05": {
+                "recall": 0.9689737470167065,
+                "precision": 0.954171562867215,
+                "n": 838
+              },
+              "bc07": {
+                "recall": 0.9561497326203209,
+                "precision": 0.9738562091503268,
+                "n": 935
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9641123756665575,
+            "bal_precision": 0.9717069392177365,
+            "errors": 97,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9685589519650655,
+                "precision": 0.9866548042704626,
+                "n": 1145
+              },
+              "bc04": {
+                "recall": 0.9886039886039886,
+                "precision": 0.9719887955182073,
+                "n": 702
+              },
+              "bc05": {
+                "recall": 0.9570405727923628,
+                "precision": 0.9536266349583828,
+                "n": 838
+              },
+              "bc07": {
+                "recall": 0.9422459893048128,
+                "precision": 0.9745575221238938,
+                "n": 935
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9445110600172588,
+            "bal_precision": 0.9720427094033872,
+            "errors": 94,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9528384279475982,
+                "precision": 0.9873303167420815,
+                "n": 1145
+              },
+              "bc04": {
+                "recall": 0.9643874643874644,
+                "precision": 0.9741007194244604,
+                "n": 702
+              },
+              "bc05": {
+                "recall": 0.9367541766109785,
+                "precision": 0.9526699029126213,
+                "n": 838
+              },
+              "bc07": {
+                "recall": 0.9240641711229947,
+                "precision": 0.9740698985343855,
+                "n": 935
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9255718048733418,
+            "bal_precision": 0.9720573908793118,
+            "errors": 92,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9310043668122271,
+                "precision": 0.987037037037037,
+                "n": 1145
+              },
+              "bc04": {
+                "recall": 0.9515669515669516,
+                "precision": 0.9737609329446064,
+                "n": 702
+              },
+              "bc05": {
+                "recall": 0.9116945107398569,
+                "precision": 0.9538077403245943,
+                "n": 838
+              },
+              "bc07": {
+                "recall": 0.9080213903743316,
+                "precision": 0.9736238532110092,
+                "n": 935
+              }
+            }
+          }
+        }
+      },
+      "20260227_1101_P2S-01618-B_PBC97167_b7732530": {
+        "n": 3552,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.957967244219002,
+            "bal_precision": 0.9550170535030762,
+            "errors": 156,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9741532976827094,
+                "precision": 0.9672566371681416,
+                "n": 1122
+              },
+              "bc04": {
+                "recall": 0.9958275382475661,
+                "precision": 0.9768076398362893,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9603174603174603,
+                "precision": 0.9075,
+                "n": 756
+              },
+              "bc07": {
+                "recall": 0.9015706806282723,
+                "precision": 0.968503937007874,
+                "n": 955
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.948334586690919,
+            "bal_precision": 0.9551534587553182,
+            "errors": 154,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9625668449197861,
+                "precision": 0.9668755595344674,
+                "n": 1122
+              },
+              "bc04": {
+                "recall": 0.9847009735744089,
+                "precision": 0.976551724137931,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9497354497354498,
+                "precision": 0.9088607594936708,
+                "n": 756
+              },
+              "bc07": {
+                "recall": 0.8963350785340314,
+                "precision": 0.9683257918552036,
+                "n": 955
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.930271965325072,
+            "bal_precision": 0.9561892207992033,
+            "errors": 148,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9420677361853832,
+                "precision": 0.9670631290027447,
+                "n": 1122
+              },
+              "bc04": {
+                "recall": 0.96105702364395,
+                "precision": 0.9773691654879774,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9404761904761905,
+                "precision": 0.9115384615384615,
+                "n": 756
+              },
+              "bc07": {
+                "recall": 0.8774869109947644,
+                "precision": 0.96878612716763,
+                "n": 955
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.910370375182759,
+            "bal_precision": 0.9551439422748136,
+            "errors": 148,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9197860962566845,
+                "precision": 0.9662921348314607,
+                "n": 1122
+              },
+              "bc04": {
+                "recall": 0.9485396383866481,
+                "precision": 0.9770773638968482,
+                "n": 719
+              },
+              "bc05": {
+                "recall": 0.9113756613756614,
+                "precision": 0.9089709762532981,
+                "n": 756
+              },
+              "bc07": {
+                "recall": 0.8617801047120419,
+                "precision": 0.9682352941176471,
+                "n": 955
+              }
+            }
+          }
+        }
+      },
+      "20260306_1330_P2S-01618-A_PBG58661_49dc1ba9": {
+        "n": 3588,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9746197362845873,
+            "bal_precision": 0.9737390567016592,
+            "errors": 92,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9801097393689986,
+                "precision": 0.9787671232876712,
+                "n": 1458
+              },
+              "bc04": {
+                "recall": 0.9990079365079365,
+                "precision": 0.9517958412098299,
+                "n": 1008
+              },
+              "bc05": {
+                "recall": 0.9447415329768271,
+                "precision": 0.9906542056074766,
+                "n": 1122
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9736276727925239,
+            "bal_precision": 0.983936268144436,
+            "errors": 59,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9801097393689986,
+                "precision": 0.9787671232876712,
+                "n": 1458
+              },
+              "bc04": {
+                "recall": 0.996031746031746,
+                "precision": 0.9823874755381604,
+                "n": 1008
+              },
+              "bc05": {
+                "recall": 0.9447415329768271,
+                "precision": 0.9906542056074766,
+                "n": 1122
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9563928701546712,
+            "bal_precision": 0.9851691307540144,
+            "errors": 54,
+            "per_code": {
+              "bc03": {
+                "recall": 0.953360768175583,
+                "precision": 0.9788732394366197,
+                "n": 1458
+              },
+              "bc04": {
+                "recall": 0.996031746031746,
+                "precision": 0.985279685966634,
+                "n": 1008
+              },
+              "bc05": {
+                "recall": 0.9197860962566845,
+                "precision": 0.9913544668587896,
+                "n": 1122
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9382435727751632,
+            "bal_precision": 0.9851065343635116,
+            "errors": 53,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9238683127572016,
+                "precision": 0.9789244186046512,
+                "n": 1458
+              },
+              "bc04": {
+                "recall": 0.996031746031746,
+                "precision": 0.985279685966634,
+                "n": 1008
+              },
+              "bc05": {
+                "recall": 0.8948306595365418,
+                "precision": 0.9911154985192497,
+                "n": 1122
+              }
+            }
+          }
+        }
+      },
+      "20260306_1330_P2S-01618-B_PBG58748_01587b74": {
+        "n": 3499,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9333665097458201,
+            "bal_precision": 0.9187266829715582,
+            "errors": 273,
+            "per_code": {
+              "bc03": {
+                "recall": 0.852027027027027,
+                "precision": 0.986697965571205,
+                "n": 1480
+              },
+              "bc04": {
+                "recall": 0.9969230769230769,
+                "precision": 0.8748874887488749,
+                "n": 975
+              },
+              "bc05": {
+                "recall": 0.9511494252873564,
+                "precision": 0.8945945945945946,
+                "n": 1044
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.931315227694538,
+            "bal_precision": 0.9263540256314746,
+            "errors": 244,
+            "per_code": {
+              "bc03": {
+                "recall": 0.852027027027027,
+                "precision": 0.986697965571205,
+                "n": 1480
+              },
+              "bc04": {
+                "recall": 0.9907692307692307,
+                "precision": 0.8977695167286245,
+                "n": 975
+              },
+              "bc05": {
+                "recall": 0.9511494252873564,
+                "precision": 0.8945945945945946,
+                "n": 1044
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9259706125223367,
+            "bal_precision": 0.9410518750176783,
+            "errors": 192,
+            "per_code": {
+              "bc03": {
+                "recall": 0.8486486486486486,
+                "precision": 0.9866457187745483,
+                "n": 1480
+              },
+              "bc04": {
+                "recall": 0.9876923076923076,
+                "precision": 0.9404296875,
+                "n": 975
+              },
+              "bc05": {
+                "recall": 0.9415708812260536,
+                "precision": 0.8960802187784868,
+                "n": 1044
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9081527947045188,
+            "bal_precision": 0.9407993523717088,
+            "errors": 189,
+            "per_code": {
+              "bc03": {
+                "recall": 0.822972972972973,
+                "precision": 0.9870340356564019,
+                "n": 1480
+              },
+              "bc04": {
+                "recall": 0.9876923076923076,
+                "precision": 0.9404296875,
+                "n": 975
+              },
+              "bc05": {
+                "recall": 0.9137931034482759,
+                "precision": 0.8949343339587242,
+                "n": 1044
+              }
+            }
+          }
+        }
+      },
+      "20260403_1156_P2S-01618-A_PBG58575_afb39f67": {
+        "n": 3618,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9240758496184006,
+            "bal_precision": 0.9161113658904588,
+            "errors": 313,
+            "per_code": {
+              "bc03": {
+                "recall": 0.8097385031559964,
+                "precision": 0.9782135076252724,
+                "n": 1109
+              },
+              "bc04": {
+                "recall": 0.9858557284299858,
+                "precision": 0.9470108695652174,
+                "n": 707
+              },
+              "bc05": {
+                "recall": 0.9641532756489494,
+                "precision": 0.8082901554404145,
+                "n": 809
+              },
+              "bc07": {
+                "recall": 0.9365558912386707,
+                "precision": 0.9309309309309309,
+                "n": 993
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9140864945783602,
+            "bal_precision": 0.9158236929579903,
+            "errors": 311,
+            "per_code": {
+              "bc03": {
+                "recall": 0.8034265103697025,
+                "precision": 0.9780461031833151,
+                "n": 1109
+              },
+              "bc04": {
+                "recall": 0.9717114568599717,
+                "precision": 0.9462809917355371,
+                "n": 707
+              },
+              "bc05": {
+                "recall": 0.9567367119901112,
+                "precision": 0.8079331941544885,
+                "n": 809
+              },
+              "bc07": {
+                "recall": 0.9244712990936556,
+                "precision": 0.9310344827586207,
+                "n": 993
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.8956467768672894,
+            "bal_precision": 0.9155174636762471,
+            "errors": 306,
+            "per_code": {
+              "bc03": {
+                "recall": 0.7835888187556357,
+                "precision": 0.9775028121484814,
+                "n": 1109
+              },
+              "bc04": {
+                "recall": 0.9561527581329562,
+                "precision": 0.9467787114845938,
+                "n": 707
+              },
+              "bc05": {
+                "recall": 0.934487021013597,
+                "precision": 0.8059701492537313,
+                "n": 809
+              },
+              "bc07": {
+                "recall": 0.9083585095669687,
+                "precision": 0.9318181818181818,
+                "n": 993
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.8764507938165269,
+            "bal_precision": 0.9145024902649894,
+            "errors": 304,
+            "per_code": {
+              "bc03": {
+                "recall": 0.7646528403967539,
+                "precision": 0.9780853517877739,
+                "n": 1109
+              },
+              "bc04": {
+                "recall": 0.9377652050919377,
+                "precision": 0.9457917261055635,
+                "n": 707
+              },
+              "bc05": {
+                "recall": 0.9171817058096415,
+                "precision": 0.8039003250270856,
+                "n": 809
+              },
+              "bc07": {
+                "recall": 0.8862034239677744,
+                "precision": 0.9302325581395349,
+                "n": 993
+              }
+            }
+          }
+        }
+      },
+      "20260403_1608_P2S-01617-A_PBC99949_8cdcaeb0": {
+        "n": 3533,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9546634840918939,
+            "bal_precision": 0.9587520810407841,
+            "errors": 156,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9602272727272727,
+                "precision": 0.975,
+                "n": 1056
+              },
+              "bc04": {
+                "recall": 0.9882869692532943,
+                "precision": 0.9726224783861671,
+                "n": 683
+              },
+              "bc05": {
+                "recall": 0.8860759493670886,
+                "precision": 0.970873786407767,
+                "n": 790
+              },
+              "bc07": {
+                "recall": 0.9840637450199203,
+                "precision": 0.9165120593692022,
+                "n": 1004
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9444631449793064,
+            "bal_precision": 0.9583247869094549,
+            "errors": 156,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9507575757575758,
+                "precision": 0.974757281553398,
+                "n": 1056
+              },
+              "bc04": {
+                "recall": 0.9780380673499268,
+                "precision": 0.9723435225618632,
+                "n": 683
+              },
+              "bc05": {
+                "recall": 0.8759493670886076,
+                "precision": 0.97054698457223,
+                "n": 790
+              },
+              "bc07": {
+                "recall": 0.9731075697211156,
+                "precision": 0.915651358950328,
+                "n": 1004
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.925326926431754,
+            "bal_precision": 0.9581952045532914,
+            "errors": 153,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9327651515151515,
+                "precision": 0.9742828882294757,
+                "n": 1056
+              },
+              "bc04": {
+                "recall": 0.9604685212298683,
+                "precision": 0.9718518518518519,
+                "n": 683
+              },
+              "bc05": {
+                "recall": 0.8518987341772152,
+                "precision": 0.9697406340057637,
+                "n": 790
+              },
+              "bc07": {
+                "recall": 0.9561752988047809,
+                "precision": 0.9169054441260746,
+                "n": 1004
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9064525176808643,
+            "bal_precision": 0.9579852145067521,
+            "errors": 151,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9043560606060606,
+                "precision": 0.9734964322120285,
+                "n": 1056
+              },
+              "bc04": {
+                "recall": 0.9414348462664714,
+                "precision": 0.9712990936555891,
+                "n": 683
+              },
+              "bc05": {
+                "recall": 0.8417721518987342,
+                "precision": 0.9708029197080292,
+                "n": 790
+              },
+              "bc07": {
+                "recall": 0.9382470119521913,
+                "precision": 0.9163424124513618,
+                "n": 1004
+              }
+            }
+          }
+        }
+      },
+      "20260529_1429_P2S-01618-A_PAY37821_a1cde53f": {
+        "n": 3570,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9685578934880789,
+            "bal_precision": 0.967421101530474,
+            "errors": 118,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9706691109074244,
+                "precision": 0.9724517906336089,
+                "n": 1091
+              },
+              "bc04": {
+                "recall": 0.9955290611028316,
+                "precision": 0.9837997054491899,
+                "n": 671
+              },
+              "bc05": {
+                "recall": 0.9532595325953259,
+                "precision": 0.950920245398773,
+                "n": 813
+              },
+              "bc07": {
+                "recall": 0.9547738693467337,
+                "precision": 0.9625126646403243,
+                "n": 995
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9604703183765487,
+            "bal_precision": 0.9686333202511014,
+            "errors": 112,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9624197983501375,
+                "precision": 0.9749303621169917,
+                "n": 1091
+              },
+              "bc04": {
+                "recall": 0.992548435171386,
+                "precision": 0.983751846381093,
+                "n": 671
+              },
+              "bc05": {
+                "recall": 0.942189421894219,
+                "precision": 0.9527363184079602,
+                "n": 813
+              },
+              "bc07": {
+                "recall": 0.9447236180904522,
+                "precision": 0.9631147540983607,
+                "n": 995
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9436072934175479,
+            "bal_precision": 0.9710894588768854,
+            "errors": 101,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9431714023831348,
+                "precision": 0.9790675547098002,
+                "n": 1091
+              },
+              "bc04": {
+                "recall": 0.977645305514158,
+                "precision": 0.9864661654135338,
+                "n": 671
+              },
+              "bc05": {
+                "recall": 0.9249692496924969,
+                "precision": 0.9543147208121827,
+                "n": 813
+              },
+              "bc07": {
+                "recall": 0.928643216080402,
+                "precision": 0.964509394572025,
+                "n": 995
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9265551779117132,
+            "bal_precision": 0.9729037056064124,
+            "errors": 93,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9202566452795601,
+                "precision": 0.9795121951219512,
+                "n": 1091
+              },
+              "bc04": {
+                "recall": 0.96274217585693,
+                "precision": 0.9877675840978594,
+                "n": 671
+              },
+              "bc05": {
+                "recall": 0.9126691266912669,
+                "precision": 0.9574193548387097,
+                "n": 813
+              },
+              "bc07": {
+                "recall": 0.9105527638190954,
+                "precision": 0.9669156883671292,
+                "n": 995
+              }
+            }
+          }
+        }
+      },
+      "20260529_1431_P2S-01618-B_PBC97167_90150028": {
+        "n": 3484,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9496543310247398,
+            "bal_precision": 0.9490275527812767,
+            "errors": 178,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9660852713178295,
+                "precision": 0.9568138195777351,
+                "n": 1032
+              },
+              "bc04": {
+                "recall": 0.9904109589041096,
+                "precision": 0.977027027027027,
+                "n": 730
+              },
+              "bc05": {
+                "recall": 0.9216417910447762,
+                "precision": 0.9170792079207921,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.920479302832244,
+                "precision": 0.9451901565995525,
+                "n": 918
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9401998991838775,
+            "bal_precision": 0.9490935027772971,
+            "errors": 176,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9563953488372093,
+                "precision": 0.9563953488372093,
+                "n": 1032
+              },
+              "bc04": {
+                "recall": 0.9821917808219178,
+                "precision": 0.9768392370572208,
+                "n": 730
+              },
+              "bc05": {
+                "recall": 0.9104477611940298,
+                "precision": 0.918444165621079,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.9117647058823529,
+                "precision": 0.9446952595936795,
+                "n": 918
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9205530314491213,
+            "bal_precision": 0.9486038648016687,
+            "errors": 174,
+            "per_code": {
+              "bc03": {
+                "recall": 0.938953488372093,
+                "precision": 0.9556213017751479,
+                "n": 1032
+              },
+              "bc04": {
+                "recall": 0.9616438356164384,
+                "precision": 0.9763560500695411,
+                "n": 730
+              },
+              "bc05": {
+                "recall": 0.8905472636815921,
+                "precision": 0.9167733674775929,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.8910675381263616,
+                "precision": 0.945664739884393,
+                "n": 918
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9026254401871007,
+            "bal_precision": 0.949249964832047,
+            "errors": 168,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9137596899224806,
+                "precision": 0.955420466058764,
+                "n": 1032
+              },
+              "bc04": {
+                "recall": 0.947945205479452,
+                "precision": 0.9760225669957687,
+                "n": 730
+              },
+              "bc05": {
+                "recall": 0.8718905472636815,
+                "precision": 0.9151436031331592,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.8769063180827886,
+                "precision": 0.9504132231404959,
+                "n": 918
+              }
+            }
+          }
+        }
+      },
+      "20260707_1310_P2S-01618-A_PBK79935_068e953c": {
+        "n": 3530,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.971465919863018,
+            "bal_precision": 0.971466990204262,
+            "errors": 100,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9803921568627451,
+                "precision": 0.9767441860465116,
+                "n": 1071
+              },
+              "bc04": {
+                "recall": 0.9948051948051948,
+                "precision": 0.9896640826873385,
+                "n": 770
+              },
+              "bc05": {
+                "recall": 0.9521963824289406,
+                "precision": 0.9546632124352331,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.9584699453551913,
+                "precision": 0.9647964796479648,
+                "n": 915
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9612014342122436,
+            "bal_precision": 0.9711437316648893,
+            "errors": 100,
+            "per_code": {
+              "bc03": {
+                "recall": 0.969187675070028,
+                "precision": 0.9764816556914393,
+                "n": 1071
+              },
+              "bc04": {
+                "recall": 0.987012987012987,
+                "precision": 0.9895833333333334,
+                "n": 770
+              },
+              "bc05": {
+                "recall": 0.9366925064599483,
+                "precision": 0.9539473684210527,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.9519125683060109,
+                "precision": 0.964562569213732,
+                "n": 915
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9415668027859949,
+            "bal_precision": 0.9707845215886942,
+            "errors": 99,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9495798319327731,
+                "precision": 0.9769452449567724,
+                "n": 1071
+              },
+              "bc04": {
+                "recall": 0.9675324675324676,
+                "precision": 0.9893758300132802,
+                "n": 770
+              },
+              "bc05": {
+                "recall": 0.9147286821705426,
+                "precision": 0.9528936742934051,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.9344262295081968,
+                "precision": 0.963923337091319,
+                "n": 915
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9224509064476771,
+            "bal_precision": 0.9711651543558412,
+            "errors": 96,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9299719887955182,
+                "precision": 0.9764705882352941,
+                "n": 1071
+              },
+              "bc04": {
+                "recall": 0.9454545454545454,
+                "precision": 0.9891304347826086,
+                "n": 770
+              },
+              "bc05": {
+                "recall": 0.9018087855297158,
+                "precision": 0.9548563611491108,
+                "n": 774
+              },
+              "bc07": {
+                "recall": 0.912568306010929,
+                "precision": 0.964203233256351,
+                "n": 915
+              }
+            }
+          }
+        }
+      },
+      "20260707_1507_P2S-01618-B_PBE47053_c83e4091": {
+        "n": 3611,
+        "ref_min_pairwise": 8,
+        "median_edit_distance": 0.0,
+        "median_margin": 8.0,
+        "by_recovery": {
+          "1.00": {
+            "bal_recall": 0.9719804949823636,
+            "bal_precision": 0.9705618906671666,
+            "errors": 105,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9636015325670498,
+                "precision": 0.9901574803149606,
+                "n": 1044
+              },
+              "bc04": {
+                "recall": 0.9920106524633822,
+                "precision": 0.9725848563968669,
+                "n": 751
+              },
+              "bc05": {
+                "recall": 0.9639303482587065,
+                "precision": 0.9615384615384616,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.9683794466403162,
+                "precision": 0.9579667644183774,
+                "n": 1012
+              }
+            }
+          },
+          "0.99": {
+            "bal_recall": 0.9615404327620388,
+            "bal_precision": 0.9702380991051657,
+            "errors": 105,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9549808429118773,
+                "precision": 0.9900695134061569,
+                "n": 1044
+              },
+              "bc04": {
+                "recall": 0.9826897470039947,
+                "precision": 0.9723320158102767,
+                "n": 751
+              },
+              "bc05": {
+                "recall": 0.9490049751243781,
+                "precision": 0.9609571788413098,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.9594861660079052,
+                "precision": 0.9575936883629191,
+                "n": 1012
+              }
+            }
+          },
+          "0.97": {
+            "bal_recall": 0.9418555832082027,
+            "bal_precision": 0.9699037569354596,
+            "errors": 104,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9396551724137931,
+                "precision": 0.9899091826437941,
+                "n": 1044
+              },
+              "bc04": {
+                "recall": 0.9653794940079894,
+                "precision": 0.9718498659517426,
+                "n": 751
+              },
+              "bc05": {
+                "recall": 0.9266169154228856,
+                "precision": 0.9612903225806452,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.9357707509881423,
+                "precision": 0.9565656565656566,
+                "n": 1012
+              }
+            }
+          },
+          "0.95": {
+            "bal_recall": 0.9219081746328102,
+            "bal_precision": 0.9692788044227603,
+            "errors": 104,
+            "per_code": {
+              "bc03": {
+                "recall": 0.9204980842911877,
+                "precision": 0.9897013388259527,
+                "n": 1044
+              },
+              "bc04": {
+                "recall": 0.9414114513981359,
+                "precision": 0.9711538461538461,
+                "n": 751
+              },
+              "bc05": {
+                "recall": 0.9116915422885572,
+                "precision": 0.9606815203145478,
+                "n": 804
+              },
+              "bc07": {
+                "recall": 0.9140316205533597,
+                "precision": 0.9555785123966942,
+                "n": 1012
+              }
+            }
+          }
+        }
+      }
+    },
+    "note": "Reported per run, never pooled: for ldx the pilot aliases code identity with flowcell (issue #26), and for a panel whose codes are crossed with batch the run is the only honest holdout. Edit distances are against the reference the model EMITS (target[state_len:]); scoring against the full-length target inflates every distance and compresses the margin (issue #36).",
+    "window_rules": {
+      "declared": {
+        "margin": 200,
+        "clamp_max_shift": 0
+      },
+      "runtime_flags": {
+        "margin": "escpod demux --boundary-margin",
+        "clamp_max_shift": "escpod demux --clamp-max-shift"
+      },
+      "how_to_read": "each band is a range of the boundary detector's adapter_end; `consistent` is the share of calls agreeing with an independent per-read label, `absent` the share landing on codes the pool does not carry. The declared values are a judgement on this table: a band is worth decoding only if it stays close to the full-window band, and edit distance to the nearest reference cannot tell -- a window with no barcode still decodes to a perfect reference.",
+      "source": "barcode_crf_wdx4_rna004@v0.2.0 on PBE47053 (20260707 Mj IVC, a training run) file _11, every read, decoded with --boundary-margin 0 --clamp-max-shift 1000; label = WarpDemuX WDX4 v1.0 call on the same read (barcode_mapping.tsv.gz, ungated), escapepod-rs#323",
+      "label": {
+        "file": "/beevol/home/jhessel/devel/rnabioco/2026-aars-in-vitro/results_suppressor/demux/read_ids/20260707_1507_P2S-01618-B_PBE47053_c83e4091/barcode_mapping.tsv.gz",
+        "column": "predicted_barcode",
+        "design": "identity after normalisation",
+        "coverage": 0.7423
+      },
+      "pool": [
+        "bc03",
+        "bc04",
+        "bc05",
+        "bc07"
+      ],
+      "chunk": 2000,
+      "margin": 200,
+      "n": 298836,
+      "share_is_of": "the calls",
+      "population_n": null,
+      "reads_with_adapter_end": 298836,
+      "reads_in_calls": 298836,
+      "full_window_consistent": 0.9733,
+      "bands": [
+        {
+          "band": "full",
+          "adapter_end": [
+            2200,
+            null
+          ],
+          "rule": "none",
+          "n": 284923,
+          "share": 0.95344,
+          "called": 1.0,
+          "labelled": 0.7711,
+          "consistent": 0.9733,
+          "absent": 0.0,
+          "crf_margin_median": 6.654,
+          "gates": {
+            "0.5": {
+              "kept": 0.9682,
+              "consistent": 0.9802
+            },
+            "1": {
+              "kept": 0.9413,
+              "consistent": 0.9845
+            },
+            "2": {
+              "kept": 0.8873,
+              "consistent": 0.991
+            }
+          },
+          "top_calls": [
+            "bc03",
+            "bc07",
+            "bc04"
+          ]
+        },
+        {
+          "band": "margin",
+          "adapter_end": [
+            2000,
+            2200
+          ],
+          "rule": "margin < 200",
+          "n": 4155,
+          "share": 0.0139,
+          "called": 1.0,
+          "labelled": 0.3165,
+          "consistent": 0.8205,
+          "absent": 0.0,
+          "crf_margin_median": 1.559,
+          "gates": {
+            "0.5": {
+              "kept": 0.8014,
+              "consistent": 0.88
+            },
+            "1": {
+              "kept": 0.6479,
+              "consistent": 0.9159
+            },
+            "2": {
+              "kept": 0.3923,
+              "consistent": 0.9698
+            }
+          },
+          "top_calls": [
+            "bc07",
+            "bc03",
+            "bc04"
+          ]
+        },
+        {
+          "band": "clamp_300",
+          "adapter_end": [
+            1700,
+            2000
+          ],
+          "rule": "clamp_max_shift >= 300",
+          "n": 3971,
+          "share": 0.01329,
+          "called": 1.0,
+          "labelled": 0.0589,
+          "consistent": 0.3419,
+          "absent": 0.0,
+          "crf_margin_median": 1.111,
+          "gates": {
+            "0.5": {
+              "kept": 0.7436,
+              "consistent": 0.443
+            },
+            "1": {
+              "kept": 0.5359,
+              "consistent": 0.5393
+            },
+            "2": {
+              "kept": 0.2339,
+              "consistent": 0.6757
+            }
+          },
+          "top_calls": [
+            "bc07",
+            "bc04",
+            "bc05"
+          ]
+        },
+        {
+          "band": "clamp_500",
+          "adapter_end": [
+            1500,
+            1700
+          ],
+          "rule": "clamp_max_shift >= 500",
+          "n": 2497,
+          "share": 0.00836,
+          "called": 1.0,
+          "labelled": 0.0905,
+          "consistent": 0.208,
+          "absent": 0.0,
+          "crf_margin_median": 1.023,
+          "gates": {
+            "0.5": {
+              "kept": 0.7129,
+              "consistent": 0.254
+            },
+            "1": {
+              "kept": 0.511,
+              "consistent": 0.3051
+            },
+            "2": {
+              "kept": 0.1862,
+              "consistent": 0.2143
+            }
+          },
+          "top_calls": [
+            "bc07",
+            "bc04",
+            "bc05"
+          ]
+        },
+        {
+          "band": "clamp_1000",
+          "adapter_end": [
+            1000,
+            1500
+          ],
+          "rule": "clamp_max_shift >= 1000",
+          "n": 3087,
+          "share": 0.01033,
+          "called": 1.0,
+          "labelled": 0.1131,
+          "consistent": 0.2521,
+          "absent": 0.0,
+          "crf_margin_median": 1.077,
+          "gates": {
+            "0.5": {
+              "kept": 0.7259,
+              "consistent": 0.3353
+            },
+            "1": {
+              "kept": 0.5241,
+              "consistent": 0.4
+            },
+            "2": {
+              "kept": 0.1999,
+              "consistent": 0.4054
+            }
+          },
+          "top_calls": [
+            "bc07",
+            "bc04",
+            "bc05"
+          ]
+        },
+        {
+          "band": "clamp_over_1000",
+          "adapter_end": [
+            1,
+            1000
+          ],
+          "rule": "clamp_max_shift > 1000",
+          "n": 0,
+          "share": 0.0,
+          "called": null,
+          "labelled": null,
+          "consistent": null,
+          "absent": null,
+          "crf_margin_median": null,
+          "gates": {
+            "0.5": {
+              "kept": null,
+              "consistent": null
+            },
+            "1": {
+              "kept": null,
+              "consistent": null
+            },
+            "2": {
+              "kept": null,
+              "consistent": null
+            }
+          },
+          "top_calls": []
+        },
+        {
+          "band": "no_adapter",
+          "adapter_end": [
+            0,
+            1
+          ],
+          "rule": "never decoded (detector sentinel)",
+          "n": 203,
+          "share": 0.00068,
+          "called": 0.0,
+          "labelled": null,
+          "consistent": null,
+          "absent": null,
+          "crf_margin_median": null,
+          "gates": {
+            "0.5": {
+              "kept": 0.0,
+              "consistent": null
+            },
+            "1": {
+              "kept": 0.0,
+              "consistent": null
+            },
+            "2": {
+              "kept": 0.0,
+              "consistent": null
+            }
+          },
+          "top_calls": []
+        }
+      ]
+    }
+  }
+}
