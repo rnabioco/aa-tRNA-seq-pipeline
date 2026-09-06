@@ -154,7 +154,6 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=
     so the same row used to mean "reads the model called" for free.
     """
     n_uniq_reads = 0
-    seen_qnames = set()
 
     stats = ReadStats()
 
@@ -163,20 +162,34 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=
     for read in fo:
         if require_tag is not None and not read.has_tag(require_tag):
             continue
-        if flag is not None:
-            if read.flag & flag != flag:
-                continue
-            if read.is_secondary or read.is_supplementary:
-                continue
 
-        # tracking unique reads will use alot a memory
-        # consider using a bloom filter if this becomes an issue
-        qname = read.query_name
-        if qname in seen_qnames:
+        # Counting each read once means counting its PRIMARY record, and a read
+        # has exactly one. This used to be enforced by holding every query name
+        # in a set, which counted whichever record came FIRST -- so on a BAM
+        # that carried secondary or supplementary alignments, the record a read
+        # was measured by depended on file order. Skipping them outright is both
+        # stricter and cheaper: the set cost a measured 122 bytes per read, so
+        # 5.7 MB on a 46.6k-read sample but ~1.2 GB on a 9.6M-read whole-run
+        # BAM, against a default of 8 GB for the rule.
+        #
+        # Nothing changes for BAMs this pipeline writes today: bwa_align keeps
+        # primary forward alignments only (-F 2324), the charging BAM inherits
+        # that, and a dorado uBAM has one record per read. Measured on a v0.7.2
+        # flowcell sample: 46,577 records, 46,577 distinct query names, no
+        # secondary and no supplementary.
+        #
+        # Trees written BEFORE that filter existed do carry supplementary
+        # records, so re-running this rule over one moves its `aligned` row --
+        # the read count is unchanged, but length, quality and MAPQ are now
+        # measured on the primary alignment rather than on whichever record the
+        # file listed first.
+        if read.is_secondary or read.is_supplementary:
+            continue
+
+        if flag is not None and read.flag & flag != flag:
             continue
 
         n_uniq_reads += 1
-        seen_qnames.add(qname)
 
         qlen = read.query_length
         mean_qual = round(

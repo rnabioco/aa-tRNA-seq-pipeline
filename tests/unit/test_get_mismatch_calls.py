@@ -7,7 +7,7 @@ import pysam
 import pytest
 
 from conftest import create_bam_with_reads
-from get_mismatch_calls import load_sites, write_mismatch_calls
+from get_mismatch_calls import MATCH, load_sites, write_mismatch_calls
 
 
 @pytest.fixture
@@ -230,6 +230,42 @@ class TestWriteMismatchCalls:
         # tRNA position 1 is reference position 5, which is substituted.
         assert list(df["ref_position"]) == [1]
         assert list(df["call_code"]) == ["X"]
+
+    def test_each_reference_is_scored_against_its_own_sequence(self, temp_dir):
+        """
+        Two reads, each matching its own reference perfectly: no mismatches.
+
+        The reference is read once per contig and indexed by position rather
+        than fetched a base at a time inside the CIGAR loop. That hoist is only
+        safe if the sequence is re-read for every contig; getting it wrong
+        scores all of them against whichever sequence was loaded first, and is
+        invisible until two references differ at the same coordinate.
+        """
+        fa_path = temp_dir / "two.fa"
+        fa_path.write_text(">ref1\nACGTACGT\n>ref2\nTTTTTTTT\n")
+        pysam.faidx(str(fa_path))
+
+        bam_path = temp_dir / "two.bam"
+        out_path = temp_dir / "calls.tsv.gz"
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "ref1", "LN": 8}, {"SN": "ref2", "LN": 8}],
+        }
+        reads = [
+            {"name": "r1", "seq": "ACGTACGT", "flag": 0, "ref_id": 0},
+            {"name": "r2", "seq": "TTTTTTTT", "flag": 0, "ref_id": 1},
+        ]
+        create_bam_with_reads(bam_path, reads, header=header)
+
+        write_mismatch_calls(str(bam_path), str(fa_path), str(out_path))
+        assert read_calls(out_path).empty
+
+        write_mismatch_calls(
+            str(bam_path), str(fa_path), str(out_path), include_matches=True
+        )
+        df = read_calls(out_path)
+        assert set(df["chrom"]) == {"ref1", "ref2"}
+        assert set(df["call_code"]) == {MATCH}
 
     def test_output_schema_matches_modkit(self, temp_dir, simple_fasta):
         """Downstream code reads modkit and mismatch calls interchangeably."""

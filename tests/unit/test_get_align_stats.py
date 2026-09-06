@@ -137,3 +137,34 @@ class TestGetReadStats:
         create_bam_with_reads(bam_path, reads)
         result = get_read_stats(str(bam_path))
         assert result["n_reads"] == 1
+
+    def test_supplementary_records_are_not_counted(self, temp_dir):
+        """A chimeric read gets a supplementary record; it is still one read."""
+        bam_path = temp_dir / "test.bam"
+        reads = [
+            {"name": "r1", "seq": "ACGTACGT", "flag": 0, "mapq": 60},
+            {"name": "r1", "seq": "ACGT", "flag": 2048, "mapq": 60},
+        ]
+        create_bam_with_reads(bam_path, reads)
+        result = get_read_stats(str(bam_path))
+        assert result["n_reads"] == 1
+
+    def test_the_primary_record_supplies_the_stats(self, temp_dir):
+        """
+        File order must not decide which record a read is measured by.
+
+        Counting the first record per query name -- which is what holding every
+        seen name in a set amounted to -- measures whichever alignment the file
+        happens to list first. Here that is a four-base supplementary at MAPQ
+        10, while the read itself is eight bases at MAPQ 60.
+        """
+        bam_path = temp_dir / "test.bam"
+        reads = [
+            {"name": "r1", "seq": "ACGT", "flag": 2048, "mapq": 10},
+            {"name": "r1", "seq": "ACGTACGT", "flag": 0, "mapq": 60},
+        ]
+        create_bam_with_reads(bam_path, reads)
+        result = get_read_stats(str(bam_path))
+        assert result["n_reads"] == 1
+        assert result["mean_length"] == 8
+        assert result["mean_MAPQ"] == 60

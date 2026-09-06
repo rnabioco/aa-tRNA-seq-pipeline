@@ -108,13 +108,19 @@ def load_sites(path):
     return sites
 
 
-def call_read_errors(read, faidx, ref, trna_start, trna_end):
+def call_read_errors(read, ref_seq, trna_start, trna_end):
     """
     Walk one read's CIGAR and return {reference position: call code}.
 
     Positions are 0-based reference coordinates and are restricted to
     [trna_start, trna_end). Only positions the alignment actually spans are
     included, so a caller can distinguish "no error" from "not covered".
+
+    `ref_seq` is the whole reference sequence, upper-cased, indexed by those
+    same 0-based positions. It is passed in rather than fetched here because
+    this runs once per read: a per-base faidx.fetch() inside the CIGAR loop
+    costs one pysam call and one string allocation for every aligned base in
+    the sample, which is the same defect fixed in get_bcerror_freqs.py.
     """
     calls = {}
 
@@ -136,7 +142,7 @@ def call_read_errors(read, faidx, ref, trna_start, trna_end):
                 if not trna_start <= pos < trna_end:
                     continue
 
-                ref_base = faidx.fetch(ref, pos, pos + 1).upper()
+                ref_base = ref_seq[pos]
                 read_base = read_seq[read_pos + i].upper()
 
                 if (read_base != ref_base or cigar_op == 8) and ins_pos != pos:
@@ -200,7 +206,8 @@ def write_mismatch_calls(
                 if not ref_sites:
                     continue
 
-            ref_len = faidx.get_reference_length(ref)
+            ref_seq = faidx.fetch(ref).upper()
+            ref_len = len(ref_seq)
             trna_start = trim_5p
             trna_end = ref_len - trim_3p
 
@@ -221,7 +228,7 @@ def write_mismatch_calls(
                     else:
                         charged = tag_value >= ml_threshold
 
-                calls = call_read_errors(read, faidx, ref, trna_start, trna_end)
+                calls = call_read_errors(read, ref_seq, trna_start, trna_end)
 
                 for pos in sorted(calls):
                     # Report in tRNA-only coordinates (1-indexed)

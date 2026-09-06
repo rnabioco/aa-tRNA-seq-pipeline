@@ -43,6 +43,11 @@ def calculate_error_frequencies(bam_file, fasta_file, trim_5p=0, trim_3p=0):
 
     for ref in faidx.references:
         ref_len = faidx.get_reference_length(ref)
+        # Fetch the whole reference once. This used to be a per-base
+        # faidx.fetch() inside the CIGAR loop, i.e. one pysam call and one
+        # str allocation for every aligned base in the sample, which made this
+        # the slowest script in the QC fan by a wide margin.
+        ref_seq = faidx.fetch(ref).upper()
         coverage = [0] * ref_len
         base_counts = {
             "A": [0] * ref_len,
@@ -74,9 +79,7 @@ def calculate_error_frequencies(bam_file, fasta_file, trim_5p=0, trim_3p=0):
                 if cigar_op in [0, 7, 8]:  # Matches and mismatches
                     for i in range(cigar_len):
                         coverage[ref_pos + i] += 1
-                        ref_base = faidx.fetch(
-                            ref, ref_pos + i, ref_pos + i + 1
-                        ).upper()
+                        ref_base = ref_seq[ref_pos + i]
                         read_base = read_seq[read_pos + i].upper()
                         qual = read_qual[read_pos + i]
 

@@ -4,6 +4,43 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`get_bcerror_freqs.py` reads each reference sequence once** instead of
+  calling `faidx.fetch()` for every aligned base. The per-base fetch was inside
+  the CIGAR loop, so it ran once per base of every read in the sample. On a real
+  flow-cell sample (46,577 reads, the 2026-09-05 GlnRS pilot) this takes the
+  rule from 12.4 s to 3.7 s, a 3.3x speedup, with byte-identical output. The
+  committed fixtures are too small to show it (1.3-1.6x at 200-400 reads);
+  per-reference setup dominates there.
+
+- **`get_mismatch_calls.py` reads each reference sequence once**, the same
+  per-base `faidx.fetch()` in the same shape, in the script that is the
+  per-read counterpart of `get_bcerror_freqs.py`. On the same flow-cell sample:
+  11.5 s to 6.5 s, 1.8x, output identical. These two were the only per-base
+  reference fetches left in `workflow/scripts/`.
+
+- **`get_align_stats.py` no longer holds every query name in a set.** Reads are
+  deduplicated by skipping secondary and supplementary records, which is what
+  "count each read once" means, rather than by remembering names.
+
+  This is a correctness fix as much as a memory one. The set counted whichever
+  record for a query name came FIRST, so on a BAM carrying supplementary
+  alignments the read was measured by whichever alignment the file happened to
+  list first -- its length, base quality and MAPQ could all come from a partial
+  supplementary record. It now always measures the primary.
+
+  Read counts do not move for BAMs this pipeline writes today: `bwa_align` keeps
+  primary forward alignments only (`-F 2324`), and a v0.7.2 flow-cell sample
+  measures 46,577 records against 46,577 distinct query names, with no secondary
+  and no supplementary records. **Re-running `align_stats` over a tree written
+  before that filter existed will move its `aligned` row** -- same read count,
+  but length, quality and MAPQ now taken from the primary alignment.
+
+  The set cost a measured 122 bytes per read: 5.7 MB on a 46.6k-read sample, but
+  ~1.2 GB on a 9.6M-read whole-run BAM against the rule's 8 GB default.
+
+
 ## [v0.7.3] - 2026-09-06
 
 ### Added

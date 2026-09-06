@@ -17,6 +17,15 @@ def simple_fasta(temp_dir):
 
 
 @pytest.fixture
+def two_reference_fasta(temp_dir):
+    """Two references that differ at every coordinate."""
+    fa_path = temp_dir / "two.fa"
+    fa_path.write_text(">ref1\nACGTACGT\n>ref2\nTTTTTTTT\n")
+    pysam.faidx(str(fa_path))
+    return fa_path
+
+
+@pytest.fixture
 def adapted_fasta(temp_dir):
     """Create FASTA with adapter regions for trimming tests."""
     fa_path = temp_dir / "ref.fa"
@@ -125,6 +134,38 @@ class TestCalculateErrorFrequencies:
         assert len(df) == 8
         assert df["Position"].min() == 1
         assert df["Position"].max() == 8
+
+    def test_each_reference_is_scored_against_its_own_sequence(
+        self, temp_dir, two_reference_fasta
+    ):
+        """
+        Both reads match their own reference perfectly, so neither has a
+        mismatch.
+
+        The reference is read once per contig and then indexed by position,
+        rather than fetched a base at a time inside the CIGAR loop. Hoisting
+        that out of the loop is only safe if the sequence is re-read for every
+        contig; getting it wrong scores all of them against whichever sequence
+        was loaded first, and that is invisible until two references differ at
+        the same coordinate.
+        """
+        bam_path = temp_dir / "two.bam"
+        header = {
+            "HD": {"VN": "1.0"},
+            "SQ": [{"SN": "ref1", "LN": 8}, {"SN": "ref2", "LN": 8}],
+        }
+        reads = [
+            {"name": "r1", "seq": "ACGTACGT", "flag": 0, "ref_id": 0},
+            {"name": "r2", "seq": "TTTTTTTT", "flag": 0, "ref_id": 1},
+        ]
+        create_bam_with_reads(bam_path, reads, header=header)
+
+        df = calculate_error_frequencies(str(bam_path), str(two_reference_fasta))
+
+        for ref in ("ref1", "ref2"):
+            rows = df[df["Reference"] == ref]
+            assert rows["Bases_Mapped"].sum() == 8, ref
+            assert rows["MismatchFreq"].sum() == 0, ref
 
     def test_nucleotide_freqs_sum(self, temp_dir, simple_fasta):
         """Nucleotide frequencies should sum to approximately 1.0 where bases are mapped."""
