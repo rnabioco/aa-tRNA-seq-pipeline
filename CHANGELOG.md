@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.7.2] - 2026-09-05
+
 ### Fixed
 
 - **One LDX code fanned across several EDX adapters no longer dies mid-run.**
