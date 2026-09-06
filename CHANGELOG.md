@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.7.3] - 2026-09-06
+
 ### Added
 
 - **`charging.orientation`**, forcing the move-table frame for samples too thin
