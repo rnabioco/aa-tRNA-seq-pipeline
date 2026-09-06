@@ -102,9 +102,34 @@ def get_sample_axis_codes(sample):
     return codes
 
 
+def get_sample_downstream_codes(sample):
+    """{axis: code} a sample carries that select_demux_reads.py does NOT select on.
+
+    Only `edx`, and only because it is not a signal axis: the 3' adapter is read
+    off the uBAM by detect_edx_adapters, long after the demux pass, so there is
+    no classifications CSV for it here.
+
+    It is kept OUT of get_sample_axis_codes() deliberately -- that function also
+    names which CSVs to read (get_sample_axis_csv_args), and an `edx` entry
+    there would look up a path that does not exist. It is passed to the script
+    instead as a `--downstream-axis`, where it counts towards sample uniqueness
+    and nothing else. Without it, samples that share an LDX code and differ only
+    by adapter are indistinguishable to that script's duplicate check and the
+    run dies after the demux pass has been paid for (#163).
+    """
+    if is_edx_enabled() and sample_has_edx(sample):
+        return {"edx": samples[sample]["edx"]}
+    return {}
+
+
+def get_downstream_axis_args():
+    """`--downstream-axis` flags for the axes resolved later in the pipeline."""
+    return "--downstream-axis edx" if is_edx_enabled() else ""
+
+
 def get_sample_axis_args(sample):
     """The `--sample` argument select_demux_reads.py takes for one sample."""
-    codes = get_sample_axis_codes(sample)
+    codes = {**get_sample_axis_codes(sample), **get_sample_downstream_codes(sample)}
     return f"{sample}:" + ",".join(f"{axis}={code}" for axis, code in codes.items())
 
 
@@ -890,11 +915,13 @@ rule ldx_run_read_ids:
             f"--sample {get_sample_axis_args(s)}"
             for s in get_samples_for_run(wildcards.run_id)
         ),
+        downstream=get_downstream_axis_args(),
     shell:
         """
         python {params.src}/select_demux_reads.py \
             {params.axes} \
             {params.gates} \
+            {params.downstream} \
             {params.samples} \
             --output {output.read_ids} \
             --summary {output.summary} \
@@ -1018,11 +1045,13 @@ rule extract_ldx_sample_reads:
         axes=get_sample_axis_csv_args,
         gates=get_axis_gate_args(),
         sample=lambda wildcards: get_sample_axis_args(wildcards.sample),
+        downstream=get_downstream_axis_args(),
     shell:
         """
         python {params.src}/select_demux_reads.py \
             {params.axes} \
             {params.gates} \
+            {params.downstream} \
             --sample {params.sample} \
             --parents {input.parents} \
             --output {output.read_ids} \

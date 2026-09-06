@@ -132,6 +132,20 @@ class TestRefusesOverlap:
         with pytest.raises(SystemExit, match="fdx"):
             check_barcode_tuples(samples, "samples.yml")
 
+    def test_bare_ldx_would_swallow_an_edx_sample(self):
+        """
+        The same swallow hazard on the EDX axis, which had no all-or-none rule
+        until #163. EDX filtering is applied per sample, so a sample named by
+        the LDX code alone is never filtered and takes the other's reads too.
+        Distinct tuples, so only the all-or-none rule catches it.
+        """
+        samples = {
+            "bare": sample("ldx01"),
+            "filtered": sample("ldx01", edx="edx01"),
+        }
+        with pytest.raises(SystemExit, match="edx"):
+            check_barcode_tuples(samples, "samples.yml")
+
 
 class TestAgreesWithRunConfig:
     """
@@ -148,6 +162,9 @@ class TestAgreesWithRunConfig:
             [{"ldx": "ldx01", "fdx": "fdx01"}, {"ldx": "ldx01", "fdx": "fdx02"}],
             [{"ldx": "ldx01", "edx": "edx01"}, {"ldx": "ldx01", "edx": "edx01"}],
             [{"ldx": "ldx01"}, {"ldx": "ldx01"}],
+            # all-or-none, both axes (#163 for edx)
+            [{"ldx": "ldx01"}, {"ldx": "ldx01", "edx": "edx01"}],
+            [{"ldx": "ldx01"}, {"ldx": "ldx01", "fdx": "fdx01"}],
         ],
     )
     def test_same_verdict(self, codes):
@@ -169,6 +186,10 @@ class TestAgreesWithRunConfig:
             by_ldx.setdefault(c["ldx"], []).append((name, c))
         cfg_refused = False
         for _, group in by_ldx.items():
+            for axis in ("fdx", "edx"):
+                named = [n for n, c in group if axis in c]
+                if named and len(named) != len(group):
+                    cfg_refused = True
             tuples = [(c.get("fdx"), c.get("edx")) for _, c in group]
             if len(set(tuples)) != len(tuples):
                 cfg_refused = True

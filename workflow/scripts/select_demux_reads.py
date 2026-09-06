@@ -92,15 +92,26 @@ def parse_gates(items, axes):
     return gates
 
 
-def parse_samples(items, axes):
+def parse_samples(items, axes, downstream=()):
     """`NAME:axis=code,axis=code` items -> {name: {axis: code}}.
 
     Every sample must name the primary (first) axis: that is the scan the whole
     selection is bounded by, and a sample without it would have to be matched
     against every read of the run.
+
+    `downstream` names axes that a sample may carry but that this script does
+    NOT select on -- currently `edx`, the 3' adapter, which is read off the uBAM
+    by detect_edx_adapters long after this runs and so has no classifications
+    CSV here. They exist for the uniqueness checks below: two samples on one LDX
+    code that differ only by EDX are a normal design (one LDX fanned across
+    several adapters), and without the EDX code in the tuple they are
+    indistinguishable here and get refused. See select_reads(), which must skip
+    them -- a downstream axis has no calls, so matching on it would exclude
+    every read.
     """
     axis_names = [name for name, _ in axes]
     primary = axis_names[0]
+    known = axis_names + list(downstream)
     samples = {}
     for item in items:
         name, sep, spec = item.partition(":")
@@ -115,9 +126,10 @@ def parse_samples(items, axes):
             axis, sep, code = pair.partition("=")
             if not sep or not axis or not code:
                 raise SelectionError(f"--sample {name!r}: bad axis=code {pair!r}")
-            if axis not in axis_names:
+            if axis not in known:
                 raise SelectionError(
-                    f"--sample {name!r} names axis {axis!r}, but no --axis {axis}=... was given"
+                    f"--sample {name!r} names axis {axis!r}, but no --axis {axis}=... "
+                    f"or --downstream-axis {axis} was given"
                 )
             if axis in codes:
                 raise SelectionError(f"--sample {name!r} names axis {axis!r} twice")
@@ -208,9 +220,18 @@ def read_calls(path, axis, wanted, gate=None, restrict=None):
     return calls
 
 
-def select_reads(axes, samples, gates=None):
-    """{sample: set(read_id)} for the reads every named axis agrees on."""
+def select_reads(axes, samples, gates=None, downstream=()):
+    """{sample: set(read_id)} for the reads every SELECTING axis agrees on.
+
+    Axes in `downstream` are skipped: they carry no calls here (no
+    classifications CSV -- `edx` is read off the uBAM later), so requiring a
+    read to match one would compare None against the code and assign nothing.
+    Two samples differing only by a downstream axis therefore receive the same
+    reads at this stage, which is correct -- extract_edx_read_ids separates them
+    afterwards by adapter.
+    """
     gates = gates or {}
+    downstream = set(downstream)
     primary, primary_path = axes[0]
     wanted_primary = {codes[primary] for codes in samples.values()}
     primary_calls = read_calls(
@@ -220,6 +241,8 @@ def select_reads(axes, samples, gates=None):
 
     secondary_calls = {}
     for axis, path in axes[1:]:
+        if axis in downstream:
+            continue
         wanted = {codes[axis] for codes in samples.values() if axis in codes}
         if not wanted:
             continue
@@ -237,7 +260,7 @@ def select_reads(axes, samples, gates=None):
             if all(
                 secondary_calls.get(axis, {}).get(read_id) == want
                 for axis, want in codes.items()
-                if axis != primary
+                if axis != primary and axis not in downstream
             ):
                 assigned[name].add(read_id)
     return assigned
@@ -288,6 +311,15 @@ def main(argv=None):
         help="A sample and the code it carries on each axis it names. Repeatable.",
     )
     parser.add_argument(
+        "--downstream-axis",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="An axis a sample may name that is NOT selected on here, because it is "
+        "resolved later in the pipeline (edx, the 3' adapter, is read off the uBAM). "
+        "It counts towards sample uniqueness and nothing else. Repeatable.",
+    )
+    parser.add_argument(
         "--parents",
         help="split_parents.tsv (child<TAB>parent): children inherit their parent's sample",
     )
@@ -302,8 +334,8 @@ def main(argv=None):
     try:
         axes = parse_axes(args.axis)
         gates = parse_gates(args.gate, axes)
-        samples = parse_samples(args.sample, axes)
-        assigned = select_reads(axes, samples, gates)
+        samples = parse_samples(args.sample, axes, args.downstream_axis)
+        assigned = select_reads(axes, samples, gates, args.downstream_axis)
     except SelectionError as exc:
         parser.error(str(exc))
 
