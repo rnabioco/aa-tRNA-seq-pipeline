@@ -14,6 +14,12 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   committed fixtures are too small to show it (1.3-1.6x at 200-400 reads);
   per-reference setup dominates there.
 
+- **`get_mismatch_calls.py` reads each reference sequence once**, the same
+  per-base `faidx.fetch()` in the same shape, in the script that is the
+  per-read counterpart of `get_bcerror_freqs.py`. On the same flow-cell sample:
+  11.5 s to 6.5 s, 1.8x, output identical. These two were the only per-base
+  reference fetches left in `workflow/scripts/`.
+
 - **`get_align_stats.py` no longer holds every query name in a set.** Reads are
   deduplicated by skipping secondary and supplementary records, which is what
   "count each read once" means, rather than by remembering names.
