@@ -123,6 +123,45 @@ class TestLocalOverlay:
         assert (demux / vdm.LOCAL_RECORD_NAME).is_file()
         assert vdm.verify(extra) is True
 
+    def test_recording_one_bundle_keeps_the_others(self, bundle):
+        """Recording by path MERGES; it must not drop the other bundles.
+
+        Replacing would fail every other local bundle closed the moment a
+        deployment recorded a new one by path — the same trap the
+        tracked/local split exists to prevent, through a different door.
+        """
+        demux = bundle.parent
+        other = demux / "barcode_crf_other_rna004@v1.0.0"
+        other.mkdir()
+        for name in ("metadata.json", "provenance.json"):
+            (other / name).write_text((bundle / name).read_text())
+        for name in ("barcode_crf_test_rna004.onnx", "adapter_rna004.onnx"):
+            (other / name).write_bytes((bundle / name).read_bytes())
+
+        vdm.record([str(bundle)], local=True)
+        vdm.record([str(other)], local=True)
+
+        assert vdm.verify(bundle) is True
+        assert vdm.verify(other) is True
+
+    def test_record_drops_entries_whose_bundle_is_gone(self, bundle, temp_dir):
+        """A manifest should describe what is on disk, not accumulate."""
+        import shutil
+
+        demux = bundle.parent
+        stale = demux / "barcode_crf_stale_rna004@v1.0.0"
+        stale.mkdir()
+        for name in ("metadata.json", "provenance.json"):
+            (stale / name).write_text((bundle / name).read_text())
+
+        vdm.record([str(bundle), str(stale)])
+        assert stale.name in (demux / vdm.RECORD_NAME).read_text()
+
+        shutil.rmtree(stale)
+        vdm.record([str(bundle)])
+        assert stale.name not in (demux / vdm.RECORD_NAME).read_text()
+        assert bundle.name in (demux / vdm.RECORD_NAME).read_text()
+
     def test_local_record_skips_bundles_already_tracked(self, bundle):
         demux = bundle.parent
         vdm.record([str(bundle)])
