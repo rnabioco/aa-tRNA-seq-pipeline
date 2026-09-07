@@ -1,0 +1,188 @@
+{
+  "id": "charging_tcn_sup6_rna004",
+  "version": "0.1.0",
+  "full_id": "charging_tcn_sup6_rna004@v0.1.0",
+  "kind": "charging",
+  "format": "onnx",
+  "chemistry": "rna004",
+  "created": "2026-09-07",
+  "file": "charging_tcn_sup6_rna004.onnx",
+  "sha256": "1e4d171f36392733dd6e0489fcd9c5b25f5cf4c1a76c6873d3785b107acfa13a",
+  "license": "CC-BY-4.0",
+  "source": {
+    "escapepod_models_commit": "e5f7a6b4031a5d35a19cb185018403200c018a76",
+    "escapepod_models_dirty": true,
+    "escapepod_rs_commit": null,
+    "escapepod_rs_version": "escpod 0.19.0+3695bf9",
+    "escapepod_rs_binary": "/beevol/home/jhessel/.local/escpod-gpu-0.19.0/bin/escpod",
+    "training_script": "snakemake workflow (config: charging_tcn_sup6_rna004)",
+    "trainable_source_pt": null,
+    "builders": {
+      "leech": {
+        "expected": "0.10.0",
+        "resolved": "0.10.0",
+        "environments": {
+          "boundary": {
+            "leech": "0.10.0",
+            "leech_core": "0.10.0"
+          },
+          "boundary-gpu": {
+            "leech": "0.10.0",
+            "leech_core": "0.10.0"
+          }
+        }
+      }
+    }
+  },
+  "training": {
+    "label_source": "Per-read LDX barcode call from barcode_crf_nbc16_rna004@v0.3.0, mapped to class by datasets.yaml:label_by_code -- ldx01-10 charged, ldx11-16 uncharged. The caller's error rate is the label-noise floor. The groups are enrichments, not purities: ldx06-10 is spiked and measures ~80% charged by an independent marker, and deacylation during prep converts charged -> uncharged. The operating point in the metrics does NOT rest on these labels; it is derived from ligation chemistry on the two pure blocks.",
+    "dataset": "20260814_charged_vs_uncharged: E. coli K-12 MG1655 tRNA, 16 LDX codes on a single shared edx07 3' adapter, the same pool on two flowcells (Rep_1 PBK76952 train/val, Rep_2 PBK76980 test). Charging varies WITHIN each flowcell, which is what makes a cross-experiment test a generalisation axis rather than a batch measurement. The same physical run as ldx16_charging_20260814; only the basecaller differs.",
+    "barcodes": null,
+    "n_train": 6716677,
+    "n_test": 7898071,
+    "pipeline": "dorado 2.1.1 rna004_sup@v6.0.0 --emit-moves (NOTE the v6 naming change: no `130bps` infix); escpod demux detect --method cnn (adapter_rna004@v1.1.0) -> demux basecall --barcodes for the label; bwa mem -C -W13 -k6 -T20 -x ont2d vs resources/ref/eschColi_K_12_MG1655-edx07.fa; leech data prepare --anchor reference (CCAGGC + 2), signal reversed to 5'->3', median/MAD normalised, base-to-signal map refined by banded DP (2 iterations, half-bandwidth 5) against the RNA004 9-mer table; leech model train TCNDwellResidualLN; leech model export --format onnx.",
+    "basecaller": {
+      "model": "rna004_sup@v6.0.0",
+      "model_sha256": "9cab42f3123de784aca5c38f03f85d2c247bd4a6e1b4914b78cf45fc42bbadb1",
+      "dorado_version": "2.1.1+d66c17c"
+    }
+  },
+  "io_contract": "THREE float32 inputs, not one: signal [B,2,390] (normalised current and its k-mer residual over [-90,+300) samples about the junction), sequence [B,36,390] (leech.features.encode_signal_kmer of the 11-mer context, scattered along the signal axis -- computed in the dataset, NOT in the graph), features [B,12,21] (per-base dwell and level statistics over reference offsets 0..20). Output [B,1]: a SINGLE BCE logit whose positive class is UNCHARGED, so P(charged) = 1 - sigmoid(logit). Read as P(charged) -- the obvious reading, and what every other variant emits -- every call inverts and nothing errors.",
+  "runtime": "Loadable by escpod as of 0.19.0. rnabioco/escapepod-rs#308 (closing #306) moved the chunk assembly from leech-core down into escapepod-signal so that both leech and escapepod-classify call one implementation, and escapepod-classify now builds the three tensors itself and runs the graph through tract in the default build; #313 (#312) made the bundle declare where its per-base sequence comes from, and #315 (#314) accepted the `basecaller` block. Releases up to and including 0.18.1 predate all three and refuse this bundle, naming the `gbm`/`feature_model` variants they do implement. THE BAM MUST CARRY MD: the aligned reference this model was trained against is the one MD reconstructs per read, not the FASTA record sliced by coordinate, and a single unresolved ambiguity code blanks NINE consecutive 9-mers.",
+  "metrics": {
+    "source": "workflow/rules/charging.smk (charging_leech_train / charging_leech_eval via `leech eval test`, collapsed by workflow/scripts/charging_leech_metrics.py)",
+    "verified": true,
+    "labels": [
+      "uncharged",
+      "charged"
+    ],
+    "label_source": "Per-read LDX barcode call from barcode_crf_nbc16_rna004@v0.3.0, mapped to class by datasets.yaml:label_by_code -- ldx01-10 charged, ldx11-16 uncharged. The caller's error rate is the label-noise floor. The groups are enrichments, not purities: ldx06-10 is spiked and measures ~80% charged by an independent marker, and deacylation during prep converts charged -> uncharged. The operating point in the metrics does NOT rest on these labels; it is derived from ligation chemistry on the two pure blocks.",
+    "split": "train/val read-level within Rep_1 (PBK76952, 85/15 at seed 0); test = the whole of Rep_2 (PBK76980), a different flowcell on a different day. The cross-experiment test is the only honest number.",
+    "n_train": 6716677,
+    "n_test": 7898071,
+    "geometry": {
+      "input": "raw signal + sequence k-mer context + per-base features (3 tensors)",
+      "signal_context": [
+        90,
+        300
+      ],
+      "signal_len": 390,
+      "signal_channels": 2,
+      "signal_norm": "median_mad",
+      "feature_offsets": [
+        0,
+        20
+      ],
+      "n_feature_channels": 12,
+      "seq_encoding": "signal_kmer",
+      "signal_kmer_context": [
+        4,
+        4
+      ],
+      "kmer_len": 11,
+      "anchor": "reference CCAGGC + 2, mapped through the move table; signal reversed to 5'->3'",
+      "refinement": {
+        "refine_signal_map": true,
+        "scale_iters": 2,
+        "half_bandwidth": 5,
+        "kmer_table_sha256": "1d366c9e060f31be1d6489b88b415666fba42f1c4006e1e549666f4a50f13e63"
+      },
+      "architecture": "TCNDwellResidualLN"
+    },
+    "best_val_auroc": 0.9763624046140057,
+    "val": {
+      "n": 1185295,
+      "auroc": 0.9763624045985875,
+      "auprc": 0.9934585483452868,
+      "flowcells": [
+        "PBK76952"
+      ]
+    },
+    "test_cross_experiment": {
+      "n": 7898071,
+      "auroc": 0.9752085993262302,
+      "auprc": 0.9929012178839454,
+      "balanced_accuracy": 0.9605493220546125,
+      "accuracy": 0.9834234207314673,
+      "confusion": [
+        [
+          6765223,
+          54445
+        ],
+        [
+          76478,
+          1001925
+        ]
+      ],
+      "confusion_order": "rows = true (uncharged, charged); columns = predicted",
+      "recall_uncharged": 0.99201647352921,
+      "recall_charged": 0.9290821705800151,
+      "flowcells": [
+        "PBK76980"
+      ]
+    },
+    "balanced_accuracy": 0.9605493220546125,
+    "corpus_counts": {
+      "train": {
+        "charged": 894745,
+        "uncharged": 5821932
+      },
+      "test": {
+        "charged": 1078403,
+        "uncharged": 6819668
+      }
+    },
+    "output_convention": {
+      "graph_output": "a SINGLE BCE logit (N, 1), not a two-class softmax",
+      "positive_class": "uncharged",
+      "p_charged": "1 - sigmoid(logit)",
+      "why": "leech assigns class ints at merge time and gave `charged` 0 on this corpus. Read as P(charged), every call is inverted and nothing errors."
+    },
+    "operating_point": {
+      "cl": 200,
+      "p_charged": 0.7823529411764706,
+      "fpr": 0.003781709021612196,
+      "tpr": 0.9756223891048704,
+      "tpr_shipped_convention": 0.9756223891048704,
+      "youden": 0.9718406800832582,
+      "by_run": {
+        "rep2": {
+          "n_neg": 6819668,
+          "n_pos": 828260,
+          "fpr": 0.003781709021612196,
+          "tpr": 0.9756223891048704
+        }
+      },
+      "n_pos": 828260,
+      "n_neg": 6819668,
+      "positive_block_purity": 1.0,
+      "purity": {
+        "value": 1.0,
+        "source": "results/charging_tcn_sup6_rna004/operating_point/blocks.json (measured)",
+        "applies_to": "the positive (chemical-ligation) block"
+      },
+      "derivation": "ligation chemistry, not labels and not another model: ldx01-05 is chemical-ligation-only (100% charged), ldx11-16 enzymatic-only (0% charged). Scored on the cross-experiment test replicate, which this model never saw. A RECOMMENDATION measured on held-out data, not a property of the model -- and precision at any cl depends on the SAMPLE's charged fraction, so a caller wanting a different precision must move it and say so (escapepod-models#63).",
+      "not_comparable_to": "charging_feature_nn_rna004's published cl=200 numbers (FPR 0.0174 / TPR 0.939) are NOT this quantity: they pool both replicates, and they are measured on an UNPURIFIED positive block with a 0.907 purity correction, where this population had those reads dropped before scoring. Use the paired comparison in evidence/ldx16x/charging_paired_subset.json for a like-for-like difference -- same reads, same threshold convention."
+    },
+    "calibration": {
+      "method": "platt",
+      "a": 0.9229332804679871,
+      "b": 0.9570988416671753,
+      "expected_calibration_error": {
+        "before": 0.039445200258028404,
+        "after": 0.014966610688025751
+      },
+      "n_val_samples": 1185295,
+      "fit_on": "the training experiment's validation split",
+      "note": "post-hoc Platt scaling of the raw logit, learned by `leech model calibrate`. The operating point above is stated on the UNCALIBRATED probability, which is what the graph emits; applying Platt moves the probability scale and therefore the cl that corresponds to a given FPR."
+    },
+    "onnx_verification": {
+      "max_abs_diff_vs_torch": 1.7642974853515625e-05,
+      "decision_disagreements": 0,
+      "n_chunks": 4096,
+      "note": "real chunks through LeechDataset, not the exporter's synthetic rows. Says the weights survived export; it does not say a non-Python runtime can build the `sequence` input (escapepod-models#61)."
+    },
+    "note": "Trained on the natural population (every LDX code, class by datasets.yaml:label_by_code), so the charged class carries the barcode caller's error rate as label noise and ldx06-10's ~20% uncharged content. Test is the other replicate, a different flowcell on a different day, and is the only honest number here: within the training experiment charging and batch are not separable. Numbers on a purity-filtered cohort run ~2 points higher (AUROC 0.9962), but ~95% of that gap is the YARDSTICK -- mislabelled reads leaving the test set -- rather than a better model."
+  },
+  "notes": "Anchored on the reference CCA|adapter junction, so inference needs an aligned BAM with move tables (dorado --emit-moves) -- the same requirement remora's --reference-anchored and leech's --anchor reference impose, and the same one the shipped GBM and feature networks already carry. The LDX code that supplies the label sits in the RTA adapter, upstream of adapter_end and outside the model's window by construction; edx07 is shared by all 16 codes, so there is no divergent adapter region to leak. Do NOT score this model on the singleadapts edx01/edx02 family: the feature window reaches 20 bases into the 3' adapter, which is safe only because edx07 is constant out to +24, and that family diverges at +17."
+}
