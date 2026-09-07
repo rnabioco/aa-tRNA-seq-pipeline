@@ -26,7 +26,7 @@ from basecaller_compat import check_basecaller
 # they can be deleted or kept independently via the `cleanup_intermediates`
 # config key (see maybe_temp / _enabled_cleanup_tiers below).
 _CLEANUP_TIERS = {
-    "cascade",  # bam/aln, charging, adapter_tagged (redundant near-copies; bam/final hardlinks the last)
+    "cascade",  # bam/aln, calmd, charging, adapter_tagged (redundant near-copies; bam/final hardlinks the last)
     "basecall",  # bam/rebasecall, bam/rebasecall_run (GPU-hours to regenerate)
     "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
     "split_pod5",  # demux/pod5 (WDX split POD5: that path's signal store and classification input)

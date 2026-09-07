@@ -162,7 +162,7 @@ rule align_stats:
     """
     input:
         unmapped=rules.rebasecall.output,
-        aligned=rules.bwa_align.output.bam,
+        aligned=rules.calmd.output.bam,
         classified=rules.finalize_bam.output.bam,
     output:
         tsv=os.path.join(
@@ -194,7 +194,7 @@ rule anchor_coverage:
     is exactly what recovering it for the 2026-08-06 LDX run required.
     """
     input:
-        aligned=rules.bwa_align.output.bam,
+        aligned=rules.calmd.output.bam,
         reference=get_validated_reference(),
     output:
         tsv=os.path.join(
