@@ -200,3 +200,79 @@ This is the per-base-feature ONNX variant. `escpod classify` reads it
 from escapepod-rs#231 onward (**v0.10.0+**); an older `escpod` refuses the
 bundle with ``missing field `gbm` ``. `escpod_version` in
 `config/config-base.yml` is pinned at or above that for this reason.
+
+## `charging_tcn_sup6_rna004@v0.1.0` — vendored, NOT wired up
+
+Released 2026-09-07 from
+`https://github.com/rnabioco/escapepod-models/releases/tag/charging_tcn_sup6_rna004%40v0.1.0`.
+A different architecture (`TCNDwellResidualLN`, a temporal convolutional net
+over raw signal) from the two `charging_feature_nn_*` bundles above, and
+vendored so it verifies and is on disk, but **`charging.model` does not point
+at it anywhere in this repo** — three things have to land first (tracked in
+rnabioco/aa-tRNA-seq-pipeline#178):
+
+1. **The BAM must carry an `MD` tag.** The bundle's `reference_source` is
+   `md`, not `fasta`: it reconstructs the reference per read from `MD`, and its
+   own release notes say a runtime that assembles the reference any other way
+   "must refuse to score" the bundle rather than proceed, because a single
+   unresolved ambiguity code blanks nine consecutive k-mers under the
+   FASTA-by-coordinate path. `bwa_align` does not emit `MD` today — checked
+   against `.tests/outputs/bam/aln/sample1/sample1.aln.bam`, no `MD` tag on any
+   record — so this bundle cannot score anything against this pipeline's BAMs
+   yet.
+2. **No adapter-family compatibility gate exists for it.** The feature window
+   reaches 20 bases into the 3' adapter, which is safe only because all 16 LDX
+   barcodes share one constant adapter (`edx07`) out to +24. The pipeline's
+   *default* adapter pair, `edx01`/`edx02` (`config/config-base.yml`), diverges
+   from `edx07` at +17 — scoring this bundle there would silently read adapter
+   identity as charging signal. That restriction lives only as a caveat in the
+   bundle's `metadata.json`, not a structured, checkable field, so nothing
+   today stops a config from pointing `charging.model` here on a non-`edx07`
+   run the way `charging.basecaller_check` stops a basecaller mismatch.
+3. **No GPU path yet.** `escpod classify` has no `--device`/`--gpu` flag as of
+   0.20.0 (checked against the locally installed binary, CPU and GPU builds
+   both) — GPU classify is upstream work that has not tagged a release yet.
+   When it does, `escpod_version` and the cluster resource config for
+   `classify_charging` move together, same as any other escpod bump.
+
+**Loadable today.** Its schema needs escpod >= 0.19.0 (escapepod-rs#308 moved
+chunk assembly into `escapepod-signal` so `escpod classify` can build the three
+input tensors itself; #313/#315 added the declared `reference_source` and
+accepted the `basecaller` block) — already satisfied by the pinned 0.21.0,
+so no escpod bump is needed to *load* this bundle, only to run it on GPU.
+
+Trained on *E. coli* K-12 MG1655 tRNA behind the pooled `edx07` adapter (the
+same physical run as the `charging_feature_nn` corpora, re-labelled from LDX
+barcode calls rather than pure chemistry blocks per-read). Cross-experiment
+test (held-out flowcell, the only honest number per its own release notes):
+AUROC 0.9752, balanced accuracy 0.9605, recall_uncharged 0.992, recall_charged
+0.929. Operating point `cl` 200 (`p_charged` 0.7824), derived the same way as
+the other bundles — ligation chemistry on the two chemistry-pure LDX blocks,
+not labels — landing FPR 0.0038 / TPR 0.976. **Not comparable** to the
+`charging_feature_nn_rna004` cl=200 numbers: those pool both replicates and
+correct for a 0.907 purity block this population excludes before scoring; see
+the release's `evidence/ldx16x/charging_paired_subset.json` for a like-for-like
+diff.
+
+The graph output is a single BCE logit whose *positive class is uncharged*
+(`p_charged = 1 - sigmoid(logit)`), the reverse of the natural reading — the
+bundle says the runtime that scores it must apply that inversion, and does not
+error if it doesn't.
+
+### Contents
+
+| File | sha256 | Notes |
+|---|---|---|
+| `charging_tcn_sup6_rna004.onnx` | `1e4d171f…acfa13a` | TCN over 3 input tensors (`signal [B,2,390]`, `sequence [B,36,390]`, `features [B,12,21]`), opset 18, output `[B,1]` (single logit, see above). |
+| `9mer_levels_v1.txt` | `1d366c9e…f13e63` | **A symlink** to `resources/kmers/9mer_levels_v1.txt`, same as the other bundles — byte-identical, verified at vendor time. |
+| `metadata.json` | — | Runtime sidecar: anchor, the three tensors' geometry, abstain rule, calibration, operating point. |
+| `provenance.json` | — | Training provenance and published metrics. |
+| `SHA256SUMS.txt` | — | **Generated at vendor time, not shipped upstream** (this release's only assets were the bundle zip and `provenance.json` — no `SHA256SUMS.txt`, unlike the `charging_feature_nn_*` releases). Verified against the sha256 `metadata.json` itself declares for the ONNX before being recorded. |
+
+### Abstention differs from the other bundles
+
+`aligner_arm_depth == 0` is a `charging_feature_nn` concept and does not
+transfer: this variant has no per-base feature-availability abstention, only
+"no chunk, no call" at the reference junction. Report the no-call rate beside
+any charging fraction regardless — the population that fails to place a
+junction is charging-correlated here too.

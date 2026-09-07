@@ -42,6 +42,7 @@ CLEAN_TARGETS = [
     "bam/rebasecall",  # rebasecalled uBAM (dorado) — very large
     "bam/rebasecall_run",  # LDX run-level uBAM (dorado), split into the above
     "bam/aln",  # bwa_align output (carries dorado's tags since v0.7)
+    "bam/calmd",  # calmd output (MD/NM added for the TCN charging bundle)
     "bam/tagged",  # retired inject_ubam_tags output (pre-v0.7 runs)
     "bam/charging",  # classify_charging output
     "bam/classified",  # retired transfer_bam_tags output (pre-v0.4.0 runs)

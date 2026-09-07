@@ -110,6 +110,7 @@ check-models = { cmd = "python scripts/check-currency.py --only models", descrip
 check-escpod = { cmd = "python scripts/check-currency.py --only tools", description = "Report escpod/dorado pins upstream has superseded, and escpod checksums that disagree with the release (needs network + gh)" }
 # Charging classifier
 verify-charging-model = { cmd = "bash -c 'cd resources/models/charging/charging_feature_nn_sup6_rna004@v0.1.0 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored charging model bundle against its pinned checksums" }
+verify-charging-model-tcn = { cmd = "bash -c 'cd resources/models/charging/charging_tcn_sup6_rna004@v0.1.0 && sha256sum -c SHA256SUMS.txt'", description = "Verify the vendored TCN charging model bundle (edx07/LDX-only, not yet wired up) against its pinned checksums" }
 verify-basecaller = { cmd = "python scripts/verify-basecaller.py", description = "Prove the vendored basecalling model is byte-identical to the one the charging bundle names" }
 # GPU demux runtime.
 #

@@ -432,8 +432,8 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   - `false` (or omitted): nothing is auto-deleted (all intermediates retained).
   - `true`: all tiers enabled.
   - a list: only the named tiers are deleted. Tiers:
-    - `cascade` — `bam/aln`, `bam/charging`, `bam/adapter_tagged` (redundant
-      near-copies; `bam/final` hardlinks the last one)
+    - `cascade` — `bam/aln`, `bam/calmd`, `bam/charging`, `bam/adapter_tagged`
+      (redundant near-copies; `bam/final` hardlinks the last one)
     - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
     - `split_pod5` — `demux/pod5` (the WarpDemuX split POD5: that path's signal

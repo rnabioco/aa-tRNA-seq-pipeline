@@ -96,7 +96,7 @@ workflow/
 
 ```
 POD5 files → stage_pod5 (symlinks) → rebasecall (Dorado) → bwa_align (dorado tags carried through) →
-classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
+calmd (adds MD/NM) → classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 On an LDX run the first two steps are replaced (there is no per-sample POD5 to
@@ -108,7 +108,7 @@ raw POD5 → escapepod_demux (--annotate, writes .p5s) → rebasecall_ldx_run (w
 
 For EDX samples (dual barcoding), 3' adapter detection happens on the uBAM before alignment, and the resulting read-id list is the whole filter: `bwa_align` aligns only those reads (`samtools view -N`), and `classify_charging` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written:
 ```
-rebasecall → detect_edx_adapters → extract_edx_read_ids → bwa_align → classify_charging → ...
+rebasecall → detect_edx_adapters → extract_edx_read_ids → bwa_align → calmd → classify_charging → ...
 ```
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
@@ -116,9 +116,10 @@ rebasecall → detect_edx_adapters → extract_edx_read_ids → bwa_align → cl
 1. **stage_pod5**: Lay a directory of symlinks over the sample's raw POD5 files (`pod5/{sample}/<run>/<pod5_pass|pod5_fail|pod5>/`). Nothing copies the signal: dorado and `escpod classify` both take a directory. Replaced `merge_pods`, which wrote a full second copy of every run per sample
 2. **rebasecall**: Use dorado (`--recursive` over the staged directory) to rebasecall with move tables (required by the charging model). Runs through `workflow/scripts/dorado_basecall_resume.sh`, as does `rebasecall_ldx_run`: the partial BAM of a killed attempt is kept beside the output (where Snakemake will not reap it) and fed back as dorado's `--resume-from`, so an overrun costs the tail of a basecall rather than the whole flowcell. `escapepod_demux` has no equivalent and does not resume
 3. **bwa_align**: Stream the uBAM through `samtools fastq -T '*'` into `bwa mem -C`, so dorado's tags (the `mv`/`ns`/`ts` move table, MM/ML modbase calls, RG) ride the FASTQ comment onto the aligned records. `-H` inserts the uBAM's own @RG lines with SM/LB/BC stamped (`stamp_read_groups.py`), and on demux runs a constant `BC` tag goes onto every read. No FASTQ is written and there is no tag-injection step (`inject_ubam_tags` is retired). `-K 100000000` pins bwa's batch so the tag payload (~13x the read) costs a few GB, not the OOM PR #86 saw with the default per-thread batch. Output is primary forward alignments (`-F 2324`)
-4. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score. It is handed the sample's whole signal store (staged directory, WarpDemuX split POD5, or the raw LDX run) and looks reads up by the BAM's ids, so no EDX-filtered POD5 exists
-5. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
-6. **finalize_bam**: Hardlink adapter-tagged BAM as final output
+4. **calmd**: `samtools calmd` recomputes `MD`/`NM` against the reference. `bwa mem` does not emit `MD` on its own, and the vendored-but-not-wired-up `charging_tcn_sup6_rna004` bundle (see `resources/models/charging/README.md`) requires it — it reconstructs its per-read reference from `MD`, and refuses to be scored correctly without it
+5. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score. It is handed the sample's whole signal store (staged directory, WarpDemuX split POD5, or the raw LDX run) and looks reads up by the BAM's ids, so no EDX-filtered POD5 exists
+6. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
+7. **finalize_bam**: Hardlink adapter-tagged BAM as final output
 
 ### Summary Generation
 

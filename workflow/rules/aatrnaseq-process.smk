@@ -219,6 +219,54 @@ rule bwa_align:
         """
 
 
+rule calmd:
+    """
+    Recompute MD/NM against the reference so the aligned BAM carries an `MD`
+    tag.
+
+    `bwa mem` does not emit `MD` on its own. The `charging_tcn_sup6_rna004`
+    bundle (vendored, not yet wired to any config -- see
+    resources/models/charging/README.md) reconstructs its per-read reference
+    from `MD` rather than by slicing the reference FASTA by coordinate, and its
+    own release notes say a runtime that does the latter must refuse to score
+    it: every reference in this panel carries ambiguity codes, and a single
+    unresolved one blanks nine consecutive k-mers under the FASTA path.
+
+    `samtools calmd` reads each record against its own reference span, so it
+    needs no particular sort order and can run as its own pass right after
+    alignment -- `-Q` keeps its per-read debug lines out of the log.
+
+    The per-record MD computation itself is single-threaded (htslib does not
+    parallelise it); `--threads` only adds workers for BGZF (de)compression on
+    a whole-BAM pass, so this is worth a modest, not a large, thread count.
+    """
+    input:
+        bam=rules.bwa_align.output.bam,
+        bai=rules.bwa_align.output.bai,
+        fai=get_validated_reference() + ".fai",
+    output:
+        bam=maybe_temp(
+            os.path.join(outdir, "bam", "calmd", "{sample}", "{sample}.calmd.bam"),
+            tier="cascade",
+        ),
+        bai=maybe_temp(
+            os.path.join(outdir, "bam", "calmd", "{sample}", "{sample}.calmd.bam.bai"),
+            tier="cascade",
+        ),
+    log:
+        os.path.join(outdir, "logs", "calmd", "{sample}"),
+    threads: 2
+    params:
+        index=get_validated_reference(),
+    shell:
+        """
+        samtools calmd -Qb --threads {threads} {input.bam} {params.index} \
+            >{output.bam} 2>{log}
+
+        samtools index -@ {threads} {output.bam}
+        """
+
+
 rule classify_charging:
     """
     Classify charged vs uncharged reads with `escpod classify`.
@@ -252,8 +300,8 @@ rule classify_charging:
     """
     input:
         pod5=get_sample_pod5,
-        bam=rules.bwa_align.output.bam,
-        bai=rules.bwa_align.output.bai,
+        bam=rules.calmd.output.bam,
+        bai=rules.calmd.output.bai,
         reference=get_validated_reference(),
     output:
         charging_bam=maybe_temp(
