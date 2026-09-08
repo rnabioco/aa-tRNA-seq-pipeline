@@ -125,6 +125,13 @@ verify-basecaller = { cmd = "python scripts/verify-basecaller.py", description =
 # escpod — downloaded by `pixi run setup` since escapepod-rs 0.17.1.
 install-ort-gpu = { cmd = "bash scripts/install-ort-gpu.sh", description = "Download the CUDA onnxruntime that escpod --device gpu needs" }
 install-escpod-gpu = { cmd = "bash scripts/install-escpod-gpu.sh", description = "Build escpod with GPU features from source (only for an unreleased ref; pixi run setup downloads the released one)" }
+# Solves the `classify-gpu` environment from a machine with no GPU — same
+# reason and same trick as escapepod-rs's own `install-gpu` task: the
+# environment targets a CUDA 12 virtual package a GPU-less login node cannot
+# assert on its own, so CONDA_OVERRIDE_CUDA supplies the install-time probe.
+# Only needed for `charging.gpu: true`. On a GPU node `pixi install
+# -e classify-gpu` works directly.
+install-classify-gpu = { cmd = "CONDA_OVERRIDE_CUDA=12 pixi install -e classify-gpu", description = "Install the CUDA 12 runtime that escpod classify --device gpu needs" }
 
 # Testing feature
 [feature.test]
@@ -211,6 +218,40 @@ libcublas = "*"
 libcufft = "*"
 cuda-cudart = "*"
 
+# CUDA 12 runtime for `escpod classify --device gpu` (the windowed TCN,
+# `tract-cuda`) — deliberately a SEPARATE environment from `[feature.gpu]`
+# above, not a shared one. `escpod classify`'s GPU path is compiled against
+# cudarc's `cuda-12020` API surface (escapepod-rs's escapepod-classify/
+# Cargo.toml); a build against `cuda-13000`, matching this cluster's system
+# CUDA, was tried there and failed at NVRTC JIT-compile time (CCCL's own
+# `#error "CUDA versions below 12 are not supported"`). `[feature.gpu]`
+# above is intentionally pinned to this cluster's system CUDA (13) instead,
+# for onnxruntime's CUDA execution provider (`ldx.gpu`) — the two GPU paths
+# need two different, mutually incompatible CUDA major versions, which is
+# exactly why they cannot be one pixi environment. rnabioco/escapepod-rs#347:
+# without this, `escpod classify --device gpu` resolves `libcudart` from the
+# node's own CUDA 13 install (which dropped the `_v2` symbol our pinned
+# CUDA 12.x cudarc build needs) rather than from a pinned, known-compatible
+# runtime, and used to abort the whole process rather than fail cleanly.
+#
+# Matches escapepod-rs's own `[feature.gpu]` pixi recipe exactly:
+# `cuda-cudart` is the runtime library cudarc dlopens; `cuda-cudart-dev` +
+# `cuda-cccl` are HEADERS needed at RUN time, not build time — tract-cuda
+# JIT-compiles its own kernels through NVRTC on the machine that runs them,
+# so without these two `escpod classify --device gpu` dies on first use with
+# "Could not find a toolkit include dir" rather than at load.
+[feature.classify-gpu]
+platforms = ["linux-64"]
+
+[feature.classify-gpu.system-requirements]
+cuda = "12"
+
+[feature.classify-gpu.dependencies]
+cuda-version = "12.*"
+cuda-cudart = "*"
+cuda-cudart-dev = "*"
+cuda-cccl = "*"
+
 [environments]
 default = []
 test = ["test"]
@@ -220,3 +261,6 @@ docs = { features = ["docs"], solve-group = "default" }
 # dependency, which makes pixi fetch a conda-pypi mapping from a host the
 # compute nodes cannot reach.
 gpu = ["gpu"]
+# Separate from `gpu` above — see `[feature.classify-gpu]`'s doc comment for
+# why the two cannot share an environment.
+classify-gpu = ["classify-gpu"]

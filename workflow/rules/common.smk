@@ -181,7 +181,8 @@ def get_charging_device_arg():
 
 def get_charging_escpod_gpu_prefix():
     """Shell prefix putting a GPU-enabled escpod ahead of the default build on
-    PATH for one command, or "" under `charging.gpu: false`.
+    PATH -- and a CUDA 12 runtime on LD_LIBRARY_PATH -- for one command, or ""
+    under `charging.gpu: false`.
 
     `escpod_classify_fallback.sh` calls plain `escpod`, which the Snakefile's
     `onstart` prefix always resolves to the portable (CPU) musl build. GPU
@@ -193,11 +194,29 @@ def get_charging_escpod_gpu_prefix():
     is x86_64 Linux only and dynamically linked, and every other rule should
     keep the portable one.
 
-    Unlike `get_escpod_bin`, this does not also need to check for a vendored
-    CUDA libonnxruntime or cuDNN: `escpod classify`'s GPU path is
-    tract-cuda/cudarc, which dlopens the CUDA driver and compiles its own
-    kernels at run time (NVRTC) against the node's own CUDA toolkit, not a
-    vendored onnxruntime.
+    Unlike `get_escpod_bin` this needs no vendored onnxruntime -- `escpod
+    classify`'s GPU path is tract-cuda/cudarc, which dlopens the CUDA driver
+    and JIT-compiles its own kernels at run time (NVRTC) -- but a previous
+    revision of this docstring was WRONG to conclude that meant nothing else
+    was needed. tract-cuda also needs a working CUDA *runtime* library
+    (`libcudart`), and that is a genuinely separate thing from the driver: a
+    node can have a perfectly good driver and still fail here if the
+    `libcudart` its dynamic loader happens to find is the wrong major
+    version. rnabioco/escapepod-rs#347: on this cluster's GPU nodes,
+    `libcudart` resolution fell through to the node's own system CUDA 13
+    install (this pipeline's `[feature.gpu]` pixi environment is ALSO pinned
+    to 13, for onnxruntime's CUDA execution provider -- so it cannot supply
+    the fix either), and CUDA 13 dropped a symbol escpod's CUDA-12-compiled
+    GPU build needs -- so escpod aborted the whole process rather than
+    running on the GPU or even failing cleanly. Fixed on the escpod side to
+    fail cleanly instead of aborting either way; fixed HERE by giving
+    `libcudart` resolution somewhere correct to land: the `classify-gpu` pixi
+    environment (`pixi run install-classify-gpu`), pinned to CUDA 12 to match
+    what escpod's `cuda-12020`-compiled tract-cuda actually needs -- kept
+    separate from `[feature.gpu]` because the two GPU paths need two
+    different, mutually incompatible CUDA major versions (see
+    `[feature.classify-gpu]`'s doc comment in pixi.toml for why CUDA 13 does
+    not work here, tried and confirmed on escapepod-rs's side).
     """
     if not config["charging"].get("gpu", False):
         return ""
@@ -215,7 +234,22 @@ def get_charging_escpod_gpu_prefix():
             "ldx.gpu, no separate onnxruntime or cuDNN install is needed.\n"
             "Set charging.gpu: false to run classify on the CPU instead."
         )
-    return f'export PATH="{bin_dir}:$PATH"; '
+    cuda_lib_dir = os.path.join(PIPELINE_DIR, ".pixi", "envs", "classify-gpu", "lib")
+    if not os.path.isfile(os.path.join(cuda_lib_dir, "libcudart.so")):
+        sys.exit(
+            "charging.gpu is true but the classify-gpu CUDA runtime was not "
+            f"found at {cuda_lib_dir}.\n"
+            "Install it with `pixi run install-classify-gpu` (on a GPU node, "
+            "`pixi install -e classify-gpu` works directly).\n"
+            "This is a SEPARATE environment from `pixi run install-gpu` -- "
+            "escpod classify's tract-cuda GPU path needs a CUDA 12 runtime, "
+            "not the CUDA 13 one ldx.gpu's onnxruntime uses.\n"
+            "Set charging.gpu: false to run classify on the CPU instead."
+        )
+    return (
+        f'export PATH="{bin_dir}:$PATH"; '
+        f'export LD_LIBRARY_PATH="{cuda_lib_dir}:$LD_LIBRARY_PATH"; '
+    )
 
 
 def is_warpdemux_enabled():
