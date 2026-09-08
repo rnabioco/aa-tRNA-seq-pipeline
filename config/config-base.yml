@@ -366,7 +366,7 @@ dorado_model: rna004_sup@v6.0.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.21.0
+escpod_version: 0.23.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)
