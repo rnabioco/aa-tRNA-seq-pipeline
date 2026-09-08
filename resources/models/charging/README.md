@@ -237,7 +237,10 @@ Two things that used to block it are done:
   `--device auto|cpu|gpu`. Set `charging.gpu: true` once `escpod_version` is
   bumped to 0.23.0 or later — see that key in `config/config-base.yml` for
   what it needs (a CUDA-visible node, the same `-gpu` escpod build `ldx.gpu`
-  already downloads, but not `ldx.gpu`'s onnxruntime/cuDNN install) and the
+  already downloads, and its own CUDA 12 runtime via
+  `pixi run install-classify-gpu` — not `ldx.gpu`'s onnxruntime/cuDNN
+  install, but not nothing either; see `[feature.classify-gpu]` in pixi.toml
+  and escapepod-rs#347) and the
   residual caveat upstream's own CHANGELOG still carries: a rare (1-in-51
   trials) anomaly with the same failure signature as a since-refuted
   correctness bug, seen once and not reproduced at batch >= 2 since. Nothing

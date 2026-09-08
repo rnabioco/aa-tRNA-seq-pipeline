@@ -189,10 +189,16 @@ charging:
   # effect on the shipped GBM/feature-network bundles (charging_feature_nn_*),
   # which have no GPU path and log a one-line note instead of erroring.
   #
-  # Needs escpod >= 0.23.0 (escapepod-rs#344) and a CUDA-visible node, but NOT
-  # the onnxruntime/cuDNN install `ldx.gpu` needs: this path runs through
-  # tract-cuda/cudarc, which compiles its kernels at run time against the
-  # node's own CUDA toolkit rather than a vendored onnxruntime.
+  # Needs escpod >= 0.23.0 (escapepod-rs#344) and a CUDA-visible node. Not
+  # the onnxruntime/cuDNN install `ldx.gpu` needs -- this path runs through
+  # tract-cuda/cudarc, which compiles its kernels at run time against CUDA
+  # headers rather than a vendored onnxruntime -- but it DOES need its own
+  # CUDA 12 runtime, `pixi run install-classify-gpu`: this pipeline's
+  # `ldx.gpu` CUDA install is pinned to CUDA 13 to match this cluster's
+  # system CUDA, which is a different, incompatible major version from what
+  # escpod's tract-cuda build needs (escapepod-rs#347 -- a node's own system
+  # CUDA is not a substitute either way, see get_charging_escpod_gpu_prefix
+  # in common.smk).
   #
   # Default false, unlike `ldx.gpu`. Not a caution about the flag itself --
   # escapepod-rs#343's investigation closed with fifteen real-data runs across

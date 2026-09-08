@@ -32,6 +32,28 @@ paths; `classify_charging` can optionally use it too:
     `workflow/rules/aatrnaseq-process.smk`), since a static per-executor profile
     file has no way to see that pipeline-config value.
 
+!!! warning "`charging.gpu: true` needs its own CUDA runtime — run `pixi run install-classify-gpu` first"
+
+    `escpod classify`'s GPU path (`tract-cuda`) needs a CUDA 12 runtime
+    library, which is a SEPARATE requirement from the CUDA 13 one
+    `ldx.gpu`'s onnxruntime uses (`pixi run install-ort-gpu` /
+    `pixi install -e gpu`) — the two GPU-capable escpod commands need two
+    different, mutually incompatible CUDA major versions, so they cannot
+    share a pixi environment. Before setting `charging.gpu: true`, run:
+
+    ```bash
+    pixi run install-classify-gpu
+    ```
+
+    Without it, `escpod classify --device gpu` resolves `libcudart` from
+    whatever CUDA this cluster's GPU nodes happen to expose system-wide
+    (CUDA 13 here) instead of a pinned, known-compatible one — which used to
+    crash the whole job (rnabioco/escapepod-rs#347) rather than run on the
+    GPU or even fail cleanly. `get_charging_escpod_gpu_prefix` (in
+    `workflow/rules/common.smk`) checks for this environment up front and
+    stops the run with a clear message naming the missing task, rather than
+    letting a job fail partway through on a compute node.
+
 ## GPU Resource Flow
 
 ```mermaid
