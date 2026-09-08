@@ -325,13 +325,34 @@ rule classify_charging:
         ),
     log:
         os.path.join(outdir, "logs", "classify_charging", "{sample}"),
-    # Four, not eight. Measured 2026-09-06 on identical input (65,821 scored
-    # reads, warm 12 GB POD5, `--threads 8`): the process kept 3.1-4.1 cores
-    # busy -- wall 55-68 s against 211-270 CPU-seconds. The August profiling of
-    # a 1.06M-read sample on `-c 48` agrees: 305% average CPU. classify does not
-    # scale past ~4 cores because it is waiting on the POD5, so the other four
-    # were held idle, blocking the rest of the DAG behind them.
-    threads: 4
+    # Four for CPU, sixteen for GPU -- these no longer scale together.
+    #
+    # CPU-mode measurement stands as it was: 2026-09-06, identical input
+    # (65,821 scored reads, warm 12 GB POD5, `--threads 8`), kept 3.1-4.1
+    # cores busy -- wall 55-68 s against 211-270 CPU-seconds. That was never
+    # actually the GPU path (this rule is CPU-scored by default; see
+    # `resources` below), and it was never re-measured for it either -- the
+    # profile comment downstream said so outright ("unmeasured for the GPU
+    # path... revisit once profiled").
+    #
+    # Profiled 2026-09-08 (rnabioco/escapepod-rs#351 and its follow-up): the
+    # GPU path was superbatch-serial (CPU prep, then a GPU-only burst, fully
+    # alternating -- 13.1% GPU duty cycle on `--threads 4`) before escpod's
+    # own fix. With that fixed, the *remaining* bottleneck is almost entirely
+    # `escapepod_signal::resquiggle::dp::DpContext::step` (the banded-DP
+    # refinement, ~90% of sampled CPU cycles per read-level `perf` profiling)
+    # -- a genuinely CPU-bound, embarrassingly-parallel-across-reads cost with
+    # no POD5 or GPU dependency, so unlike the CPU path it keeps scaling well
+    # past 4 cores. Clean (unprofiled) A/B, same real 55,446-read production
+    # sample, same escpod build, `--device gpu`: `--threads 4` 203-214 s,
+    # `--threads 16` 87.2 s -- ~2.4x, on top of the ~1.8x the scheduling fix
+    # itself already bought (364.7 s fully-serial baseline -> 87.2 s here).
+    # Output bit-identical to the fully-serial baseline at every point
+    # measured; thread count does not change which reads share a GPU batch.
+    # 16 was not swept upward from there -- it is one quarter of a GPU node's
+    # 64 cores here, the same fair-share logic `pod5_readers` below already
+    # uses for the *other* shared resource this rule contends over.
+    threads: lambda wildcards: (16 if config["charging"].get("gpu", False) else 4)
     resources:
         # How many classify jobs may page a POD5 store at once; capped globally
         # in the cluster profiles. This is the throttle that matters. `jobs: 100`
@@ -352,9 +373,14 @@ rule classify_charging:
         # escapepod_demux regardless of ldx.gpu), where this rule's GPU-ness is
         # a runtime config toggle the static per-executor profile YAML cannot
         # see. Neither profile declares slurm_partition/gres or
-        # lsf_queue/lsf_extra/ngpu for classify_charging, so these win; mem_mb
-        # /runtime/cpus_per_task stay governed by the profiles, unmeasured for
-        # the GPU path and kept at the CPU-sized budget as a safe ceiling.
+        # lsf_queue/lsf_extra/ngpu for classify_charging, so these win.
+        # `cpus_per_task` joined them 2026-09-08, tracking `threads` above for
+        # the same reason (GPU-conditional); `cluster/slurm/config.yaml` no
+        # longer sets it for this rule. mem_mb/runtime stay governed by the
+        # profiles, still unmeasured for the GPU path and kept at the
+        # CPU-sized budget as a safe ceiling -- 40 GB and 8 h were sized
+        # against CPU-mode's largest corpus (LysRS_U_all20_b4, 3.88M reads),
+        # and the GPU path has not been run at anything near that scale yet.
         slurm_partition=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"
         ),
@@ -362,6 +388,9 @@ rule classify_charging:
             "gpu_rbi" if config["charging"].get("gpu", False) else "rbi"
         ),
         gres=lambda wildcards: "gpu:1" if config["charging"].get("gpu", False) else "",
+        cpus_per_task=lambda wildcards: (
+            16 if config["charging"].get("gpu", False) else 4
+        ),
         lsf_queue=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"
         ),
