@@ -99,17 +99,23 @@ flowchart TD
         POD5[POD5 files]
     end
 
-    subgraph Demux [Optional Demultiplexing]
-        W[warpdemux<br/>barcode classification]
+    subgraph WDX [Optional: WarpDemuX demux]
+        W[warpdemux<br/>barcode classification] --> WS[split_pod5<br/>per-sample POD5]
+    end
+
+    subgraph LDX [Optional: escapepod LDX/FDX demux]
+        LD[escapepod_demux<br/>--annotate, writes .p5s sidecar] --> LB[rebasecall_ldx_run<br/>whole run, one dorado pass]
+        LB --> LS[split_ldx_ubam<br/>per-sample uBAM]
     end
 
     subgraph Processing
         A[stage_pod5<br/>symlinks to raw POD5] --> B[rebasecall<br/>Dorado + move tables]
         B --> D[bwa_align<br/>tRNA + adapter reference<br/>dorado tags carried through]
+        D --> CM[calmd<br/>MD/NM tags for the ref]
     end
 
     subgraph Classification
-        D --> F[classify_charging<br/>escpod classify]
+        CM --> F[classify_charging<br/>escpod classify]
         B -.-> F
         A -.-> F
         F --> G[add_adapter_tags<br/>finalize_bam]
@@ -128,18 +134,20 @@ flowchart TD
         H -.-> N
     end
 
-    POD5 -.-> W
-    W -.-> A
     POD5 --> A
+    POD5 -.-> W
+    POD5 -.-> LD
+    WS -.-> B
+    LS -.-> D
 ```
 
 Given a directory of POD5 files, this pipeline:
 
-1. **(Optional) Demultiplexes** pooled runs using WarpDemuX barcode classification
-2. **Merges** all POD5 files per sample into a single file
+1. **(Optional) Demultiplexes** pooled runs — by signal (WarpDemuX / WDX) or by basecalling (escapepod / LDX, with an optional 5′ FDX index); an EDX 3' adapter can further split a WDX or LDX sample before alignment
+2. **Stages** each sample's raw POD5 files as a directory of symlinks (or, on the LDX path, hands dorado the raw run directly)
 3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required by the charging model)
-4. **Converts** BAM to FASTQ and **aligns** to tRNA + adapter reference with BWA MEM
-5. **Filters** for full-length tRNA reads with proper adapter boundaries
+4. **Aligns** to tRNA + adapter reference with BWA MEM, carrying dorado's tags through the FASTQ comment — no FASTQ file is written
+5. **Recomputes** `MD`/`NM` tags against the reference (`calmd`)
 6. **Classifies** charged vs. uncharged reads with `escpod classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
 
 The classification writes a `cl` tag (0-255) onto each scored read, `round(P(charged) * 255)`. By default `cl` >= 200 is charged and < 200 uncharged; this is the model bundle's own recommended operating point and is set by `charging.ml_threshold` in the config.

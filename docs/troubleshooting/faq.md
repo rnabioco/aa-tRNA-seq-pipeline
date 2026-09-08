@@ -95,7 +95,9 @@ sample1    /data/run1
 sample1    /data/run2
 ```
 
-POD5 files from both runs will be merged.
+`stage_pod5` symlinks POD5 files from both runs into one sample directory —
+nothing is copied — and both dorado and `escpod classify` read the directory
+recursively, so the sample's signal is treated as one store.
 
 ### What's the minimum read count?
 
@@ -114,9 +116,9 @@ Typical times per sample (GPU):
 
 | Step | Time |
 |------|------|
-| Merge POD5 | 5-15 min |
+| Stage POD5 (symlinks) | seconds |
 | Rebasecall | 30-60 min |
-| Alignment | 5-10 min |
+| Alignment + calmd | 5-10 min |
 | Classification | 10-30 min |
 | Summaries | 5-10 min |
 | **Total** | **1-2 hours** |
@@ -140,12 +142,16 @@ Per sample (approximate):
 
 | Data | Size |
 |------|------|
-| Merged POD5 | 5-50 GB |
+| Staged POD5 (symlinks) | ~0 (raw run itself is 5-50+ GB, not duplicated) |
 | Rebasecalled BAM | 1-5 GB |
 | Final BAM | 100-500 MB |
 | Summary tables | 10-100 MB |
 
-Plan for ~50-100 GB per sample during processing. Clean intermediate files after.
+Plan for the raw run's own size plus a few GB of BAMs per sample during
+processing. Run `pixi run snakemake clean --configfile=...` (see
+`workflow/rules/clean.smk`) to reclaim regenerable intermediates once a run is
+done, or set `cleanup_intermediates` in the config to auto-delete them as the
+pipeline goes (see `config/README.md`).
 
 ### Can I resume a failed run?
 

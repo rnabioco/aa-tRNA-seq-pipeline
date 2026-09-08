@@ -59,19 +59,20 @@ After completion, outputs are in `.tests/outputs/`:
 .tests/outputs/
 ├── pod5/
 │   └── sample1/
-│       └── sample1.pod5              # Merged POD5
+│       └── <run>/pod5_pass/*.pod5    # Symlinks to raw POD5 (no copy)
 ├── bam/
 │   ├── rebasecall/sample1/
 │   │   └── sample1.rbc.bam           # Basecalled BAM
 │   ├── aln/sample1/
-│   │   └── sample1.aln.bam           # Aligned BAM
+│   │   └── sample1.aln.bam           # Aligned BAM (no FASTQ written)
+│   ├── calmd/sample1/
+│   │   └── sample1.calmd.bam         # MD/NM tags added
 │   ├── charging/sample1/
 │   │   └── sample1.charging.bam      # Charging classification (cl tag)
+│   ├── adapter_tagged/sample1/
+│   │   └── sample1.bam               # Adapter position tags (pt)
 │   └── final/sample1/
 │       └── sample1.bam               # Final BAM with cl/pt tags
-├── fq/
-│   └── sample1/
-│       └── sample1.fq.gz             # Extracted FASTQ
 └── summary/
     ├── tables/sample1/
     │   ├── sample1.charging_prob.tsv.gz  # Per-read charging

@@ -16,11 +16,14 @@ When adding new functionality:
 
 | Module | Use For |
 |--------|---------|
+| `aatrnaseq-reference.smk` | Reference validation/build/trim |
 | `aatrnaseq-process.smk` | Core data processing (POD5 → BAM) |
 | `aatrnaseq-charging.smk` | Charging analysis rules |
 | `aatrnaseq-qc.smk` | Quality control and statistics |
 | `aatrnaseq-modifications.smk` | Modification calling and coverage |
-| `warpdemux.smk` | Demultiplexing (conditional) |
+| `aatrnaseq-odds-ratios.smk` | Modification odds ratios |
+| `aatrnaseq-report.smk` | Quarto QC report |
+| `demux.smk` | Demultiplexing: WDX, LDX/FDX, EDX (conditional) |
 
 ## Rule Template
 

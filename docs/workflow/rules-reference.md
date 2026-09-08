@@ -124,6 +124,36 @@ samtools index {output}
 
 ---
 
+### calmd
+
+Recompute `MD`/`NM` against the reference so the aligned BAM carries an `MD`
+tag (`bwa mem` does not emit one on its own). Required by the vendored-but-not-
+yet-wired `charging_tcn_sup6_rna004` bundle, which reconstructs its per-read
+reference from `MD` rather than slicing the reference FASTA by coordinate.
+
+**File:** `workflow/rules/aatrnaseq-process.smk`
+
+| Property | Value |
+|----------|-------|
+| Input | Aligned BAM (`bwa_align` output), reference `.fai` |
+| Output | `bam/calmd/{sample}/{sample}.calmd.bam`, `.bai` |
+| Threads | 2 |
+| GPU | No |
+| Parameters | `fasta` |
+
+**Command:**
+```bash
+samtools calmd -Qb --threads {threads} {input.bam} {reference} >{output.bam}
+samtools index {output.bam}
+```
+
+**Notes:**
+
+- Runs as its own pass right after alignment; `samtools calmd` reads each record against its own reference span, so it needs no particular sort order
+- The per-record `MD` computation is single-threaded — `--threads` only adds BGZF (de)compression workers, so this rule is worth a modest thread count, not a large one
+
+---
+
 ### classify_charging
 
 Classify charged vs uncharged reads with `escpod classify`.
@@ -132,11 +162,11 @@ Classify charged vs uncharged reads with `escpod classify`.
 
 | Property | Value |
 |----------|-------|
-| Input | POD5 store (staged directory, split POD5, or raw LDX run), aligned BAM, reference FASTA |
+| Input | POD5 store (staged directory, split POD5, or raw LDX run), `calmd` BAM (with `MD`/`NM`), reference FASTA |
 | Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai`, `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` |
-| Threads | 8 |
-| GPU | No (CPU) |
-| Parameters | `charging.model`, `charging.min_mapq` |
+| Threads | 4 |
+| GPU | Opt-in via `charging.gpu` (windowed/TCN bundle only; default bundles are CPU-only) |
+| Parameters | `charging.model`, `charging.min_mapq`, `charging.gpu` |
 
 **Command:**
 ```bash
@@ -675,7 +705,8 @@ flowchart LR
     rebasecall --> detect_edx_adapters
     detect_edx_adapters --> extract_edx_read_ids
     extract_edx_read_ids -.-> bwa_align
-    bwa_align --> classify_charging
+    bwa_align --> calmd
+    calmd --> classify_charging
     stage_pod5 --> classify_charging
     classify_charging --> add_adapter_tags
     add_adapter_tags --> finalize_bam

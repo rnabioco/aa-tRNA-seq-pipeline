@@ -183,7 +183,7 @@ When a sample has an `edx` assignment, the pipeline detects 3' adapter identity 
 The EDX splitting flow:
 
 ```
-rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → bwa_align → classify_charging → ...
+rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → bwa_align → calmd → classify_charging → ...
 ```
 
 Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. For samples without an `edx` assignment, the pipeline flow is unchanged.
@@ -239,7 +239,8 @@ the `@RG`.
 
 ## Pipeline Flow
 
-With demultiplexing enabled, the pipeline adds these steps before standard processing:
+With WarpDemuX demultiplexing enabled, the pipeline adds these steps before
+standard processing:
 
 ```mermaid
 flowchart TB
@@ -257,11 +258,45 @@ flowchart TB
     subgraph Standard[Standard Pipeline]
         F[rebasecall]
         G[bwa_align]
+        CM[calmd]
         H[classify_charging]
         I[...]
     end
 
-    A --> B --> C --> D --> E --> F --> G --> H --> I
+    A --> B --> C --> D --> E --> F --> G --> CM --> H --> I
+```
+
+With escapepod (LDX/FDX) demultiplexing enabled instead, no POD5 is split —
+the run is basecalled whole and the per-sample uBAM is cut out afterwards,
+rejoining the standard pipeline at `bwa_align`:
+
+```mermaid
+flowchart TB
+    subgraph Input
+        A2[Pooled POD5 files]
+    end
+
+    subgraph Demux2[LDX/FDX Demultiplexing Steps]
+        B2[escapepod_demux<br/>--annotate, writes .p5s]
+        C2[escapepod_demux_fdx<br/>dual-index only]
+        D2[ldx_run_read_ids<br/>select_demux_reads.py]
+        E2[rebasecall_ldx_run<br/>whole run, one dorado pass]
+        F2[extract_ldx_sample_reads<br/>per-sample read IDs]
+        G2[split_ldx_ubam<br/>per-sample uBAM]
+    end
+
+    subgraph Standard2[Standard Pipeline]
+        H2[bwa_align]
+        CM2[calmd]
+        I2[classify_charging]
+        J2[...]
+    end
+
+    A2 --> B2
+    A2 -.-> C2
+    B2 --> D2
+    C2 -.-> D2
+    D2 --> E2 --> F2 --> G2 --> H2 --> CM2 --> I2 --> J2
 ```
 
 ## Demux Rules
@@ -365,22 +400,22 @@ With demultiplexing, outputs include:
 {output_directory}/
 ├── demux/
 │   ├── warpdemux_output/{run_id}/
-│   │   └── warpdemux_*/            # WarpDemuX results
+│   │   └── warpdemux_*/            # WarpDemuX results (WDX)
 │   ├── read_ids/
 │   │   ├── {run_id}/
-│   │   │   ├── barcode_mapping.tsv.gz
-│   │   │   └── demux_summary.tsv.gz
-│   │   └── {sample}.txt            # Per-sample WDX read IDs
-│   ├── pod5/
-│   │   └── {sample}.pod5           # Per-sample WDX POD5
+│   │   │   ├── barcode_mapping.tsv.gz     # WDX
+│   │   │   ├── demux_summary.tsv.gz       # WDX
+│   │   │   ├── assigned_read_ids.txt      # LDX/FDX
+│   │   │   ├── assigned_summary.tsv       # LDX/FDX
+│   │   │   ├── split_parents.tsv          # LDX/FDX
+│   │   │   └── fdx/demux_summary.tsv.gz   # FDX axis only
+│   │   └── {sample}.txt            # Per-sample read IDs (either backend)
+│   ├── pod5/{sample}/
+│   │   └── {sample}.pod5           # Per-sample WDX POD5 only — LDX/FDX writes no POD5
 │   └── edx/                        # EDX early splitting (if edx assigned)
-│       ├── {sample}/
-│       │   ├── {sample}.edx_adapters.tsv.gz  # All reads → adapter mapping
-│       │   └── {sample}.edx_read_ids.txt     # Matching read IDs
-│       ├── fq/{sample}/
-│       │   └── {sample}.fq.gz      # EDX-filtered FASTQ
-│       └── pod5/{sample}/
-│           └── {sample}.pod5       # EDX-filtered POD5
+│       └── {sample}/
+│           ├── {sample}.edx_adapters.tsv.gz  # All reads → adapter mapping
+│           └── {sample}.edx_read_ids.txt     # Matching read IDs
 ├── bam/
 │   └── ...                         # Standard outputs
 └── summary/
@@ -388,6 +423,11 @@ With demultiplexing, outputs include:
     │   └── edx_concordance.tsv.gz  # EDX concordance (if edx.enabled)
     └── ...                         # Standard outputs
 ```
+
+EDX filtering writes no FASTQ or POD5 of its own: `extract_edx_read_ids`'
+read-id list is the whole filter, applied to `bwa_align` via `samtools view -N`
+on the uBAM, and `classify_charging` reads the same store every other sample
+uses, bounded by what the BAM names.
 
 ## Configuration Options
 
