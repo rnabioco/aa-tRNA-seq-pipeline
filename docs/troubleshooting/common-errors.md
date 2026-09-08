@@ -388,10 +388,12 @@ warpdemux: command not found
 
 **Solution:**
 
-Install WarpDemuX via the setup command:
+WarpDemuX is opt-in since v0.3.0, so `pixi run setup` does not install it.
+Install it into its own environment:
 
 ```bash
-pixi run setup
+pixi install -e warpdemux
+pixi run -e warpdemux install-warpdemux
 ```
 
 ### Invalid Barcode Kit
