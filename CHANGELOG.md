@@ -4,6 +4,28 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.1] - 2026-09-08
+
+### Fixed
+
+- **`classify_charging --device gpu` aborted on every run.**
+  `get_charging_escpod_gpu_prefix()` shadowed a GPU-enabled escpod onto PATH
+  but set no CUDA environment variables, on the assumption that tract-cuda
+  only needs the driver. It also needs a working CUDA *runtime* library
+  (`libcudart`), which on this cluster's GPU nodes resolved to the system
+  CUDA 13 install -- missing a symbol escpod's CUDA-12-compiled build needs
+  (rnabioco/escapepod-rs#347). `charging.gpu` now gets its own pixi
+  environment (`[feature.classify-gpu]`, `pixi run install-classify-gpu`)
+  pinned to CUDA 12 -- `ldx.gpu`'s onnxruntime path needs CUDA 13 and can't
+  share it -- and `get_charging_escpod_gpu_prefix` points `LD_LIBRARY_PATH`
+  at it alongside the PATH shadow.
+- **`classify_charging --device gpu` still aborted after the fix above**,
+  with a separate cudarc panic (`Unable to dynamically load the "cudnn"
+  shared library`), found by actually running it on a real GPU node. Beyond
+  the CUDA runtime library, tract-cuda's conv/LSTM kernels also dlopen cuDNN
+  directly. `[feature.classify-gpu]` now pins `cudnn>=9,<10`, the same way
+  `[feature.gpu]` already does for the CUDA 13 environment.
+
 ### Changed
 
 - **`classify_charging` requests 16 cores instead of 4 when `charging.gpu:
