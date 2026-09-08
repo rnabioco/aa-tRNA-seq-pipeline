@@ -125,7 +125,7 @@ CPU-only is 10-100x slower.
 
 ### Can I run without a GPU?
 
-Yes, but not recommended. Dorado will fall back to CPU (charging classification is CPU-only anyway):
+Yes, but not recommended. Dorado will fall back to CPU (charging classification defaults to CPU too, unless `charging.gpu: true` is set and the bundle supports it — see `docs/cluster/gpu-configuration.md`):
 
 ```bash
 export CUDA_VISIBLE_DEVICES=""

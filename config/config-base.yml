@@ -183,6 +183,28 @@ charging:
   # ~300 MB and has no business running every time the DAG is built.
   basecaller_check: error
 
+  # Score the windowed (TCN) charging bundle on the GPU: `escpod classify
+  # --device gpu` instead of `--device cpu`, via the same GPU-build escpod
+  # `ldx.gpu` already uses (get_charging_escpod_gpu_bin in common.smk). Has no
+  # effect on the shipped GBM/feature-network bundles (charging_feature_nn_*),
+  # which have no GPU path and log a one-line note instead of erroring.
+  #
+  # Needs escpod >= 0.23.0 (escapepod-rs#344) and a CUDA-visible node, but NOT
+  # the onnxruntime/cuDNN install `ldx.gpu` needs: this path runs through
+  # tract-cuda/cudarc, which compiles its kernels at run time against the
+  # node's own CUDA toolkit rather than a vendored onnxruntime.
+  #
+  # Default false, unlike `ldx.gpu`. Not a caution about the flag itself --
+  # escapepod-rs#343's investigation closed with fifteen real-data runs across
+  # two independent datasets bit-for-bit identical to the CPU scorer, zero
+  # flipped calls -- but escpod's own CHANGELOG still flags a separate, rare
+  # (1-in-51 trials) anomaly with the same failure signature that turned up
+  # once and has not recurred; the module doc names it as what would justify
+  # closing the gate again. Nothing here has been measured on THIS pipeline's
+  # own data yet either. Flip it after that measurement, the way `ldx.gpu`
+  # was, not before.
+  gpu: false
+
 # software tools (modkit managed by pixi)
 # NOTE: dorado_version and dorado_model are coupled. When upgrading dorado,
 # check the release notes for new models:
@@ -344,7 +366,7 @@ dorado_model: rna004_sup@v6.0.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.21.0
+escpod_version: 0.23.0
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)

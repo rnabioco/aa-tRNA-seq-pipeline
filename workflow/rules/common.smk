@@ -161,6 +161,63 @@ def get_charging_orientation_fallback():
     return value
 
 
+def get_charging_device_arg():
+    """`--device cpu`/`--device gpu` for `escpod classify`, passed explicitly.
+
+    Same reasoning as `escpod_device_args()` in demux.smk: `--device gpu` is a
+    requirement, so it fails loudly if the feature or a CUDA device is
+    missing, where `auto` would silently keep running on the CPU and look like
+    a normal, if slow, success. `--device cpu` under `charging.gpu: false`
+    likewise stops an opportunistically-GPU-capable binary from using a device
+    the config said not to.
+
+    Only the windowed (TCN) charging bundle has a GPU path; the GBM/feature-
+    network bundles ignore this flag with a one-line log note
+    (`note_cpu_only`) rather than an error, so it is safe to always pass one
+    regardless of which bundle `charging.model` names.
+    """
+    return "--device gpu" if config["charging"].get("gpu", False) else "--device cpu"
+
+
+def get_charging_escpod_gpu_prefix():
+    """Shell prefix putting a GPU-enabled escpod ahead of the default build on
+    PATH for one command, or "" under `charging.gpu: false`.
+
+    `escpod_classify_fallback.sh` calls plain `escpod`, which the Snakefile's
+    `onstart` prefix always resolves to the portable (CPU) musl build. GPU
+    classify needs the dynamically-linked `-gpu` release artifact instead --
+    the same one `ldx.gpu` already downloads via `pixi run setup` into
+    `<escpod_version>-gpu/` (see `get_escpod_bin` in demux.smk) -- so this
+    shadows it onto PATH for just this invocation rather than moving the
+    global pin, for the same reason `get_escpod_bin` gives: the GPU artifact
+    is x86_64 Linux only and dynamically linked, and every other rule should
+    keep the portable one.
+
+    Unlike `get_escpod_bin`, this does not also need to check for a vendored
+    CUDA libonnxruntime or cuDNN: `escpod classify`'s GPU path is
+    tract-cuda/cudarc, which dlopens the CUDA driver and compiles its own
+    kernels at run time (NVRTC) against the node's own CUDA toolkit, not a
+    vendored onnxruntime.
+    """
+    if not config["charging"].get("gpu", False):
+        return ""
+    version = config.get("escpod_version", ESCPOD_VERSION)
+    bin_dir = os.path.join(
+        PIPELINE_DIR, "resources", "tools", "escpod", f"{version}-gpu", "bin"
+    )
+    if not os.path.isfile(os.path.join(bin_dir, "escpod")):
+        sys.exit(
+            f"charging.gpu is true but no GPU-enabled escpod was found at "
+            f"{bin_dir}.\n"
+            "Install it with `pixi run setup`, which downloads the published "
+            f"GPU artifact for escpod {version} (x86_64 Linux only).\n"
+            "A visible CUDA device is also required at run time; unlike "
+            "ldx.gpu, no separate onnxruntime or cuDNN install is needed.\n"
+            "Set charging.gpu: false to run classify on the CPU instead."
+        )
+    return f'export PATH="{bin_dir}:$PATH"; '
+
+
 def is_warpdemux_enabled():
     """Check if WarpDemuX (WDX) demultiplexing is enabled in config."""
     return config.get("warpdemux", {}).get("enabled", False)

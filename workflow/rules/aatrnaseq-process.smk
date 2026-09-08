@@ -271,12 +271,16 @@ rule classify_charging:
     """
     Classify charged vs uncharged reads with `escpod classify`.
 
-    Runs on CPU. The model bundle is self-describing — it carries the anchor
-    definition, the feature recipe, the k-mer table it is defined against
-    (pinned by sha256) and the recommended operating point — so no motif,
-    offsets or threshold are passed here. A caller computing the features
-    differently gets a wrong answer rather than an error, which is why they are
-    not flags. See resources/models/charging/README.md.
+    CPU by default; `charging.gpu: true` scores the windowed (TCN) bundle on
+    the GPU instead (escpod >= 0.23.0, see get_charging_device_arg and
+    get_charging_escpod_gpu_prefix in common.smk). The GBM/feature-network
+    bundles this pipeline ships by default have no GPU path and are
+    unaffected either way. The model bundle is self-describing — it carries
+    the anchor definition, the feature recipe, the k-mer table it is defined
+    against (pinned by sha256) and the recommended operating point — so no
+    motif, offsets or threshold are passed here. A caller computing the
+    features differently gets a wrong answer rather than an error, which is
+    why they are not flags. See resources/models/charging/README.md.
 
     The output BAM is the INPUT records with `cl` (uint8, round(P(charged)*255))
     added, in the same order: dorado's MM/ML modbase tags survive untouched, and
@@ -342,6 +346,31 @@ rule classify_charging:
         # and note that cutting `threads` WITHOUT this cap makes it worse, by
         # letting more of them fit at once.
         pod5_readers=1,
+        # Conditional on charging.gpu, unlike rebasecall/escapepod_demux's
+        # static GPU queue assignment in cluster/{slurm,lsf}/config.yaml: those
+        # rules are UNCONDITIONALLY GPU work (dorado basecalls inside
+        # escapepod_demux regardless of ldx.gpu), where this rule's GPU-ness is
+        # a runtime config toggle the static per-executor profile YAML cannot
+        # see. Neither profile declares slurm_partition/gres or
+        # lsf_queue/lsf_extra/ngpu for classify_charging, so these win; mem_mb
+        # /runtime/cpus_per_task stay governed by the profiles, unmeasured for
+        # the GPU path and kept at the CPU-sized budget as a safe ceiling.
+        slurm_partition=lambda wildcards: (
+            "gpu" if config["charging"].get("gpu", False) else "rna"
+        ),
+        slurm_account=lambda wildcards: (
+            "gpu_rbi" if config["charging"].get("gpu", False) else "rbi"
+        ),
+        gres=lambda wildcards: "gpu:1" if config["charging"].get("gpu", False) else "",
+        lsf_queue=lambda wildcards: (
+            "gpu" if config["charging"].get("gpu", False) else "rna"
+        ),
+        lsf_extra=lambda wildcards: (
+            "-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+            if config["charging"].get("gpu", False)
+            else ""
+        ),
+        ngpu=lambda wildcards: 1 if config["charging"].get("gpu", False) else 0,
     params:
         model=get_charging_model(),
         min_mapq=config["charging"]["min_mapq"],
@@ -352,6 +381,12 @@ rule classify_charging:
         # disables the retry. See get_charging_orientation_fallback.
         orientation_fallback=get_charging_orientation_fallback(),
         fallback_sh=os.path.join(SCRIPT_DIR, "escpod_classify_fallback.sh"),
+        # "" under charging.gpu: false; otherwise shadows a GPU-enabled escpod
+        # onto PATH for this command only, ahead of the portable CPU build the
+        # Snakefile's onstart prefix already put there. See
+        # get_charging_escpod_gpu_prefix in common.smk.
+        gpu_prefix=get_charging_escpod_gpu_prefix(),
+        device=get_charging_device_arg(),
         # LDX samples have no POD5 of their own: input.pod5 is the raw run's
         # files (for dependency tracking) but the tool takes one path — a
         # directory, which it walks recursively.
@@ -365,7 +400,7 @@ rule classify_charging:
         # too thin for `auto` to decide the frame is classified with the frame
         # the rest of the run measured instead of failing `rule all` for the
         # whole corpus. It retries ONLY that error; see the script.
-        bash {params.fallback_sh} "{params.orientation_fallback}" {log} \
+        {params.gpu_prefix}bash {params.fallback_sh} "{params.orientation_fallback}" {log} \
             {params.pod5_src} \
             --bam {input.bam} \
             --reference {input.reference} \
@@ -374,6 +409,7 @@ rule classify_charging:
             --tsv {params.tsv} \
             --min-mapq {params.min_mapq} \
             {params.orientation} \
+            {params.device} \
             --threads {threads}
 
         gzip -f {params.tsv}

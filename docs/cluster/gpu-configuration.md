@@ -4,19 +4,30 @@ Configure GPU resources for the aa-tRNA-seq pipeline.
 
 ## GPU Requirements
 
-Two rules require GPU access:
+One rule always needs GPU access, and one can optionally use it:
 
 | Rule | Purpose | GPU Usage |
 |------|---------|-----------|
-| `rebasecall` | Dorado basecalling | CUDA neural network inference |
+| `rebasecall` | Dorado basecalling | CUDA neural network inference (always) |
+| `classify_charging` | `escpod classify` | Windowed (TCN) charging bundle only, opt-in |
 
 `rebasecall` benefits significantly from GPU acceleration. CPU-only execution is possible but substantially slower.
 
-!!! note "`classify_charging` is CPU-only"
+!!! note "`classify_charging` GPU support is opt-in, and bundle-specific"
 
-    `escpod classify` has no GPU path — it runs a small ONNX network on
-    the CPU and scales with `--threads`. Do not give it a GPU slot; it will sit
-    on an idle device.
+    Set `charging.gpu: true` in your config to score the windowed (TCN)
+    charging bundle on the GPU (needs escpod >= 0.23.0). This pipeline's
+    default bundles (`charging_feature_nn_*`) have no GPU path and ignore the
+    setting with a log note — do not give a GPU slot to a run using one, it
+    will sit idle. See `charging.gpu` in `config/config-base.yml` and
+    `resources/models/charging/README.md`.
+
+    Unlike `rebasecall`, this is not something you configure per-cluster in
+    `cluster/lsf/config.yaml` / `cluster/slurm/config.yaml`: `classify_charging`
+    resolves its own queue/partition/GPU resources from `charging.gpu` at DAG
+    build time (see the rule's `resources:` block in
+    `workflow/rules/aatrnaseq-process.smk`), since a static per-executor profile
+    file has no way to see that pipeline-config value.
 
 ## GPU Resource Flow
 
@@ -52,12 +63,10 @@ set-resources:
   - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-
-  - classify_charging:lsf_queue="gpu"
-  - classify_charging:lsf_extra="-gpu num=1:j_exclusive=yes"
-  - classify_charging:ngpu=1
-  - classify_charging:mem_mb=24
 ```
+
+`classify_charging` is not configured here — its GPU resources are resolved
+from `charging.gpu` inside the rule itself (see the note above).
 
 ### SLURM GPU Settings
 
@@ -70,12 +79,10 @@ set-resources:
   - rebasecall:gpu_opts="--gres=gpu:1"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24000
-
-  - classify_charging:partition="gpu"
-  - classify_charging:gpu_opts="--gres=gpu:1"
-  - classify_charging:ngpu=1
-  - classify_charging:mem_mb=24000
 ```
+
+`classify_charging` is not configured here — its GPU resources are resolved
+from `charging.gpu` inside the rule itself (see the note above).
 
 ## Configuration Options
 

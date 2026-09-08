@@ -21,9 +21,15 @@ set-resources:
   - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes:mode=exclusive_process"
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
-  # CPU only: escpod classify has no GPU path. 40 GB: MaxRSS on the 2026-09-04
-  # results_v05 jobs was 23.31 G against a 24 GB request, and it scales with
-  # read count.
+  # mem_mb only -- lsf_queue/lsf_extra/ngpu are NOT set here. `charging.gpu`
+  # (config/config-base.yml) toggles this rule between the CPU (default) and
+  # GPU windowed-TCN scorer, and this static profile has no way to see that
+  # pipeline-config value, so the rule declares those three itself
+  # (aatrnaseq-process.smk) and they win over anything unset here.
+  #
+  # 40 GB: MaxRSS on the 2026-09-04 results_v05 jobs was 23.31 G against a
+  # 24 GB request, and it scales with read count. Unmeasured for the GPU
+  # path -- a safe ceiling, not a GPU-specific budget; revisit once profiled.
   - classify_charging:mem_mb=40
   - bwa_align:mem_mb=24
   - modkit_extract_calls:mem_mb=96
