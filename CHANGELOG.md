@@ -4,7 +4,53 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
-## [v0.8.0] - 2026-09-06
+## [v0.9.0] - 2026-09-08
+
+### Added
+
+- **Vendored `charging_tcn_sup6_rna004@v0.1.0`, a new charging architecture --
+  not wired to any config.** A temporal convolutional net over raw signal,
+  distinct from the two shipped `charging_feature_nn_*` bundles, verified
+  against its declared checksums. `charging.model` does not point at it
+  anywhere in this repo: its feature window reaches 20 bases into the 3'
+  adapter, safe only on the pooled `edx07` adapter all 16 LDX barcodes share,
+  and unsafe on `edx01`/`edx02`, the pipeline's *default* adapter pair --
+  scoring it there would silently read adapter identity as charging signal.
+  escpod 0.22.0 added `adapter_window`, a structured metadata block a bundle
+  can declare for exactly this restriction (escapepod-rs#341, a direct
+  response to escapepod-models#138), but escpod carries it without enforcing
+  it, and our vendored copy predates the field -- so building the actual
+  compatibility gate is still open, tracked at #178.
+
+- **`calmd` rule, between `bwa_align` and everything that reads the aligned
+  BAM.** `bwa mem` does not emit an `MD` tag on its own, and
+  `charging_tcn_sup6_rna004` reconstructs its per-read reference from `MD`
+  rather than the FASTA by coordinate -- its own release notes say a runtime
+  that assembles the reference any other way must refuse to score it, since a
+  single unresolved ambiguity code blanks nine consecutive k-mers under the
+  FASTA path. `samtools calmd -Qb` runs as its own pass right after alignment;
+  registered under the `cascade` cleanup tier alongside `bam/aln`.
+
+- **GPU classify via `charging.gpu` (default `false`).** `escpod classify
+  --device gpu` now scores the windowed (TCN) charging bundle through
+  `tract-cuda`/`cudarc` (escapepod-rs#344), a different runtime from
+  `ldx.gpu`'s `onnxruntime` CUDA path -- no separate onnxruntime or cuDNN
+  install needed here. `classify_charging` resolves its own GPU
+  queue/partition from this config key inside the rule itself
+  (`workflow/rules/aatrnaseq-process.smk`), not the static cluster profile
+  files, since those can't see a pipeline-config value. Defaults off: nothing
+  here has been measured against this pipeline's own data, and escpod's own
+  CHANGELOG still flags a residual rare (1-in-51 trials) anomaly from the
+  GPU-classify correctness investigation (escapepod-rs#343) that has not
+  recurred since batch 1 was permanently guarded off.
+
+### Changed
+
+- **`escpod` bumped 0.21.0 -> 0.23.0.** Brings the native AVX2/AVX-512 BiLSTM
+  kernels for `escpod classify` (~35% faster, bit-identical), a POD5
+  read-index lookup fix that stops decoding every reads batch of every input
+  (#334), an aarch64 CI fix, and the `adapter_window`/GPU-classify additions
+  above. No change to any bundle this pipeline currently ships by default.
 
 ### Upgrading
 
