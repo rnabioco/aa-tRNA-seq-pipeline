@@ -294,6 +294,12 @@ CPU with **only a warning**, so confirm the log says
 Set `ldx.gpu: false` on a CPU-only host — the test configs do exactly that,
 since `ldx.gpu: true` is resolved while the DAG is built and CI has no GPU.
 
+`charging.gpu` is a separate, independent flag for `classify_charging` (GPU
+scoring of the windowed/TCN charging bundle, escpod >= 0.23.0) — it shares the
+same `<escpod_version>-gpu` binary but needs no onnxruntime/cuDNN install,
+since its runtime is `tract-cuda`/`cudarc`, not `ort`. See
+`resources/models/charging/README.md`.
+
 ### Testing the LDX path
 
 `config-ldx-test.yml` runs the whole demux path end to end against a committed

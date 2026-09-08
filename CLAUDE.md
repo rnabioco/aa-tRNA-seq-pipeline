@@ -61,7 +61,7 @@ The pipeline supports both LSF and SLURM schedulers. Key files:
 **SLURM:**
 - `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
 
-GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` is CPU-only — `escpod classify` has no GPU path.
+GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` defaults to CPU; `charging.gpu: true` scores the windowed (TCN) charging bundle on the GPU instead (escpod >= 0.23.0) — the shipped default bundles have no GPU path and are unaffected. Unlike `rebasecall`, its GPU resources are resolved from that config key inside the rule itself, not the cluster profile files, since a static per-executor profile can't see `config.yml`.
 
 ## Architecture
 

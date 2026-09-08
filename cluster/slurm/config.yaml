@@ -79,7 +79,13 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 4
 
-  # CPU only: escpod classify has no GPU path.
+  # mem_mb/runtime/cpus_per_task only -- slurm_partition/slurm_account/gres are
+  # NOT set here. `charging.gpu` (config/config-base.yml) toggles this rule
+  # between the CPU (default) and GPU windowed-TCN scorer, and this static
+  # profile has no way to see that pipeline-config value, so the rule declares
+  # those three itself (aatrnaseq-process.smk) and they win over anything
+  # unset here. mem_mb/runtime stay CPU-sized and unmeasured for the GPU path
+  # -- a safe ceiling, not a GPU-specific budget; revisit once profiled.
   #
   # runtime and mem_mb both carried no headroom and both are read-count-driven,
   # which is the wrong shape for a corpus that keeps growing. Measured on the

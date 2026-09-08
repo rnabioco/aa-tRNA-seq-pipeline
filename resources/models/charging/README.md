@@ -208,38 +208,46 @@ Released 2026-09-07 from
 A different architecture (`TCNDwellResidualLN`, a temporal convolutional net
 over raw signal) from the two `charging_feature_nn_*` bundles above, and
 vendored so it verifies and is on disk, but **`charging.model` does not point
-at it anywhere in this repo** — three things have to land first (tracked in
-rnabioco/aa-tRNA-seq-pipeline#178):
+at it in any config this repo ships** — one thing still has to land before it
+should (tracked in rnabioco/aa-tRNA-seq-pipeline#178):
 
-1. **The BAM must carry an `MD` tag.** The bundle's `reference_source` is
-   `md`, not `fasta`: it reconstructs the reference per read from `MD`, and its
-   own release notes say a runtime that assembles the reference any other way
-   "must refuse to score" the bundle rather than proceed, because a single
-   unresolved ambiguity code blanks nine consecutive k-mers under the
-   FASTA-by-coordinate path. `bwa_align` does not emit `MD` today — checked
-   against `.tests/outputs/bam/aln/sample1/sample1.aln.bam`, no `MD` tag on any
-   record — so this bundle cannot score anything against this pipeline's BAMs
-   yet.
-2. **No adapter-family compatibility gate exists for it.** The feature window
-   reaches 20 bases into the 3' adapter, which is safe only because all 16 LDX
-   barcodes share one constant adapter (`edx07`) out to +24. The pipeline's
-   *default* adapter pair, `edx01`/`edx02` (`config/config-base.yml`), diverges
-   from `edx07` at +17 — scoring this bundle there would silently read adapter
-   identity as charging signal. That restriction lives only as a caveat in the
-   bundle's `metadata.json`, not a structured, checkable field, so nothing
-   today stops a config from pointing `charging.model` here on a non-`edx07`
-   run the way `charging.basecaller_check` stops a basecaller mismatch.
-3. **No GPU path yet.** `escpod classify` has no `--device`/`--gpu` flag as of
-   0.20.0 (checked against the locally installed binary, CPU and GPU builds
-   both) — GPU classify is upstream work that has not tagged a release yet.
-   When it does, `escpod_version` and the cluster resource config for
-   `classify_charging` move together, same as any other escpod bump.
+- **No adapter-family compatibility gate exists for it.** The feature window
+  reaches 20 bases into the 3' adapter, which is safe only because all 16 LDX
+  barcodes share one constant adapter (`edx07`) out to +24. The pipeline's
+  *default* adapter pair, `edx01`/`edx02` (`config/config-base.yml`), diverges
+  from `edx07` at +17 — scoring this bundle there would silently read adapter
+  identity as charging signal. escpod 0.22.0 added `adapter_window`, a
+  structured metadata block a bundle can declare for exactly this
+  (escapepod-rs#341, direct response to escapepod-models#138) — escpod carries
+  it but does not enforce it, so building the actual check is still on this
+  pipeline. Our vendored copy of this bundle predates the field, so it has
+  none to check yet either; that needs escapepod-models to re-issue it.
+
+Two things that used to block it are done:
+
+- **The BAM carries an `MD` tag.** The bundle's `reference_source` is `md`,
+  not `fasta`: it reconstructs the reference per read from `MD`, and its own
+  release notes say a runtime that assembles the reference any other way
+  "must refuse to score" the bundle rather than proceed, because a single
+  unresolved ambiguity code blanks nine consecutive k-mers under the
+  FASTA-by-coordinate path. The `calmd` rule (`workflow/rules/aatrnaseq-process.smk`)
+  adds it between `bwa_align` and everything that reads the aligned BAM.
+- **A GPU path exists.** escpod 0.23.0 (escapepod-rs#344, cutting as of
+  2026-09-08) scores the windowed TCN through `tract-cuda`/`cudarc` via
+  `--device auto|cpu|gpu`. Set `charging.gpu: true` once `escpod_version` is
+  bumped to 0.23.0 or later — see that key in `config/config-base.yml` for
+  what it needs (a CUDA-visible node, the same `-gpu` escpod build `ldx.gpu`
+  already downloads, but not `ldx.gpu`'s onnxruntime/cuDNN install) and the
+  residual caveat upstream's own CHANGELOG still carries: a rare (1-in-51
+  trials) anomaly with the same failure signature as a since-refuted
+  correctness bug, seen once and not reproduced at batch >= 2 since. Nothing
+  here has been measured against this pipeline's own data yet.
 
 **Loadable today.** Its schema needs escpod >= 0.19.0 (escapepod-rs#308 moved
 chunk assembly into `escapepod-signal` so `escpod classify` can build the three
 input tensors itself; #313/#315 added the declared `reference_source` and
-accepted the `basecaller` block) — already satisfied by the pinned 0.21.0,
-so no escpod bump is needed to *load* this bundle, only to run it on GPU.
+accepted the `basecaller` block) — already satisfied by the pinned 0.21.0, so
+loading and scoring on the CPU need no escpod bump; only GPU scoring does.
 
 Trained on *E. coli* K-12 MG1655 tRNA behind the pooled `edx07` adapter (the
 same physical run as the `charging_feature_nn` corpora, re-labelled from LDX
