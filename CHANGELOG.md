@@ -4,6 +4,26 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`classify_charging` requests 16 cores instead of 4 when `charging.gpu:
+  true`** (CPU mode is unaffected, still 4). The 4-core budget was measured
+  2026-09-06 against the CPU-scored path and never re-measured for the GPU
+  one -- this repo's own comment already said so ("unmeasured for the GPU
+  path... revisit once profiled"). Profiled 2026-09-08 alongside
+  rnabioco/escapepod-rs#351: with that issue's GPU-pipelining fix, the
+  remaining bottleneck (the banded-DP signal refinement, ~90% of sampled CPU
+  cycles per read) is CPU-bound and embarrassingly parallel across reads, not
+  I/O-bound the way the CPU path is -- so it keeps scaling well past 4 cores.
+  Clean A/B on a real 55,446-read production sample, same escpod build,
+  `--device gpu`: 203-214 s at 4 threads, 87.2 s at 16, ~2.4x. `threads:` and
+  `resources.cpus_per_task` in `workflow/rules/aatrnaseq-process.smk` are now
+  both `charging.gpu`-conditional (matching the existing `slurm_partition`/
+  `gres` pattern); `cluster/slurm/config.yaml` no longer pins
+  `cpus_per_task` for this rule, since a static profile can't see the config
+  toggle. `mem_mb`/`runtime` are untouched -- still CPU-sized and still
+  unmeasured for the GPU path, now said so in one place instead of two.
+
 ## [v0.9.0] - 2026-09-08
 
 ### Added

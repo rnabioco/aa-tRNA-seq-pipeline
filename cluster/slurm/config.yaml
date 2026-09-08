@@ -79,11 +79,11 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 4
 
-  # mem_mb/runtime/cpus_per_task only -- slurm_partition/slurm_account/gres are
-  # NOT set here. `charging.gpu` (config/config-base.yml) toggles this rule
-  # between the CPU (default) and GPU windowed-TCN scorer, and this static
-  # profile has no way to see that pipeline-config value, so the rule declares
-  # those three itself (aatrnaseq-process.smk) and they win over anything
+  # mem_mb/runtime only -- slurm_partition/slurm_account/gres/cpus_per_task
+  # are NOT set here. `charging.gpu` (config/config-base.yml) toggles this
+  # rule between the CPU (default) and GPU windowed-TCN scorer, and this
+  # static profile has no way to see that pipeline-config value, so the rule
+  # declares those itself (aatrnaseq-process.smk) and they win over anything
   # unset here. mem_mb/runtime stay CPU-sized and unmeasured for the GPU path
   # -- a safe ceiling, not a GPU-specific budget; revisit once profiled.
   #
@@ -94,11 +94,13 @@ set-resources:
   # TIMEOUT at 4:00:13. The `_b4` samples are the largest yet -- LysRS_U_all20_b4
   # alone is 3.88M scored reads, 2h17m of classify plus 4.5m of BAM write.
   #
-  # cpus_per_task tracks the rule's own `threads: 4`; see the reasoning there.
+  # cpus_per_task moved out 2026-09-08: it used to track this rule's own
+  # `threads: 4` here, but `threads` is now GPU-conditional (4 CPU / 16 GPU,
+  # see aatrnaseq-process.smk) and this static profile has no way to see
+  # `charging.gpu` either, same reason slurm_partition/gres never lived here.
   classify_charging:
     runtime: "8h"
     mem_mb: 40000
-    cpus_per_task: 4
 
   # CPU-intensive rules
   bwa_align:
