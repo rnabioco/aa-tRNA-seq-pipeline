@@ -152,6 +152,11 @@ set-resources:
     mem_mb: 48000
     cpus_per_task: 4
 
+  merge_pods:
+    runtime: "8h"
+    mem_mb: 64000
+    cpus_per_task: 2
+
   # WarpDemuX rules
   split_pod5:
     runtime: "4h"
