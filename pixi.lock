@@ -96,6 +96,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-cudart-12.9.79-h5888daf_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-cudart-dev-12.9.79-h5888daf_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-cudart-static-12.9.79-h5888daf_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-nvrtc-12.9.86-hecca717_1.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/cudnn-9.10.2.21-hbcb9cd8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/cython-3.3.0-py312h03570ca_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/dbus-1.16.2-he8c428d_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/dtaidistance-2.4.0-py312h4f23490_0.conda
@@ -136,6 +138,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libbrotlienc-1.2.0-h018ffa1_4.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.11.0-10_h0358290_openblas.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcrc32c-1.1.2-h9c3ff4c_0.tar.bz2
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-12.9.2.10-h676940d_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-9.10.2.21-hf7e9902_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-dev-9.10.2.21-h58dd1b1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcups-2.3.3-h7a8fb5f_6.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcurl-8.22.0-ha042cf0_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libdeflate-1.25-hd45a770_1.conda
@@ -4563,6 +4568,18 @@ packages:
   run_exports: {}
   size: 23283
   timestamp: 1749218442382
+- conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-nvrtc-12.9.86-hecca717_1.conda
+  sha256: 68f81268c25befa9b70dc49af469ab0eb131960e3700b9a4edb46a32da343a28
+  md5: 53f0062e2243b26e43ddac0b5267c6a3
+  depends:
+  - __glibc >=2.17,<3.0.a0
+  - cuda-version >=12.9,<12.10.0a0
+  - libgcc >=14
+  - libstdcxx >=14
+  license: LicenseRef-NVIDIA-End-User-License-Agreement
+  run_exports: {}
+  size: 67168282
+  timestamp: 1760723629347
 - conda: https://conda.anaconda.org/conda-forge/linux-64/cuda-nvrtc-13.3.33-hecca717_0.conda
   sha256: a70641e7d81694f57c7df46a17b657594393082dad667532c29df9540b7f99ca
   md5: 57124a775cb937bb2bfd10f09a230430
@@ -4575,6 +4592,23 @@ packages:
   run_exports: {}
   size: 39254802
   timestamp: 1779897349474
+- conda: https://conda.anaconda.org/conda-forge/linux-64/cudnn-9.10.2.21-hbcb9cd8_0.conda
+  sha256: 5760ad9de2ecff210b018503168d26996497604608cf59f93df90f01ea4eb982
+  md5: c8168e26c0a9f50425ac05d6a5201c12
+  depends:
+  - __glibc >=2.28,<3.0.a0
+  - cuda-version >=12,<13.0a0
+  - libcudnn-dev 9.10.2.21 h58dd1b1_0
+  - libgcc >=14
+  - libstdcxx >=14
+  constrains:
+  - cudnn-jit <0a
+  license: LicenseRef-cuDNN-Software-License-Agreement
+  run_exports:
+    weak:
+    - cudnn >=9.10.2.21,<10.0a0
+  size: 19646
+  timestamp: 1762823905292
 - conda: https://conda.anaconda.org/conda-forge/linux-64/cudnn-9.25.0.15-h886f0b6_0.conda
   sha256: 59133f4d1adb8b8d6361fe1cc615d32072093fa77ff3b06ab729eef23cf2fffb
   md5: 684b2dc69b06455161b837800c69b143
@@ -6184,6 +6218,19 @@ packages:
     - libcrc32c >=1.1.2,<1.2.0a0
   size: 20440
   timestamp: 1633683576494
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-12.9.2.10-h676940d_0.conda
+  sha256: 16666002786d59dd7d62ddbeffe08c4118d882c986c6bf72443c7f983c24fb0a
+  md5: 55dfb580a84aea59185586a306bf9605
+  depends:
+  - __glibc >=2.28,<3.0.a0
+  - cuda-nvrtc
+  - cuda-version >=12.9,<12.10.0a0
+  - libgcc >=14
+  - libstdcxx >=14
+  license: LicenseRef-NVIDIA-End-User-License-Agreement
+  run_exports: {}
+  size: 467672248
+  timestamp: 1778771595911
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-13.6.0.2-h676940d_0.conda
   sha256: d10ce5ea92af1cccc0ed4640506489762f273f2e40debaf6300be2c866f17e8b
   md5: b94086b1a487ca78ec1836dfd4a3efca
@@ -6197,6 +6244,23 @@ packages:
   run_exports: {}
   size: 384624985
   timestamp: 1782782999955
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-9.10.2.21-hf7e9902_0.conda
+  sha256: dc6b89e874867b2cdf08224059bd1543cbb72ed646da177c1454596469c9a4bb
+  md5: a178a1f3642521f104ecceeefa138d01
+  depends:
+  - __glibc >=2.28,<3.0.a0
+  - cuda-nvrtc
+  - cuda-version >=12,<13.0a0
+  - libcublas
+  - libgcc >=14
+  - libstdcxx >=14
+  - libzlib >=1.3.1,<2.0a0
+  constrains:
+  - libcudnn-jit <0a
+  license: LicenseRef-cuDNN-Software-License-Agreement
+  run_exports: {}
+  size: 526823453
+  timestamp: 1762823414388
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-9.25.0.15-ha4b6413_0.conda
   sha256: af030c58c1f3c4e0613d56d3a3095e0fb3d1f845ecc0844684b16727b991d95b
   md5: da6ca95b4f3a9e2931e05327e0f1736d
@@ -6214,6 +6278,23 @@ packages:
   run_exports: {}
   size: 440351874
   timestamp: 1784705313152
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-dev-9.10.2.21-h58dd1b1_0.conda
+  sha256: e9fef18b943a8181427734bc9fada8a594e3a8391fa2a8d59d980acfe1c2cf04
+  md5: 7d7a47d067261531c3089dcec326d6fa
+  depends:
+  - __glibc >=2.28,<3.0.a0
+  - cuda-version >=12,<13.0a0
+  - libcudnn 9.10.2.21 hf7e9902_0
+  - libgcc >=14
+  - libstdcxx >=14
+  constrains:
+  - libcudnn-jit-dev <0a
+  license: LicenseRef-cuDNN-Software-License-Agreement
+  run_exports:
+    weak:
+    - libcudnn >=9.10.2.21,<10.0a0
+  size: 44188
+  timestamp: 1762823889020
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-dev-9.25.0.15-h7bcfba5_0.conda
   sha256: f56ff2d778891afddd735607f8d68a8522d4d9e5c214d8cc2415e72344f3d5e5
   md5: ccfbc606c14cd3ff87d092ee75c5d86e

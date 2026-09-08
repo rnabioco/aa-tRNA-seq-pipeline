@@ -240,6 +240,20 @@ cuda-cudart = "*"
 # JIT-compiles its own kernels through NVRTC on the machine that runs them,
 # so without these two `escpod classify --device gpu` dies on first use with
 # "Could not find a toolkit include dir" rather than at load.
+#
+# `cudnn` is a second, separate runtime dependency beyond the three above —
+# found only by actually running `--device gpu` on a real GPU node (compgpu01)
+# after the fix above landed: cudarc's own dynamic loader panics with
+# `Unable to dynamically load the "cudnn" shared library`
+# (cudarc-0.19.9/src/lib.rs:200), independently of the `libcudart` symbol
+# issue #347 fixed. This contradicts this block's own prior claim (and
+# `charging.gpu`'s doc comment in config-base.yml, also corrected) that this
+# path "runs through tract-cuda/cudarc" needing only CUDA headers, not the
+# onnxruntime/cuDNN install `ldx.gpu` needs — that was true of the NVRTC
+# JIT-compile path, but tract-cuda's convolution/LSTM kernels dlopen cuDNN
+# directly regardless. Pinned the same way `[feature.gpu]` above pins it for
+# CUDA 13; pixi's solver picks the CUDA-12-compatible build here because this
+# feature's `cuda-version` is `12.*`.
 [feature.classify-gpu]
 platforms = ["linux-64"]
 
@@ -251,6 +265,7 @@ cuda-version = "12.*"
 cuda-cudart = "*"
 cuda-cudart-dev = "*"
 cuda-cccl = "*"
+cudnn = ">=9,<10"
 
 [environments]
 default = []
