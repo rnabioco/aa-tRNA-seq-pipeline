@@ -11,11 +11,13 @@ flowchart TB
     end
     subgraph Cluster
         B[pixi run snakemake<br/>--profile cluster/lsf]
-        C[pixi run snakemake<br/>--profile cluster/generic]
+        C[pixi run snakemake<br/>--profile cluster/slurm]
+        F[pixi run snakemake<br/>--profile cluster/generic]
     end
     subgraph Shortcuts
         D[pixi run test]
         E[pixi run test-lsf]
+        G[pixi run test-slurm]
     end
 ```
 
@@ -94,7 +96,21 @@ Or use the shortcut:
 pixi run test-lsf  # Uses config-test.yml with LSF profile
 ```
 
-### SLURM/Generic Clusters
+### SLURM Clusters
+
+```bash
+pixi run snakemake --profile cluster/slurm --configfile=config/config.yml
+```
+
+Or use the shortcut:
+
+```bash
+pixi run test-slurm  # Uses config-test.yml with the SLURM profile
+```
+
+### Generic Clusters
+
+For a scheduler without a dedicated profile:
 
 ```bash
 pixi run snakemake --profile cluster/generic --configfile=config/config.yml
@@ -258,7 +274,10 @@ pixi run snakemake --profile cluster/lsf \
 | `pixi run dry-run` | Dry run with test config |
 | `pixi run test` | Local execution with test data (4 cores) |
 | `pixi run test-lsf` | LSF execution with test data |
-| `pixi run run-preprint` | Run preprint pipeline |
+| `pixi run test-slurm` | SLURM execution with test data |
+| `pixi run dry-run-ldx` / `pixi run test-ldx` | LDX demux DAG / full run against the committed fixture |
+| `pixi run dry-run-fdx` / `pixi run test-fdx` | Dual-index (LDX+FDX) DAG / full run against the committed fixture |
+| `pixi run run-preprint` | Run preprint pipeline (`cluster/generic` profile) |
 | `pixi run dag` | Generate workflow DAG image |
 
 ## Troubleshooting

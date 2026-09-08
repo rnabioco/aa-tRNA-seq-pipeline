@@ -6,11 +6,11 @@ This guide documents all output files produced by the pipeline.
 
 ```
 {output_directory}/
-├── pod5/                    # Merged POD5 files
-├── bam/                     # BAM files at each stage
-├── fq/                      # Extracted FASTQ files
+├── reference/               # Validated/built reference FASTA + report
+├── pod5/                    # Per-sample directory of symlinks to raw POD5 (no copy)
+├── bam/                     # BAM files at each stage (rebasecall, aln, calmd, charging, adapter_tagged, final)
 ├── summary/                 # Analysis outputs
-│   ├── tables/             # Tabular summaries
+│   ├── tables/             # Tabular summaries (charging, CPM, calls, QC)
 │   ├── modkit/             # Modification calling
 │   └── qc/                 # Reference QC metrics
 ├── reports/                 # Rendered QC reports
@@ -18,6 +18,10 @@ This guide documents all output files produced by the pipeline.
 ├── logs/                    # Rule execution logs
 └── squiggy-session.json     # Squiggy session file for Positron
 ```
+
+No `fq/` directory is written: `bwa_align` streams the uBAM straight through
+`samtools fastq` into `bwa mem` in one pass, carrying dorado's tags via the
+FASTQ comment.
 
 ## Data Flow and Outputs
 
@@ -28,12 +32,13 @@ flowchart TB
     end
 
     subgraph Processing
-        B[pod5/{sample}/{sample}.pod5<br/>Merged POD5]
-        C[bam/rebasecall/{sample}/{sample}.rbc.bam<br/>Basecalled]
-        D[fq/{sample}/{sample}.fq.gz<br/>FASTQ]
-        E[bam/aln/{sample}/{sample}.aln.bam<br/>Aligned]
-        F[bam/charging/{sample}/{sample}.charging.bam<br/>Classified]
-        G[bam/final/{sample}/{sample}.bam<br/>Final BAM]
+        B[pod5/sample/<br/>Symlinks to raw POD5]
+        C[bam/rebasecall/sample/sample.rbc.bam<br/>Basecalled]
+        E[bam/aln/sample/sample.aln.bam<br/>Aligned, no FASTQ written]
+        CM[bam/calmd/sample/sample.calmd.bam<br/>MD/NM tags]
+        F[bam/charging/sample/sample.charging.bam<br/>Classified]
+        AT[bam/adapter_tagged/sample/sample.bam<br/>PT tags]
+        G[bam/final/sample/sample.bam<br/>Final BAM]
     end
 
     subgraph Outputs
@@ -44,7 +49,7 @@ flowchart TB
         L[reports/<br/>QC report]
     end
 
-    A --> B --> C --> D --> E --> F --> G
+    A --> B --> C --> E --> CM --> F --> AT --> G
     G --> H
     G --> I
     G --> J
@@ -337,7 +342,7 @@ A JSON session file generated at the root of the output directory for loading pi
   "sessionName": "aa-tRNA-seq: ...",
   "samples": {
     "sample1": {
-      "pod5Paths": ["pod5/sample1/sample1.pod5"],
+      "pod5Paths": ["pod5/sample1/"],
       "bamPath": "bam/final/sample1/sample1.bam",
       "fastaPath": "../path/to/reference.fa"
     }
@@ -355,11 +360,14 @@ Open the `squiggy-session.json` file in Positron to load all samples with their 
 
 These files are produced but typically not used directly:
 
-### Merged POD5
+### Staged POD5
 
-`pod5/{sample}/{sample}.pod5`
+`pod5/{sample}/<run>/<pod5_pass|pod5_fail|pod5>/*.pod5`
 
-Merged POD5 file containing all raw signal data for the sample.
+A directory of symlinks to the sample's raw POD5 files (`stage_pod5`) —
+nothing is copied, so this costs no extra disk. Absent for LDX-demultiplexed
+samples, which hand dorado the raw run directly; a WarpDemuX sample's split
+POD5 lives under `demux/pod5/` instead.
 
 ### Rebasecalled BAM
 
@@ -371,19 +379,29 @@ Dorado output with basecalls and move tables.
 
 `bam/aln/{sample}/{sample}.aln.bam`
 
-BWA MEM alignment output.
+BWA MEM alignment output. No FASTQ is written — `bwa_align` streams the uBAM
+through `samtools fastq` into `bwa mem -C` in one pass, and dorado's tags
+(move table, MM/ML modbase calls) ride along in the FASTQ comment.
+
+### calmd BAM
+
+`bam/calmd/{sample}/{sample}.calmd.bam`
+
+The aligned BAM with `MD`/`NM` tags recomputed against the reference
+(`bwa mem` does not emit `MD` on its own).
 
 ### Charging BAM
 
 `bam/charging/{sample}/{sample}.charging.bam`
 
-The aligned BAM with the `cl` charging tag added, before adapter tagging.
+The calmd BAM with the `cl` charging tag added, before adapter tagging.
 
-### FASTQ
+### Adapter-Tagged BAM
 
-`fq/{sample}/{sample}.fq.gz`
+`bam/adapter_tagged/{sample}/{sample}.bam`
 
-Extracted reads for alignment.
+The charging BAM with `pt` adapter-position tags added; `finalize_bam`
+hardlinks this as the final BAM.
 
 ## Demultiplexing Outputs
 
@@ -401,11 +419,13 @@ Read ID to barcode assignments.
 
 Read IDs belonging to each sample.
 
-### Split POD5
+### Split POD5 (WarpDemuX only)
 
-`demux/pod5/{sample}.pod5`
+`demux/pod5/{sample}/{sample}.pod5`
 
-Per-sample POD5 files after demultiplexing.
+Per-sample POD5 file after WarpDemuX demultiplexing. The escapepod (LDX/FDX)
+backend writes no per-sample POD5 at all — see
+[Demultiplexing](../workflow/demultiplexing.md).
 
 ## Charging Calls
 
@@ -449,7 +469,7 @@ Approximate file sizes for a typical sample:
 
 | File | Size |
 |------|------|
-| Merged POD5 | 5-50 GB |
+| Staged POD5 (symlinks) | ~0 (raw run is 5-50+ GB, not duplicated) |
 | Final BAM | 100-500 MB |
 | Charging CPM | 10-50 KB |
 | Charging Prob | 1-10 MB |

@@ -4,11 +4,14 @@ Configure GPU resources for the aa-tRNA-seq pipeline.
 
 ## GPU Requirements
 
-One rule always needs GPU access, and one can optionally use it:
+Basecalling always needs GPU access, on both the standard and LDX/FDX demux
+paths; `classify_charging` can optionally use it too:
 
 | Rule | Purpose | GPU Usage |
 |------|---------|-----------|
-| `rebasecall` | Dorado basecalling | CUDA neural network inference (always) |
+| `rebasecall` | Dorado basecalling, per sample | CUDA neural network inference (always) |
+| `rebasecall_ldx_run` | Dorado basecalling, whole run (LDX path) | CUDA neural network inference (always) |
+| `escapepod_demux` / `escapepod_demux_fdx` | `escpod demux --annotate` (LDX/FDX barcode calling) | CUDA neural network inference (always) |
 | `classify_charging` | `escpod classify` | Windowed (TCN) charging bundle only, opt-in |
 
 `rebasecall` benefits significantly from GPU acceleration. CPU-only execution is possible but substantially slower.
@@ -33,8 +36,14 @@ One rule always needs GPU access, and one can optionally use it:
 
 ```mermaid
 flowchart LR
-    subgraph GPU Rules
-        A[rebasecall<br/>Dorado]
+    subgraph GPURules[GPU Rules — always]
+        A[rebasecall<br/>Dorado, per sample]
+        A2[rebasecall_ldx_run<br/>Dorado, whole run]
+        A3[escapepod_demux<br/>+ escapepod_demux_fdx]
+    end
+
+    subgraph GPUOpt[GPU Rule — opt-in]
+        B[classify_charging<br/>escpod classify<br/>only if charging.gpu: true]
     end
 
     subgraph Resources
@@ -43,7 +52,13 @@ flowchart LR
     end
 
     C --> A
+    C --> A2
+    C --> A3
+    C --> B
     D --> A
+    D --> A2
+    D --> A3
+    D -.-> B
 ```
 
 ## Cluster Configuration
@@ -71,18 +86,25 @@ from `charging.gpu` inside the rule itself (see the note above).
 ### SLURM GPU Settings
 
 ```yaml
-resources:
-  - ngpu=8
-
 set-resources:
-  - rebasecall:partition="gpu"
-  - rebasecall:gpu_opts="--gres=gpu:1"
-  - rebasecall:ngpu=1
-  - rebasecall:mem_mb=24000
+  rebasecall:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:1"
+  rebasecall_ldx_run:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:2"
+  escapepod_demux:
+    slurm_partition: gpu
+    slurm_account: gpu_rbi
+    gres: "gpu:2"
 ```
 
-`classify_charging` is not configured here — its GPU resources are resolved
-from `charging.gpu` inside the rule itself (see the note above).
+`classify_charging` is not configured here — its GPU resources (`slurm_partition`,
+`slurm_account`, `gres`) are resolved from `charging.gpu` inside the rule
+itself (see the note above and `workflow/rules/aatrnaseq-process.smk`). Key
+names and current values live in `cluster/slurm/config.yaml`.
 
 ## Configuration Options
 
@@ -135,7 +157,8 @@ Request exclusive GPU access to avoid memory conflicts:
 
     ```yaml
     set-resources:
-      - rebasecall:gpu_opts="--gres=gpu:1 --exclusive"
+      - rebasecall:gres="gpu:1"
+      - rebasecall:slurm_extra="--exclusive"
     ```
 
 ### GPU Type Selection
@@ -153,7 +176,7 @@ If your cluster has multiple GPU types:
 
     ```yaml
     set-resources:
-      - rebasecall:gpu_opts="--gres=gpu:v100:1"
+      - rebasecall:gres="gpu:v100:1"
     ```
 
 ## Local GPU Execution
@@ -278,7 +301,7 @@ Specify GPU type explicitly in cluster profile:
 
     ```yaml
     set-resources:
-      - rebasecall:gpu_opts="--gres=gpu:a100:1"
+      - rebasecall:gres="gpu:a100:1"
     ```
 
 ### Jobs Waiting for GPU
