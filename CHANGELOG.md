@@ -4,6 +4,27 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`classify_charging` requests 32 cores instead of 16 when `charging.gpu:
+  true`** (CPU mode is unaffected, still 4). #185 (16 cores) shipped the day
+  before rnabioco/escapepod-rs#354 profiled the GPU path further: that issue
+  set out to fix a suspected CPU/GPU scheduling stall at `--threads 16` and
+  instead found none to fix — a correlated `nvidia-smi dmon` + per-second CPU
+  trace showed CPU continuously saturated through the whole run, never idling
+  in step with the GPU, so the escpod-side pipeline was not the lever. Thread
+  count was, on the same 55,446-read production sample, one wide unconfounded
+  allocation: 16 threads 68.1 s (60% GPU duty), 32 threads 45.1 s (78% duty,
+  ~1.5x over 16), 48 threads 42.6 s (82% duty, ~1.06x over 32 — the plateau).
+  32 is the point past which the curve flattens hard, so it is what moves;
+  see `workflow/rules/aatrnaseq-process.smk` and escapepod-rs#354 for the
+  full trace. 16 was one quarter of a GPU node's 64 cores, the same
+  fair-share logic `pod5_readers` uses for the other shared resource this
+  rule contends over; 32 is one half, so at most two `charging.gpu` jobs now
+  fit a node without contending on CPU (down from four) — accepted because
+  each individual job is ~35% faster and a node running fewer than two of
+  them (the common case so far) sees a straight win.
+
 ## [v0.9.1] - 2026-09-08
 
 ### Fixed
