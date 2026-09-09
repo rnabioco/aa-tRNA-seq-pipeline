@@ -260,6 +260,22 @@ dorado_model: rna004_sup@v6.0.0
 #     says why instead of silently vanishing. That is what feeds
 #     `read_attrition.tsv.gz`.
 #
+# 0.24.1 is what we run now. `escpod classify --device gpu`'s windowed (TCN)
+# scorer no longer starves the GPU behind a fully-serial CPU prep phase
+# (escapepod-rs#351/#352, ~1.8x on a real sample) -- relevant only to
+# `charging.gpu: true`, which the shipped GBM/feature-network bundles never
+# exercise. The same release also speeds up that scorer's banded-DP
+# refinement (escapepod-rs#353/#355/#356, another ~25% CPU-bound), but
+# #356's version is NOT bit-identical to 0.23.0's -- a documented
+# ~1-in-55,000 chance of a borderline `cl` call flipping. That refinement
+# step (`resquiggle::dp`) is specific to the WINDOWED bundle's chunk
+# assembly (`waveform.rs`); the default `charging_feature_nn_*` bundles
+# extract levels straight from the move table and never touch it, so this
+# pipeline's default configuration (`charging.gpu: false`) sees no
+# behavioral change from this bump at all -- only `charging.gpu: true` runs
+# (already flagged above as unmeasured on this pipeline's own data) inherit
+# that tradeoff.
+#
 # 0.20.0 is what we run. It changes nothing this pipeline calls -- flags,
 # outputs and sidecar shape are 0.19.0's -- and brings performance and
 # hardening: the CPU boundary CNN loads with its input shape pinned and its
@@ -376,7 +392,7 @@ dorado_model: rna004_sup@v6.0.0
 #     the `boundary.margin` / `boundary.clamp_max_shift` bundle keys. No
 #     upstream CRF bundle has ever actually declared either (see `ldx` below),
 #     so the flags are what carry them; the escpod floor is for the flags.
-escpod_version: 0.23.0
+escpod_version: 0.24.1
 
 # modkit threshold parameters for modification calling
 # optimized thresholds based on ModkitOpt (Sneddon et al. 2025)

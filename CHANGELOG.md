@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.2] - 2026-09-09
+
 ### Changed
 
 - **`classify_charging` requests 32 cores instead of 16 when `charging.gpu:
@@ -24,6 +26,20 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   fit a node without contending on CPU (down from four) — accepted because
   each individual job is ~35% faster and a node running fewer than two of
   them (the common case so far) sees a straight win.
+- **`escpod_version` bumped 0.23.0 → 0.24.1** (checksums in
+  `scripts/setup-tools.sh` updated to match). Two upstream fixes, both
+  scoped to `charging.gpu: true` (default `false`; the shipped GBM/
+  feature-network bundles never exercise either):
+  - `escpod classify --device gpu`'s windowed (TCN) scorer no longer starves
+    the GPU behind a fully-serial CPU prep phase (escapepod-rs#351/#352,
+    ~1.8x on a real sample).
+  - That scorer's banded-DP refinement is ~25% faster (escapepod-rs#353/
+    #355/#356), but #356's version is **not bit-identical** to 0.23.0's — a
+    documented ~1-in-55,000 chance of a borderline `cl` call flipping. This
+    refinement step is specific to the windowed bundle's chunk assembly; the
+    default `charging_feature_nn_*` bundles extract levels straight from the
+    move table and never touch it, so `charging.gpu: false` runs (the
+    default) see no behavioral change from this bump at all.
 
 ## [v0.9.1] - 2026-09-08
 
