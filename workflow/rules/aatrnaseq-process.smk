@@ -349,10 +349,32 @@ rule classify_charging:
     # itself already bought (364.7 s fully-serial baseline -> 87.2 s here).
     # Output bit-identical to the fully-serial baseline at every point
     # measured; thread count does not change which reads share a GPU batch.
-    # 16 was not swept upward from there -- it is one quarter of a GPU node's
-    # 64 cores here, the same fair-share logic `pod5_readers` below already
-    # uses for the *other* shared resource this rule contends over.
-    threads: lambda wildcards: (16 if config["charging"].get("gpu", False) else 4)
+    #
+    # 16 -> 32 2026-09-08 (rnabioco/escapepod-rs#354): that issue set out to
+    # fix a suspected CPU/GPU scheduling stall at `--threads 16` and instead
+    # found no stall to fix -- a correlated `nvidia-smi dmon` + per-second CPU
+    # trace on the same node/binary/sample showed CPU continuously saturated
+    # through the whole run, never idling in step with the GPU, so the
+    # pipeline's own channel/chunk tuning knobs (already ineffective) were not
+    # the lever. Thread count was: same sample, one wide unconfounded
+    # allocation so the comparison is apples to apples,
+    #   16 threads: 68.1 s, 60% GPU duty
+    #   32 threads: 45.1 s, 78% GPU duty  (~1.5x over 16)
+    #   48 threads: 42.6 s, 82% GPU duty  (~1.06x over 32 -- near the plateau)
+    # 32 is the point past which the curve flattens hard, so it is what moves
+    # here rather than 48; see escapepod-rs#354 for the full trace and every
+    # number. 16 was one quarter of a GPU node's 64 cores, the same
+    # fair-share logic `pod5_readers` below uses for the *other* shared
+    # resource this rule contends over; 32 is one half, so at most two
+    # `charging.gpu` jobs now fit a node without contending on CPU (down from
+    # four) -- a real trade against `jobs:`-level throughput when many such
+    # jobs are queued at once, accepted because each individual job is ~35%
+    # faster and a node running fewer than two of them (the common case so
+    # far) sees a straight win. A fully-packed node degrades toward
+    # per-job cgroup time-slicing rather than below the old 16-thread
+    # baseline, since Slurm allocates cores, it does not deny oversubscribed
+    # requests outright.
+    threads: lambda wildcards: (32 if config["charging"].get("gpu", False) else 4)
     resources:
         # How many classify jobs may page a POD5 store at once; capped globally
         # in the cluster profiles. This is the throttle that matters. `jobs: 100`
@@ -389,7 +411,7 @@ rule classify_charging:
         ),
         gres=lambda wildcards: "gpu:1" if config["charging"].get("gpu", False) else "",
         cpus_per_task=lambda wildcards: (
-            16 if config["charging"].get("gpu", False) else 4
+            32 if config["charging"].get("gpu", False) else 4
         ),
         lsf_queue=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"
