@@ -94,13 +94,12 @@ set-resources:
   # TIMEOUT at 4:00:13. The `_b4` samples are the largest yet -- LysRS_U_all20_b4
   # alone is 3.88M scored reads, 2h17m of classify plus 4.5m of BAM write.
   #
-  # cpus_per_task moved out 2026-09-08: it used to track this rule's own
-  # `threads: 4` here, but `threads` is now GPU-conditional (4 CPU / 16 GPU,
-  # see aatrnaseq-process.smk) and this static profile has no way to see
+  # cpus_per_task moved out 2026-09-08, mem_mb moved out 2026-09-11: both
+  # used to be flat here, but both are now GPU-conditional (see
+  # aatrnaseq-process.smk) and this static profile has no way to see
   # `charging.gpu` either, same reason slurm_partition/gres never lived here.
   classify_charging:
     runtime: "8h"
-    mem_mb: 40000
 
   # CPU-intensive rules
   bwa_align:
