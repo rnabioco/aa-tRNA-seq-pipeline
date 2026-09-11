@@ -363,18 +363,43 @@ rule classify_charging:
     #   48 threads: 42.6 s, 82% GPU duty  (~1.06x over 32 -- near the plateau)
     # 32 is the point past which the curve flattens hard, so it is what moves
     # here rather than 48; see escapepod-rs#354 for the full trace and every
-    # number. 16 was one quarter of a GPU node's 64 cores, the same
-    # fair-share logic `pod5_readers` below uses for the *other* shared
-    # resource this rule contends over; 32 is one half, so at most two
-    # `charging.gpu` jobs now fit a node without contending on CPU (down from
-    # four) -- a real trade against `jobs:`-level throughput when many such
-    # jobs are queued at once, accepted because each individual job is ~35%
-    # faster and a node running fewer than two of them (the common case so
-    # far) sees a straight win. A fully-packed node degrades toward
-    # per-job cgroup time-slicing rather than below the old 16-thread
-    # baseline, since Slurm allocates cores, it does not deny oversubscribed
-    # requests outright.
-    threads: lambda wildcards: (32 if config["charging"].get("gpu", False) else 4)
+    # number.
+    #
+    # 32 -> 16 2026-09-11, in two rounds (escapepod-rs#359 then #361, shipped
+    # as escpod 0.24.2 then 0.24.3). #359 transposed the dwell-penalty DP's
+    # inner loop for autovectorization (bit-identical by construction,
+    # 5.1-5.2x on that loop in isolation) -- the same CPU-bound cost #354
+    # measured above. First A/B, on a pre-release build of #359
+    # (~/scratch/escpod-gpu-duty-cycle/, escpod reporting 0.24.1): isolated
+    # single job still favored 32 threads by ~10-35%, but at the NODE level
+    # -- a 64-core/4-GPU node fits two `--threads 32` jobs (2 of 4 GPUs used,
+    # today's practice) or four `--threads 16` jobs (all 4) -- Scenario B
+    # beat Scenario A 2669 vs 1213 reads/s aggregate (~2.2x) and even ran
+    # each individual job faster (828 vs 730 reads/s), because using every
+    # GPU on the node outweighs any remaining per-job thread advantage. Held
+    # at 32 pending release: escapepod-rs#361 was already on `main`,
+    # explicitly re-tuning the GPU pipeline's `groups_in_flight`/
+    # `prep_chunk` defaults FOR `--threads 16` specifically (its own
+    # isolated criterion benchmark: 956 -> 1289 reads/s, ~35%, at that exact
+    # thread count) -- landing 16 before that shipped would have meant
+    # revising this rule again days later.
+    #
+    # Second A/B, on the OFFICIAL escpod 0.24.3 release (both #359 and #361;
+    # ~/scratch/escpod-0243-sweep/, same real 55,446-read production sample,
+    # `--device gpu`): the isolated single-job gap is now GONE -- a clean
+    # (cache-warm) rep ties 32 and 16 threads exactly, 53 s / 1046 reads/s
+    # both. Node-packing still favors Scenario B on the metric that matters
+    # for a real queue of many pending jobs: Scenario A (2x32, 2 GPUs)
+    # 1960 reads/s aggregate; Scenario B (4x16, 4 GPUs) 3579 reads/s
+    # aggregate (~1.83x) -- despite Scenario B running one synchronized
+    # round of exactly 4 jobs ~9.5% slower makespan than Scenario A's exactly
+    # 2 (61.97 s vs 56.57 s) and each of its jobs ~6.7% slower in isolation
+    # (1232 vs 1320 reads/s). That makespan/per-job cost is an artifact of
+    # comparing one synchronized batch of 4 against one of 2; aggregate
+    # throughput is what a continuously-refilled queue actually sees, and it
+    # is what moves here. `mem_mb` below moved the same day, on the same
+    # evidence.
+    threads: lambda wildcards: (16 if config["charging"].get("gpu", False) else 4)
     resources:
         # How many classify jobs may page a POD5 store at once; capped globally
         # in the cluster profiles. This is the throttle that matters. `jobs: 100`
@@ -398,11 +423,22 @@ rule classify_charging:
         # lsf_queue/lsf_extra/ngpu for classify_charging, so these win.
         # `cpus_per_task` joined them 2026-09-08, tracking `threads` above for
         # the same reason (GPU-conditional); `cluster/slurm/config.yaml` no
-        # longer sets it for this rule. mem_mb/runtime stay governed by the
-        # profiles, still unmeasured for the GPU path and kept at the
-        # CPU-sized budget as a safe ceiling -- 40 GB and 8 h were sized
-        # against CPU-mode's largest corpus (LysRS_U_all20_b4, 3.88M reads),
-        # and the GPU path has not been run at anything near that scale yet.
+        # longer sets it for this rule. `mem_mb` joined 2026-09-11: measured
+        # (not carried over from the CPU path unmeasured) at 7.72-8.47 GB
+        # MaxRSS across both escpod 0.24.2 (~/scratch/escpod-0242-confirm/)
+        # and 0.24.3 (~/scratch/escpod-0243-sweep/), flat across --threads
+        # 16/32 and across 1 vs 4 concurrent jobs on the same node
+        # (55,446-read real production sample) -- the windowed/TCN GPU path
+        # superbatches in bounded chunks rather than holding the whole
+        # corpus resident, so this is not expected to scale hard with corpus
+        # size the way the CPU path's number does. 16 GB keeps ~2x headroom
+        # over the observed peak; `cluster/slurm/config.yaml` no longer sets
+        # mem_mb for this rule either. `runtime` stays on the profile's
+        # 8h CPU-sized ceiling -- GPU wall time here is under 3 minutes, so
+        # it is nowhere near binding. LSF's static `mem_mb=40` (GB, see the
+        # N.B. in cluster/lsf/config.yaml) is UNCHANGED: this measurement is
+        # Slurm-side only and LSF's unit handling for a rule-level override
+        # here hasn't been checked, so it stays the safe unmeasured ceiling.
         slurm_partition=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"
         ),
@@ -410,8 +446,11 @@ rule classify_charging:
             "gpu_rbi" if config["charging"].get("gpu", False) else "rbi"
         ),
         gres=lambda wildcards: "gpu:1" if config["charging"].get("gpu", False) else "",
+        mem_mb=lambda wildcards: (
+            16000 if config["charging"].get("gpu", False) else 40000
+        ),
         cpus_per_task=lambda wildcards: (
-            32 if config["charging"].get("gpu", False) else 4
+            16 if config["charging"].get("gpu", False) else 4
         ),
         lsf_queue=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"

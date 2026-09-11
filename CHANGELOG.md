@@ -4,6 +4,63 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`escpod_version` bumped 0.24.1 → 0.24.3** (checksums in
+  `scripts/setup-tools.sh` updated to match), in two steps landed together.
+  Both are scoped to `charging.gpu: true` (default `false`; the shipped
+  GBM/feature-network bundles never exercise either):
+  - 0.24.2 (escapepod-rs#359): the windowed (TCN) scorer's dwell-penalty DP
+    inner loop is transposed for autovectorization — bit-identical by
+    construction, 5.1-5.2x on that loop in isolation.
+  - 0.24.3 (escapepod-rs#361): that same DP's `max_check` bound is halved
+    (a further ~1.6-2.1x on the loop; **not bit-identical** — a documented,
+    informed tradeoff of the same shape as #356, ~0.025% of calls flip on a
+    55,446-read real sample), and the GPU pipeline's `groups_in_flight`/
+    `prep_chunk` defaults are re-tuned specifically for `--threads 16`
+    (~35% more throughput at that thread count, reproduced).
+- **`classify_charging` requests 16 cores instead of 32 when `charging.gpu:
+  true`** (CPU mode unaffected, still 4), reversing #187 now that escpod
+  0.24.3 (above) removes the reason it was raised. Two rounds of real A/B on
+  the same 55,446-read production sample, `--device gpu`:
+  - On a pre-release build of just the #359 fix (escpod reporting 0.24.1,
+    `~/scratch/escpod-gpu-duty-cycle/`): isolated single job still favored
+    32 threads by ~10-35%, but packing a 64-core/4-GPU node with four
+    `--threads 16` jobs (all 4 GPUs) beat two `--threads 32` jobs (2 of 4
+    GPUs, today's practice) 2669 vs 1213 reads/s aggregate (~2.2x) — and
+    every individual job ran faster too (828 vs 730 reads/s). Held at 32
+    rather than landing this immediately: escapepod-rs#361 was already
+    merged upstream (unreleased), explicitly re-tuning the GPU pipeline for
+    `--threads 16` specifically, so shipping 16 before it released would
+    have meant revising this rule again days later.
+  - On the official 0.24.3 release (`~/scratch/escpod-0243-sweep/`): the
+    isolated-job gap is gone — a clean rep ties 32 and 16 threads exactly
+    (53s/1046 reads/s both). Node-packing still favors four `--threads 16`
+    jobs over two `--threads 32` jobs on the metric that matters for a real
+    queue: 3579 vs 1960 reads/s aggregate (~1.83x), despite one synchronized
+    round of exactly 4 jobs running a modestly worse makespan (61.97s vs
+    56.57s) and slightly slower per job (1232 vs 1320 reads/s) than one
+    round of exactly 2 — an artifact of comparing single synchronized
+    batches, not of the aggregate throughput a continuously-refilled queue
+    actually sees.
+  - See `workflow/rules/aatrnaseq-process.smk` (`classify_charging`'s
+    `threads:`/`resources.cpus_per_task` comment) for the full numbers.
+- **`classify_charging`'s `charging.gpu: true` `mem_mb` request is now
+  measured and GPU-conditional (16 GB), rather than inherited unmeasured
+  from the CPU path's 40 GB.** MaxRSS measured at 7.72-8.47 GB across both
+  escpod 0.24.2 and 0.24.3, flat across `--threads` 16/32 and across 1 vs 4
+  concurrent jobs on one node — the windowed/TCN GPU path superbatches in
+  bounded chunks rather than holding the whole corpus resident, so this
+  isn't expected to scale hard with corpus size the way the CPU path's
+  number does. 16 GB keeps ~2x headroom over the observed peak. Right-sized
+  alongside the thread-count change above so the two together actually let
+  four `--threads 16` jobs pack one node (4 × 16 cores = 64, 4 × 16 GB =
+  64 GB against a 4-GPU node's ~256 GB) rather than being blocked by a
+  carried-over memory ceiling. `cluster/slurm/config.yaml` no longer sets
+  `mem_mb` for this rule either (same reason `cpus_per_task` moved out in
+  #185). LSF's static `mem_mb=40` (GB) is unchanged — this measurement is
+  Slurm-side only.
+
 ## [v0.9.2] - 2026-09-09
 
 ### Changed
