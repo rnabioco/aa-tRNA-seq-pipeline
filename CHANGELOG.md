@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.3] - 2026-09-11
+
 ### Changed
 
 - **`escpod_version` bumped 0.24.1 → 0.24.3** (checksums in
