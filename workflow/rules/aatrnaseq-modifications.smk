@@ -112,6 +112,27 @@ rule modkit_extract_calls:
         ),
     log:
         os.path.join(outdir, "logs", "modkit", "extract_calls", "{sample}"),
+    resources:
+        # Scales with the BAM; the flat 48 GB this replaces was not enough.
+        # Measured 2026-09-14 on the ADAT2-KO pool1 flowcell (human tRNA
+        # reference, 10 samples, rna004_sup@v6.0.0): peak RSS is 34-39 GB
+        # per GB of final BAM, the same slope for `calls` and `full` --
+        #
+        #   0.1 GB BAM   4.7 GB      0.7 GB BAM  26-28 GB
+        #   0.4 GB BAM  13.6-13.8    0.9 GB BAM  33 GB
+        #   1.6 / 1.9 / 2.0 GB BAM   OUT_OF_MEMORY at 48000, all at 44-47 GB
+        #
+        # so every sample above ~1.3 GB died under the old number, and did so
+        # ~4 min in. The cause is modkit's region batching: with a reference
+        # of ~100 bp contigs each tRNA is one interval, and every read on it
+        # is resident at once, so the peak follows the deepest tRNAs rather
+        # than any fixed working set. 50 MB per MB of BAM is ~30% over the
+        # measured slope; the floor covers startup on a thin sample. Whether
+        # `--threads` (intervals in flight) trades speed for memory here is
+        # untested -- the jobs are 2-16 min, so it would be a cheap lever.
+        # LSF's static GB values (cluster/lsf, cluster/generic) override this
+        # and are UNCHANGED, same as classify_charging: unmeasured there.
+        mem_mb=lambda wildcards, input: max(8000, int(50 * input.size_mb)),
     params:
         fa=get_validated_reference(),
         threshold_opts=get_modkit_threshold_opts(),
@@ -152,6 +173,9 @@ rule modkit_extract_full:
     log:
         os.path.join(outdir, "logs", "modkit", "extract_full", "{sample}"),
     threads: 4
+    resources:
+        # See modkit_extract_calls: same measurement, same slope.
+        mem_mb=lambda wildcards, input: max(8000, int(50 * input.size_mb)),
     params:
         fa=get_validated_reference(),
         convert_script=os.path.join(SCRIPT_DIR, "convert_to_trna_coords.py"),
