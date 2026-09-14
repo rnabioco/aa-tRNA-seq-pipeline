@@ -4,6 +4,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`modkit_extract_calls` / `modkit_extract_full` memory scales with the
+  input BAM** (50 MB per MB, floor 8 GB) instead of the Slurm profile's flat
+  48000, which OOM-killed every sample above ~1.3 GB of BAM (measured
+  2026-09-14: 34-39 GB peak per GB of BAM, the same for both rules). The
+  Slurm profile no longer sets `mem_mb` for these rules; LSF/generic keep
+  their static values.
+
 ### Added
 
 - **Config toggles for the per-read modkit tables and odds ratios.**

@@ -494,7 +494,7 @@ Extract per-read modification calls.
 |----------|-------|
 | Input | Final BAM |
 | Output | `summary/modkit/{sample}/{sample}.mod_calls.tsv.gz` |
-| Memory | 96 GB |
+| Memory | 50 MB per MB of input BAM, floor 8 GB (Slurm; measured ~35-39 GB per GB) |
 | Parameters | `fasta`, modkit thresholds |
 
 **Command:**
@@ -520,8 +520,8 @@ Export comprehensive modification information.
 |----------|-------|
 | Input | Final BAM |
 | Output | `summary/modkit/{sample}/{sample}.mod_full.tsv.gz` |
-| Threads | 12 |
-| Memory | 48 GB |
+| Threads | 4 |
+| Memory | 50 MB per MB of input BAM, floor 8 GB (Slurm; same slope as `modkit_extract_calls`) |
 
 **Command:**
 ```bash
