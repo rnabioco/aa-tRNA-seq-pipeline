@@ -202,6 +202,22 @@ modkit:
 
 These thresholds improve F1 scores by 51% (m6A) and 1251% (pseU) compared to defaults.
 
+### Per-Read Modkit Tables
+
+The pileup is always produced. The per-read `modkit extract` tables are
+opt-in, since each is a full pass over the BAM and the `full` table is
+several times the size of the input:
+
+```yaml
+modkit:
+    extract_calls: true   # summary/modkit/{sample}/{sample}.mod_calls.tsv.gz
+    extract_full: true    # summary/modkit/{sample}/{sample}.mod_full.tsv.gz
+
+odds_ratios:
+    enabled: true         # pairwise modification/charging odds ratios;
+                          # builds the mod_calls table itself if needed
+```
+
 ## Command-Line Options
 
 ### Dorado Options

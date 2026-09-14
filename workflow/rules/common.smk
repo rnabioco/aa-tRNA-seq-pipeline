@@ -818,19 +818,25 @@ def pipeline_outputs():
         sample=samples.keys(),
     )
 
-    # outs += expand(
-    #     os.path.join(
-    #         outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
-    #     ),
-    #     sample=samples.keys(),
-    # )
+    # Per-read `modkit extract` tables. Off by default: each is a full pass
+    # over the BAM and the `full` table carries every base of every read, so
+    # they dwarf the pileup and only some projects need read-level calls.
+    modkit_cfg = config.get("modkit", {})
+    if modkit_cfg.get("extract_calls", False):
+        outs += expand(
+            os.path.join(
+                outdir, "summary", "modkit", "{sample}", "{sample}.mod_calls.tsv.gz"
+            ),
+            sample=samples.keys(),
+        )
 
-    # outs += expand(
-    #     os.path.join(
-    #         outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
-    #     ),
-    #     sample=samples.keys(),
-    # )
+    if modkit_cfg.get("extract_full", False):
+        outs += expand(
+            os.path.join(
+                outdir, "summary", "modkit", "{sample}", "{sample}.mod_full.tsv.gz"
+            ),
+            sample=samples.keys(),
+        )
 
     # Per-read base-calling error calls, for co-occurrence analysis that does
     # not depend on the modification caller. Off by default: the BAM walk is
@@ -860,23 +866,27 @@ def pipeline_outputs():
             sample=samples.keys(),
         )
 
-    # outs += expand(
-    #     os.path.join(
-    #         outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
-    #     ),
-    #     sample=samples.keys(),
-    # )
+    # Pairwise modification/charging odds ratios. Off by default; pulls in
+    # the per-read modkit calls table whether or not modkit.extract_calls is
+    # set, since compute_odds_ratios reads from it.
+    if config.get("odds_ratios", {}).get("enabled", False):
+        outs += expand(
+            os.path.join(
+                outdir, "summary", "tables", "{sample}", "{sample}.odds_ratios.tsv.gz"
+            ),
+            sample=samples.keys(),
+        )
 
-    # outs += expand(
-    #     os.path.join(
-    #         outdir,
-    #         "summary",
-    #         "tables",
-    #         "{sample}",
-    #         "{sample}.odds_ratios_filtered.tsv.gz",
-    #     ),
-    #     sample=samples.keys(),
-    # )
+        outs += expand(
+            os.path.join(
+                outdir,
+                "summary",
+                "tables",
+                "{sample}",
+                "{sample}.odds_ratios_filtered.tsv.gz",
+            ),
+            sample=samples.keys(),
+        )
 
     # Per-read charging calls, with a `reason` row for every read the model
     # did NOT score. Not optional: abstention is charging-correlated, so a

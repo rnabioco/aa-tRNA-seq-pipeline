@@ -243,13 +243,15 @@ Per-site modification consensus in BED format.
 
 `summary/modkit/{sample}/{sample}.mod_calls.tsv.gz`
 
-Individual modification calls per read.
+Individual modification calls per read. Off by default; set
+`modkit.extract_calls: true` in the project config to produce it.
 
 ### Full Modification Export
 
 `summary/modkit/{sample}/{sample}.mod_full.tsv.gz`
 
-Comprehensive modification information including all modkit fields.
+Comprehensive modification information including all modkit fields. Off by
+default; set `modkit.extract_full: true` in the project config to produce it.
 
 ## Reference Similarity Matrix
 
@@ -288,11 +290,11 @@ collapsed into each matrix row (`cluster_id`, `representative`, `n_members`,
 
 Per-tRNA pairwise modification odds ratios testing whether modification at one position is correlated with modification at another position (or with charging status).
 
-!!! info "Separate invocation"
-    This rule is not part of the default pipeline outputs. Run it explicitly:
-    ```bash
-    pixi run snakemake compute_odds_ratios --configfile=config/config.yml
-    ```
+!!! info "Off by default"
+    Set `odds_ratios.enabled: true` in the project config to include this
+    (and the `_filtered` table below) in the run. It depends on the per-read
+    modkit calls table and builds it whether or not `modkit.extract_calls`
+    is set.
 
 | Column | Description |
 |--------|-------------|
