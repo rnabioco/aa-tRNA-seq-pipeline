@@ -411,9 +411,23 @@ modkit:
     m: 0.99
     "17802": 0.995
     "17596": 0.99
+  # Per-read `modkit extract` tables, in addition to the always-on pileup.
+  # Both are a full pass over each sample's BAM and the `full` table carries
+  # every base of every read, so they are off unless a project needs
+  # read-level calls (co-occurrence, per-read charging x modification).
+  #   extract_calls -> summary/modkit/{sample}/{sample}.mod_calls.tsv.gz
+  #                    (thresholded calls, --pass, same thresholds as above)
+  #   extract_full  -> summary/modkit/{sample}/{sample}.mod_full.tsv.gz
+  #                    (every probability, unthresholded)
+  extract_calls: false
+  extract_full: false
 
-# Pairwise modification odds ratio parameters
+# Pairwise modification odds ratio parameters. `enabled` adds
+# summary/tables/{sample}/{sample}.odds_ratios{,_filtered}.tsv.gz to the
+# run; it depends on the per-read modkit calls table and builds it
+# regardless of modkit.extract_calls.
 odds_ratios:
+  enabled: false
   ml_threshold: 200     # CL tag threshold for charged classification
   min_coverage: 10      # minimum reads per tRNA/position pair
 

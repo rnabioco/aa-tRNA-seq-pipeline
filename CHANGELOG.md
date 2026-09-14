@@ -4,6 +4,16 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Config toggles for the per-read modkit tables and odds ratios.**
+  `modkit.extract_calls`, `modkit.extract_full` and `odds_ratios.enabled`
+  (all default `false`) add `summary/modkit/{sample}/{sample}.mod_calls.tsv.gz`,
+  `…mod_full.tsv.gz` and `summary/tables/{sample}/{sample}.odds_ratios{,_filtered}.tsv.gz`
+  to the run's targets. These had been dropped from the default target list
+  by commenting them out (2b57945), leaving no way to request them short of
+  naming the files on the command line.
+
 ## [v0.9.3] - 2026-09-11
 
 ### Changed
