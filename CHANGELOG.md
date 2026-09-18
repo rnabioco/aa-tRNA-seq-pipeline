@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.9.4] - 2026-09-18
+
 ### Fixed
 
 - **`modkit_extract_calls` / `modkit_extract_full` memory scales with the
@@ -12,6 +14,20 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   2026-09-14: 34-39 GB peak per GB of BAM, the same for both rules). The
   Slurm profile no longer sets `mem_mb` for these rules; LSF/generic keep
   their static values.
+
+### Changed
+
+- **`escpod_version` bumped 0.24.3 → 0.27.1** (checksums in
+  `scripts/setup-tools.sh` updated to match; `pixi run check-currency` had
+  reported the pin BEHIND). Nothing the pipeline runs changes: 0.25.0 removes
+  the deprecated `--gpu`, `escpod signal classify` and `demux classify
+  --svm-model` aliases, none of which the rules use (`--device` since
+  0.17.1), and adds a `DS` field with full model provenance to `escpod
+  classify`'s `@PG` record; 0.26.0/0.27.0 are library-side (batched k-mer
+  encoding, a multi-file POD5 `Dataset`); 0.27.1 fixes a k-mer map
+  misalignment only reachable through `leech`. Dorado stays at 2.1.1 (the
+  charging bundles are trained under it — the hold is recorded in
+  `resources/models/pins.yml`).
 
 ### Added
 
