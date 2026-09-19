@@ -1,0 +1,42 @@
+# Flexizyme-charged synthetic tRNA standards, RNA004
+# ===================================================
+# 20 amino acids + an uncharged control, every one of them on the SAME
+# 130 nt synthetic scaffold (tRNA-Gly-GCC-synthetic). One body across all
+# classes, so the tRNA-identity shortcut that confounds the IVC corpora is
+# absent by construction; what remains confounded is the run, since each
+# amino acid was sequenced on its own flow cell.
+#
+# cys is split into two samples (cys_synthetic, cys_synthetic_run2) rather
+# than merged: same amino acid on two different flow cells is the control
+# that sets the run-signature floor the 20-way number has to clear.
+#
+# Re-basecalled from raw rather than reusing results/synthetic_charged:
+# those BAMs are rna004_130bps_sup@v5.3.0, and the TCN charging bundle is
+# defined against rna004_sup@v6.0.0 (dorado 2.1.1). The pipeline enforces
+# that pairing at DAG construction.
+#
+# Usage:
+#   snakemake --configfile=config/config-synthetic-rna004.yml \
+#       --profile=cluster/slurm
+
+samples: config/samples-synthetic-rna004.tsv
+
+output_directory: "/beevol/home/jhessel/devel/rnabioco/2026-aars-in-vitro/results/synthetic_rna004_tcn"
+
+# Single-sequence reference, validated (not built): the scaffold already
+# carries its adapters and ends in the CCA the charging anchor needs.
+fasta: "/beevol/home/jhessel/devel/rnabioco/2026-aars-in-vitro/resources/fa/synthetic.fa"
+
+# This construct's 3' adapter is 30 nt, not the 40 nt dual-adapter (EDX)
+# variants the pipeline defaults to, so validate_reference rejects it on the
+# defaults -- and then also reports "does not end with CCA", because the
+# tRNA/adapter boundary it infers from the wrong adapter length lands mid-
+# sequence. Both errors are the one mismatch. It still starts with GGC, so
+# the CCAGGC junction the charging anchor needs is intact.
+adapters:
+  five_prime: "CCTAAGAGCAAGAAGAAGCCTGG"
+  three_prime: "GGCTTCTTCTTGCTCTTAGGAAAAAAAAAA"
+
+charging:
+  # TCN bundle, not the feature-NN default. Same sup6 basecaller pairing.
+  model: "resources/models/charging/charging_tcn_sup6_rna004@v0.1.0"
