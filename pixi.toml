@@ -254,6 +254,15 @@ cuda-cudart = "*"
 # directly regardless. Pinned the same way `[feature.gpu]` above pins it for
 # CUDA 13; pixi's solver picks the CUDA-12-compatible build here because this
 # feature's `cuda-version` is `12.*`.
+#
+# `libcublas-dev` is for its unversioned `libcublas.so`/`libcublasLt.so`
+# symlinks, not its headers (rnabioco/escapepod-rs#416). cudarc dlopens the
+# unversioned `libcublas.so` first. With only `libcublas.so.12` in this env,
+# that name falls through to the node's ldconfig cache: on compgpu03 it resolves
+# the host's CUDA 12.8 cuBLAS, which then loads this env's 12.9 cuBLASLt. That
+# mixed pair raises no error and scores GPU classify as noise (corr 0.009 vs
+# CPU, 13% charged against 1.5%). With the symlinks both resolve here, and the
+# same reads match the CPU exactly on escpod 0.27.1 and 0.29.0.
 [feature.classify-gpu]
 platforms = ["linux-64"]
 
@@ -266,6 +275,7 @@ cuda-cudart = "*"
 cuda-cudart-dev = "*"
 cuda-cccl = "*"
 cudnn = ">=9,<10"
+libcublas-dev = "*"
 
 [environments]
 default = []
