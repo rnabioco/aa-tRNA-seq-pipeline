@@ -6,7 +6,7 @@ Documentation for Python scripts in `workflow/scripts/`.
 
 | Script | Purpose |
 |--------|---------|
-| `stamp_read_groups.py` | Emit a uBAM's @RG lines with SM/LB/BC stamped, for `bwa mem -H` |
+| `stamp_read_groups.py` | Rewrite a uBAM with SM/LB/BC stamped on its @RG and, for barcoded samples, a constant `BC:Z:` tag on every record |
 | `get_charging_table.py` | Extract charging likelihood per read |
 | `get_trna_charging_cpm.py` | Calculate CPM-normalized counts |
 | `get_charging_summary.py` | Generate charging statistics |
@@ -24,11 +24,15 @@ Documentation for Python scripts in `workflow/scripts/`.
 
 ## stamp_read_groups.py
 
-Emit a uBAM's `@RG` lines, with the pipeline's identity stamped on, as SAM
-header text for `bwa mem -H`. bwa builds the aligned header from the reference
-and declares no read groups, while `bwa mem -C` copies dorado's per-read `RG:Z:`
-through from the FASTQ comment; without these lines every read would point at an
-undeclared read group.
+Rewrite a uBAM with the pipeline's identity stamped on, in one pass: SM/LB/BC
+on dorado's own `@RG` (its `ID` left untouched, so every per-read `RG:Z:` still
+resolves) and, on a barcoded sample, a constant `BC:Z:` tag on every record.
+`escpod align` copies the input's `@RG`/`@PG`/`@CO` lines and every record's
+tags through unchanged but has no way to add a header line or a tag itself, so
+the sample's identity has to be on the uBAM before it is aligned. It has to be
+a file, not a pipe: escpod sniffs its input's format and then reopens the
+path, so `escpod_align` writes this to a transient file beside its output and
+deletes it once alignment finishes.
 
 ### Usage
 
@@ -38,7 +42,7 @@ python stamp_read_groups.py reads.rbc.bam \
     --library run_id \
     --barcode ldx04 \
     --comment "aa-tRNA-seq:upstream_barcode=bc04" \
-    > sample1.rg.sam
+    --output sample1.stamped.ubam
 ```
 
 ### Arguments
@@ -46,17 +50,19 @@ python stamp_read_groups.py reads.rbc.bam \
 | Argument | Description |
 |----------|-------------|
 | `ubam` | Unaligned BAM whose `@RG` lines to carry over |
+| `--output`, `-o` | Output BAM, or `-` for stdout (uncompressed unless `--compress`) |
 | `--sample` | `SM`: the pipeline's sample name |
 | `--library` | `LB`: typically the run id |
-| `--barcode` | `BC`: the sample's barcode (omitted for unbarcoded samples) |
+| `--barcode` | `BC`: the sample's barcode, stamped on the `@RG` and on every record (omitted for unbarcoded samples) |
 | `--comment` | Add an `@CO` line; repeatable |
-| `--output` | Write here instead of stdout |
+| `--compress` | Write BGZF-compressed BAM instead of uncompressed |
 
 ### Behavior
 
 1. Copies every `@RG` from the uBAM, preserving dorado's `ID` (what each read's `RG:Z:` points at) and its provenance fields
-2. Overwrites only `SM`/`LB`/`BC`, and only where a value was given
+2. Overwrites only `SM`/`LB`/`BC` on the header, and only where a value was given
 3. Appends one `@CO` per `--comment`
+4. Writes every record through unchanged except for a `BC:Z:` tag added when `--barcode` is given
 
 ---
 

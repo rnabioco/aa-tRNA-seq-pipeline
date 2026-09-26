@@ -172,7 +172,7 @@ def get_read_stats(fn, flag=None, sample_id=None, sample_info=None, require_tag=
         # 5.7 MB on a 46.6k-read sample but ~1.2 GB on a 9.6M-read whole-run
         # BAM, against a default of 8 GB for the rule.
         #
-        # Nothing changes for BAMs this pipeline writes today: bwa_align keeps
+        # Nothing changes for BAMs this pipeline writes today: escpod_align keeps
         # primary forward alignments only (-F 2324), the charging BAM inherits
         # that, and a dorado uBAM has one record per read. Measured on a v0.7.2
         # flowcell sample: 46,577 records, 46,577 distinct query names, no

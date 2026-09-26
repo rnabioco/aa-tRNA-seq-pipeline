@@ -55,102 +55,55 @@ dorado_basecall_resume.sh {output} --models-directory {models_dir} {opts.dorado}
 
 ---
 
-### bwa_idx
+### escpod_align
 
-Build BWA index for reference FASTA.
-
-**File:** `workflow/rules/aatrnaseq-process.smk`
-
-| Property | Value |
-|----------|-------|
-| Input | Reference FASTA |
-| Output | `.amb`, `.ann`, `.bwt`, `.pac`, `.sa` files |
-
-**Command:**
-```bash
-bwa index {input}
-```
-
-**Notes:**
-
-- Only runs once per reference
-- Index files are stored alongside the FASTA
-
----
-
-### bwa_align
-
-Align reads to the tRNA reference with BWA MEM, carrying dorado's tags through.
-`samtools fastq -T '*'` writes every uBAM tag into the FASTQ comment and
-`bwa mem -C` appends it to each aligned record, so the move table (`mv`, `ns`,
-`ts`), the MM/ML modbase calls and `RG` arrive on the aligned BAM in one
-streaming pass. No FASTQ is written and there is no separate tag-injection step.
+Align reads to the tRNA + adapter reference with `escpod align`, carrying
+dorado's tags through and writing a coordinate-sorted BAM with `MD`/`NM`.
+There is no seed index to build and no `bwa mem` pipe: `escpod align` scores
+every read against every reference directly from the uBAM and copies every
+input tag through byte for byte — the move table (`mv`, `ns`, `ts`) the
+charging model reads and the MM/ML modbase calls modkit reads — and writes
+`MD`/`NM` matching `samtools calmd`. This replaced `bwa_idx`, `bwa_align` and
+the `samtools fastq -T '*' | bwa mem -C | samtools sort` pipe, and `calmd`
+(issue #200).
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
 | Property | Value |
 |----------|-------|
-| Input | Rebasecalled uBAM, EDX read-id list (EDX samples only), BWA index |
-| Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai`, `{sample}.rg.sam` |
-| Threads | 16 |
-| Parameters | `fasta`, `opts.bwa` |
+| Input | Rebasecalled uBAM, EDX read-id list (EDX samples only), reference FASTA |
+| Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai` |
+| Threads | 8 (16 with `alignment.gpu`) |
+| GPU | Opt-in via `alignment.gpu` |
+| Parameters | `fasta`, `opts.escpod_align`, `alignment.gpu` |
 
 **Command:**
 ```bash
-python stamp_read_groups.py {ubam} --sample {sample} [--library {run_id}] [--barcode {bc}] > {rg.sam}
+python stamp_read_groups.py {ubam} --sample {sample} [--library {run_id}] [--barcode {bc}] \
+    --compress --output {stamped_ubam}
 
-samtools view -u [-N {edx_read_ids}] {ubam} \
-    | samtools fastq -T '*' - \
-    | awk 'NR % 4 == 1 && bc != "" { $0 = $0 "\t" bc } { print }' bc="BC:Z:{barcode}" \
-    | bwa mem -C -K 100000000 -t {threads} -H {rg.sam} {opts.bwa} {index} - \
-    | samtools view -u -F 2324 - \
-    | samtools sort -m 2G -@ 4 -o {output}
-samtools index {output}
+escpod align {stamped_ubam} \
+    --reference {reference} \
+    --output - \
+    --sort coordinate --tmp-dir {tmp_dir} \
+    {opts.escpod_align} \
+    [--read-ids {edx_read_ids}] \
+    [--device gpu] \
+    --threads {threads} \
+    | samtools view -b -F 2324 -@ 2 -o {output.bam} -
+samtools index {output.bam}
 ```
 
 **Filtering:**
 
-- `-F 2324`: Remove unmapped (`0x4`), reverse-strand (`0x10`), secondary (`0x100`) and supplementary (`0x800`) records
+- `-F 2324`: Remove unmapped (`0x4`), reverse-strand (`0x10`), secondary (`0x100`) and supplementary (`0x800`) records. A read scoring below `--min-score` is written unmapped rather than dropped, so this is what removes it; `escpod align`'s own defaults (`--strand forward` without `--secondary`) never produce the other three record types
 
 **Notes:**
 
-- `-H` inserts the uBAM's own `@RG` lines with `SM`/`LB`/`BC` stamped, so the per-read `RG:Z:` that `-C` copies through resolves to a declared read group
-- On demultiplexed runs a constant `BC:Z:` is added to every read via the FASTQ comment
-- `-K 100000000` pins bwa's input batch at 100 Mbases regardless of thread count. The FASTQ comment is ~13x the read (the move table dominates), and bwa holds a batch plus its output in memory; pinning keeps that at a few GB where the default per-thread batch is what PR #86 saw OOM at 48 GB
-
-**Default BWA options:**
-
-- `-W 13 -k 6 -T 20 -x ont2d` (RNA-optimized)
-
----
-
-### calmd
-
-Recompute `MD`/`NM` against the reference so the aligned BAM carries an `MD`
-tag (`bwa mem` does not emit one on its own). Required by the vendored-but-not-
-yet-wired `charging_tcn_sup6_rna004` bundle, which reconstructs its per-read
-reference from `MD` rather than slicing the reference FASTA by coordinate.
-
-**File:** `workflow/rules/aatrnaseq-process.smk`
-
-| Property | Value |
-|----------|-------|
-| Input | Aligned BAM (`bwa_align` output), reference `.fai` |
-| Output | `bam/calmd/{sample}/{sample}.calmd.bam`, `.bai` |
-| Threads | 2 |
-| GPU | No |
-| Parameters | `fasta` |
-
-**Command:**
-```bash
-samtools calmd -Qb --threads {threads} {input.bam} {reference} >{output.bam}
-samtools index {output.bam}
-```
-
-**Notes:**
-
-- Runs as its own pass right after alignment; `samtools calmd` reads each record against its own reference span, so it needs no particular sort order
-- The per-record `MD` computation is single-threaded — `--threads` only adds BGZF (de)compression workers, so this rule is worth a modest thread count, not a large one
+- escpod copies the input's `@RG`/`@PG`/`@CO` lines through unchanged and cannot add a header line or a tag itself, so `stamp_read_groups.py` stamps `SM`/`LB`/`BC` onto the uBAM's own `@RG` (its `ID` left untouched, so every per-read `RG:Z:` still resolves) and, on a barcoded sample, a constant `BC:Z:` onto every record, before alignment. It writes a transient stamped uBAM beside the output — escpod sniffs its input's format and reopens the path, so it cannot read a pipe — which is deleted as soon as alignment finishes
+- For EDX samples, `--read-ids` (like `samtools view -N`) restricts alignment to the reads carrying the sample's 3' adapter
+- References tied at the best score are listed in `XA` (bwa's format, `ref,+pos,CIGAR,NM;`) with MAPQ 0 rather than hidden; `get_charging_table.py` splits a tied read's count evenly across its tie set, and `escpod align` breaks the tie for the primary alignment deterministically (the lowest-indexed reference)
+- Scoring and threshold default to bwa's own (`opts.escpod_align`: `--scoring 1,-1,-2,-1 --min-score 20`, i.e. `-A1 -B1 -O1 -E1 -T 20`); escpod's own default (`2,-1,-10,-1`) is not equivalent and reassigns far more reads on this reference panel
 
 ---
 
@@ -162,7 +115,7 @@ Classify charged vs uncharged reads with `escpod classify`.
 
 | Property | Value |
 |----------|-------|
-| Input | POD5 store (staged directory, split POD5, or raw LDX run), `calmd` BAM (with `MD`/`NM`), reference FASTA |
+| Input | POD5 store (staged directory, split POD5, or raw LDX run), `escpod_align` BAM (with `MD`/`NM`), reference FASTA |
 | Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai`, `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` |
 | Threads | 4 |
 | GPU | Opt-in via `charging.gpu` (windowed/TCN bundle only; default bundles are CPU-only) |
@@ -231,7 +184,7 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 ### finalize_bam
 
-Produce the final BAM for downstream analysis. Hardlinks the adapter-tagged BAM as the final output. EDX filtering happens before alignment: `detect_edx_adapters` / `extract_edx_read_ids` produce the read list `bwa_align` aligns.
+Produce the final BAM for downstream analysis. Hardlinks the adapter-tagged BAM as the final output. EDX filtering happens before alignment: `detect_edx_adapters` / `extract_edx_read_ids` produce the read list `escpod_align` aligns.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -701,12 +654,11 @@ Build concordance table of WDX vs EDX adapter identity from adapter detection TS
 ```mermaid
 flowchart LR
     stage_pod5 --> rebasecall
-    rebasecall --> bwa_align
+    rebasecall --> escpod_align
     rebasecall --> detect_edx_adapters
     detect_edx_adapters --> extract_edx_read_ids
-    extract_edx_read_ids -.-> bwa_align
-    bwa_align --> calmd
-    calmd --> classify_charging
+    extract_edx_read_ids -.-> escpod_align
+    escpod_align --> classify_charging
     stage_pod5 --> classify_charging
     classify_charging --> add_adapter_tags
     add_adapter_tags --> finalize_bam
@@ -728,4 +680,4 @@ flowchart LR
     base_calling_error --> render_combined_qc_report
 ```
 
-**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `extract_edx_read_ids` bounds what `bwa_align` aligns; every other sample aligns its whole uBAM.
+**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `extract_edx_read_ids` bounds what `escpod_align` aligns; every other sample aligns its whole uBAM.

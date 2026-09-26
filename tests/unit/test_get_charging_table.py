@@ -1,16 +1,19 @@
 """
 Unit tests for get_charging_table.py
 
-Tests ML tag extraction from BAM files.
+Tests ML tag extraction from BAM files, and the tie set (`XA`) each read's
+count is split across.
 """
 
 import gzip
 from array import array
 
+import pandas as pd
 import pysam
 import pytest
 
-from get_charging_table import extract_tag
+from get_charging_table import extract_tag, reference_weights, tie_references
+from get_trna_charging_cpm import per_read_charging
 
 
 class TestExtractTag:
@@ -47,8 +50,9 @@ class TestExtractTag:
             lines = f.readlines()
 
         assert len(lines) == 2  # Header + 1 read
-        assert "read_id\ttRNA\tcharging_likelihood\n" == lines[0]
-        assert "read1\ttRNA-Ala-AGC-1-1\t220\n" == lines[1]
+        assert "read_id\ttRNA\tcharging_likelihood\ttie_refs\n" == lines[0]
+        # a read with no XA has an empty tie set
+        assert "read1\ttRNA-Ala-AGC-1-1\t220\t\n" == lines[1]
 
     def test_handles_gzip_output(self, temp_dir):
         """Should write gzipped output when filename ends in .gz."""
@@ -288,3 +292,128 @@ class TestExtractTag:
 
         assert len(lines) == 2
         assert "180" in lines[1]
+
+
+REFS = ["tRNA-Ala-AGC-1-1", "tRNA-Ala-AGC-2-1", "tRNA-Ala-AGC-3-1", "tRNA-Gly-GCC-1-1"]
+
+
+def _write_tied_bam(path, reads):
+    """reads: (name, ref_index, cl, xa or None). Coordinate-sorted and indexed."""
+    header = {
+        "HD": {"VN": "1.6", "SO": "coordinate"},
+        "SQ": [{"SN": ref, "LN": 100} for ref in REFS],
+    }
+    with pysam.AlignmentFile(str(path), "wb", header=header) as outf:
+        for name, ref_id, cl, xa in sorted(reads, key=lambda r: r[1]):
+            read = pysam.AlignedSegment(outf.header)
+            read.query_name = name
+            read.query_sequence = "A" * 50
+            read.flag = 0
+            read.reference_id = ref_id
+            read.reference_start = 0
+            read.cigartuples = [(0, 50)]
+            read.query_qualities = pysam.qualitystring_to_array("I" * 50)
+            read.mapping_quality = 0 if xa else 60
+            read.set_tag("cl", cl, value_type="C")
+            if xa:
+                read.set_tag("XA", xa)
+            outf.write(read)
+    pysam.index(str(path))
+
+
+def _xa(*refs):
+    return "".join(f"{ref},+3,50M,2;" for ref in refs)
+
+
+class TestTieReferences:
+    def _read(self, temp_dir, xa):
+        bam = temp_dir / "one.bam"
+        _write_tied_bam(bam, [("r", 0, 200, xa)])
+        with pysam.AlignmentFile(str(bam)) as fh:
+            return next(fh.fetch())
+
+    def test_parses_escpod_xa(self, temp_dir):
+        read = self._read(temp_dir, _xa(REFS[1], REFS[2]))
+        assert tie_references(read) == [REFS[1], REFS[2]]
+
+    def test_no_xa_is_no_ties(self, temp_dir):
+        assert tie_references(self._read(temp_dir, None)) == []
+
+    def test_primary_and_repeats_are_not_extra_references(self, temp_dir):
+        """bwa-style XA can list another position on the same reference."""
+        read = self._read(temp_dir, _xa(REFS[0], REFS[1], REFS[1]))
+        assert tie_references(read) == [REFS[1]]
+
+
+class TestReferenceWeights:
+    @pytest.mark.parametrize("n", [0, 1, 2, 3])
+    def test_n_ties_give_one_over_n_plus_one_each(self, n):
+        weights = reference_weights(REFS[0], REFS[1 : 1 + n])
+        assert set(weights) == set(REFS[: 1 + n])
+        for w in weights.values():
+            assert w == pytest.approx(1 / (n + 1))
+        assert sum(weights.values()) == pytest.approx(1.0)
+
+    def test_untied_read_weighs_one_on_its_reference(self):
+        assert reference_weights(REFS[2]) == {REFS[2]: 1.0}
+
+
+class TestTieSplitCounts:
+    """charging_prob (extract_tag) -> charging.cpm (per_read_charging)."""
+
+    def _counts(self, temp_dir, reads):
+        bam = temp_dir / "tied.bam"
+        prob = temp_dir / "prob.tsv.gz"
+        cpm = temp_dir / "cpm.tsv"
+        _write_tied_bam(bam, reads)
+        extract_tag(str(bam), str(prob), "cl")
+        per_read_charging(str(prob), str(cpm), 200)
+        return pd.read_csv(prob, sep="\t"), pd.read_csv(cpm, sep="\t", index_col=0)
+
+    def test_tied_read_split_evenly_untied_read_whole(self, temp_dir):
+        reads = [
+            ("tied3", 0, 250, _xa(REFS[1], REFS[2])),  # charged, 1/3 each
+            ("tied2", 1, 10, _xa(REFS[3])),  # uncharged, 1/2 each
+            ("unique", 3, 220, None),  # charged, 1 on Gly
+        ]
+        prob, cpm = self._counts(temp_dir, reads)
+        # one row per scored read, primary reference in tRNA
+        assert len(prob) == 3
+        assert set(prob["read_id"]) == {"tied3", "tied2", "unique"}
+
+        charged = cpm["counts_charged"]
+        uncharged = cpm["counts_uncharged"]
+        assert charged[REFS[0]] == pytest.approx(1 / 3)
+        assert charged[REFS[1]] == pytest.approx(1 / 3)
+        assert charged[REFS[2]] == pytest.approx(1 / 3)
+        assert charged[REFS[3]] == pytest.approx(1.0)
+        assert uncharged[REFS[1]] == pytest.approx(1 / 2)
+        assert uncharged[REFS[3]] == pytest.approx(1 / 2)
+
+    def test_totals_sum_to_scored_read_count(self, temp_dir):
+        reads = [
+            ("a", 0, 250, _xa(REFS[1], REFS[2], REFS[3])),
+            ("b", 0, 100, _xa(REFS[1])),
+            ("c", 2, 200, None),
+            ("d", 3, 0, _xa(REFS[0], REFS[2])),
+            ("e", 1, 199, None),
+        ]
+        prob, cpm = self._counts(temp_dir, reads)
+        total = cpm["counts_charged"].sum() + cpm["counts_uncharged"].sum()
+        assert total == pytest.approx(len(reads))
+        assert len(prob) == len(reads)
+        cpm_total = cpm["cpm_charged"].sum() + cpm["cpm_uncharged"].sum()
+        assert cpm_total == pytest.approx(1e6)
+
+    def test_table_without_tie_column_counts_each_read_once(self, temp_dir):
+        """charging_prob tables written before the tie_refs column."""
+        prob = temp_dir / "old.tsv"
+        prob.write_text(
+            "read_id\ttRNA\tcharging_likelihood\n"
+            f"r1\t{REFS[0]}\t250\nr2\t{REFS[0]}\t10\n"
+        )
+        cpm = temp_dir / "cpm.tsv"
+        per_read_charging(str(prob), str(cpm), 200)
+        df = pd.read_csv(cpm, sep="\t", index_col=0)
+        assert df.loc[REFS[0], "counts_charged"] == 1
+        assert df.loc[REFS[0], "counts_uncharged"] == 1

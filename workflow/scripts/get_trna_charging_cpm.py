@@ -12,8 +12,14 @@ TODO: we should compute this directly from the final BAM file, which
     does not reflect what this script actuall does. Should be `aggregate_trna_charging()`
     or similar.
 
-tRNA-AA-anticodon-family-species-ref are all preserved from BWA alignment,
-and can be further collapsed as desired in downstream analysis
+tRNA-AA-anticodon-family-species-ref are all preserved from the alignment,
+and can be further collapsed as desired in downstream analysis.
+
+A read tied between several references (`tie_refs`, from escpod align's `XA`)
+counts 1/(n+1) toward each of its n+1 references rather than 1 toward the
+primary alone, so counts are fractional; each read still contributes exactly 1
+in total, so a sample's counts sum to its scored read count. A table without a
+`tie_refs` column (written before issue #200) counts each read once, as before.
 
 CPM normalization reflects counts per million reads that passed alignment and
 the filtering parameters for charging classification; these are full length tRNA
@@ -22,6 +28,7 @@ the filtering parameters for charging classification; these are full length tRNA
 import gzip
 
 import pandas as pd
+from get_charging_table import reference_weights
 
 
 def per_read_charging(input, output, threshold):
@@ -33,8 +40,23 @@ def per_read_charging(input, output, threshold):
         lambda x: "counts_charged" if x >= threshold else "counts_uncharged"
     )
 
-    # Group by tRNA and status to get counts
-    count_data = df.groupby(["tRNA", "status"]).size().unstack(fill_value=0)
+    # Spread each read over its tie set: one row per (read, reference), each
+    # carrying that reference's share of the read.
+    if "tie_refs" in df.columns:
+        ties = df["tie_refs"].fillna("").astype(str)
+    else:
+        ties = pd.Series([""] * len(df), index=df.index)
+    rows = []
+    for ref, tie, status in zip(df["tRNA"], ties, df["status"], strict=True):
+        tie_refs = [t for t in tie.split(";") if t]
+        for share_ref, weight in reference_weights(ref, tie_refs).items():
+            rows.append((share_ref, status, weight))
+    shares = pd.DataFrame(rows, columns=["tRNA", "status", "weight"])
+
+    # Group by tRNA and status to get (weighted) counts
+    count_data = (
+        shares.groupby(["tRNA", "status"])["weight"].sum().unstack(fill_value=0)
+    )
 
     # Ensure both columns exist (handles case where all reads are same status)
     if "counts_charged" not in count_data.columns:

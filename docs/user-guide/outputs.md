@@ -8,7 +8,7 @@ This guide documents all output files produced by the pipeline.
 {output_directory}/
 ├── reference/               # Validated/built reference FASTA + report
 ├── pod5/                    # Per-sample directory of symlinks to raw POD5 (no copy)
-├── bam/                     # BAM files at each stage (rebasecall, aln, calmd, charging, adapter_tagged, final)
+├── bam/                     # BAM files at each stage (rebasecall, aln, charging, adapter_tagged, final)
 ├── summary/                 # Analysis outputs
 │   ├── tables/             # Tabular summaries (charging, CPM, calls, QC)
 │   ├── modkit/             # Modification calling
@@ -19,9 +19,8 @@ This guide documents all output files produced by the pipeline.
 └── squiggy-session.json     # Squiggy session file for Positron
 ```
 
-No `fq/` directory is written: `bwa_align` streams the uBAM straight through
-`samtools fastq` into `bwa mem` in one pass, carrying dorado's tags via the
-FASTQ comment.
+No `fq/` directory is written: `escpod_align` aligns the uBAM directly against
+the reference FASTA, carrying dorado's tags through byte for byte.
 
 ## Data Flow and Outputs
 
@@ -34,8 +33,7 @@ flowchart TB
     subgraph Processing
         B[pod5/sample/<br/>Symlinks to raw POD5]
         C[bam/rebasecall/sample/sample.rbc.bam<br/>Basecalled]
-        E[bam/aln/sample/sample.aln.bam<br/>Aligned, no FASTQ written]
-        CM[bam/calmd/sample/sample.calmd.bam<br/>MD/NM tags]
+        E[bam/aln/sample/sample.aln.bam<br/>Aligned, MD/NM written, no FASTQ]
         F[bam/charging/sample/sample.charging.bam<br/>Classified]
         AT[bam/adapter_tagged/sample/sample.bam<br/>PT tags]
         G[bam/final/sample/sample.bam<br/>Final BAM]
@@ -49,7 +47,7 @@ flowchart TB
         L[reports/<br/>QC report]
     end
 
-    A --> B --> C --> E --> CM --> F --> AT --> G
+    A --> B --> C --> E --> F --> AT --> G
     G --> H
     G --> I
     G --> J
@@ -381,22 +379,17 @@ Dorado output with basecalls and move tables.
 
 `bam/aln/{sample}/{sample}.aln.bam`
 
-BWA MEM alignment output. No FASTQ is written — `bwa_align` streams the uBAM
-through `samtools fastq` into `bwa mem -C` in one pass, and dorado's tags
-(move table, MM/ML modbase calls) ride along in the FASTQ comment.
-
-### calmd BAM
-
-`bam/calmd/{sample}/{sample}.calmd.bam`
-
-The aligned BAM with `MD`/`NM` tags recomputed against the reference
-(`bwa mem` does not emit `MD` on its own).
+`escpod align` output, coordinate-sorted with `MD`/`NM` already computed
+against the reference. No FASTQ is written and there is no seed index:
+`escpod align` aligns the uBAM directly against the reference FASTA, copying
+dorado's tags (move table, MM/ML modbase calls) through byte for byte, and
+no separate calmd pass is needed.
 
 ### Charging BAM
 
 `bam/charging/{sample}/{sample}.charging.bam`
 
-The calmd BAM with the `cl` charging tag added, before adapter tagging.
+The aligned BAM with the `cl` charging tag added, before adapter tagging.
 
 ### Adapter-Tagged BAM
 

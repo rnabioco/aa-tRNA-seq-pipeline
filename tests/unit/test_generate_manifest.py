@@ -36,7 +36,7 @@ class TestExtractConfigParams:
             "fasta": "/path/to/ref.fa",
             "base_calling_model": "sup",
             "dorado_model": "dna_r10.4.1",
-            "opts": {"bwa": "-x ont2d"},
+            "opts": {"escpod_align": "--scoring 1,-1,-2,-1 --min-score 20"},
             "unknown_key": "should_be_ignored",
         }
         result = extract_config_params(config)

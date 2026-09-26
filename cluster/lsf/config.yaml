@@ -31,7 +31,7 @@ set-resources:
   # 24 GB request, and it scales with read count. Unmeasured for the GPU
   # path -- a safe ceiling, not a GPU-specific budget; revisit once profiled.
   - classify_charging:mem_mb=40
-  - bwa_align:mem_mb=24
+  - escpod_align:mem_mb=12
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48
   # LDX demux runs the CRF encoder and boundary CNN on the GPU (ldx.gpu),

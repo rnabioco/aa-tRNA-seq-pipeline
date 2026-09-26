@@ -53,7 +53,7 @@ set-resources:
   - classify_charging:lsf_extra="-gpu num=1:j_exclusive=yes"
   - classify_charging:ngpu=1
   - classify_charging:mem_mb=24
-  - bwa_align:mem_mb=24
+  - escpod_align:mem_mb=12
   - modkit_extract_calls:mem_mb=96
   - warpdemux:mem_mb=32
   - parse_warpdemux:mem_mb=8
@@ -110,7 +110,7 @@ These rules are automatically submitted to the GPU queue:
 |------|--------|
 | `modkit_extract_calls` | 96 GB |
 | `warpdemux` | 32 GB |
-| `bwa_align` | 24 GB |
+| `escpod_align` | 12 GB |
 
 ## Customization
 

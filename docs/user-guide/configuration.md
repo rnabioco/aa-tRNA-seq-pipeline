@@ -47,11 +47,11 @@ The model is downloaded automatically if using a model name.
 ### Reference FASTA
 
 ```yaml
-# tRNA reference with adapters for BWA alignment
+# tRNA reference with adapters, aligned against directly with `escpod align`
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 ```
 
-A BWA index is built automatically if it doesn't exist.
+There is no seed index to build; `escpod align` aligns directly against the FASTA.
 
 ### Adapter Sequences
 
@@ -232,21 +232,22 @@ opts:
 | `--modified-bases` | Modifications to call during basecalling |
 | `--emit-moves` | Output move tables (required by the charging model) |
 
-### BWA Options
+### Alignment Options
 
 ```yaml
 opts:
-    bwa: " -W 13 -k 6 -T 20 -x ont2d"
+    escpod_align: " --scoring 1,-1,-2,-1 --min-score 20"
 ```
 
 | Option | Description |
 |--------|-------------|
-| `-W 13` | Band width for banded alignment |
-| `-k 6` | Minimum seed length |
-| `-T 20` | Minimum alignment score |
-| `-x ont2d` | ONT 2D read preset |
+| `--scoring 1,-1,-2,-1` | Match/mismatch/gap-open/gap-extend, equivalent to bwa's own `-A1 -B1 -O1 -E1` |
+| `--min-score 20` | Minimum alignment score to keep a read mapped, equivalent to bwa's `-T 20` |
 
-These parameters are optimized for tRNA alignment based on Novoa lab research.
+These are the scoring and threshold this pipeline was validated against
+(measured on adat2ko-pool1, issue #200); escpod's own default scoring
+(`2,-1,-10,-1`) is not equivalent and reassigns far more reads on this
+reference panel.
 
 ### BAM Filtering
 

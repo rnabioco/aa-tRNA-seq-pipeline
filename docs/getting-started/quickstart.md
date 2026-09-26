@@ -28,7 +28,7 @@ Job stats:
 job                      count
 ---------------------  -------
 all                          1
-bwa_align                    2
+escpod_align                 2
 classify_charging            2
 get_cca_trna                 2
 get_cca_trna_cpm             2
@@ -64,9 +64,7 @@ After completion, outputs are in `.tests/outputs/`:
 │   ├── rebasecall/sample1/
 │   │   └── sample1.rbc.bam           # Basecalled BAM
 │   ├── aln/sample1/
-│   │   └── sample1.aln.bam           # Aligned BAM (no FASTQ written)
-│   ├── calmd/sample1/
-│   │   └── sample1.calmd.bam         # MD/NM tags added
+│   │   └── sample1.aln.bam           # Aligned BAM, MD/NM written (no FASTQ, no index)
 │   ├── charging/sample1/
 │   │   └── sample1.charging.bam      # Charging classification (cl tag)
 │   ├── adapter_tagged/sample1/

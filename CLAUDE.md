@@ -95,31 +95,30 @@ workflow/
 ### Pipeline Flow
 
 ```
-POD5 files → stage_pod5 (symlinks) → rebasecall (Dorado) → bwa_align (dorado tags carried through) →
-calmd (adds MD/NM) → classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
+POD5 files → stage_pod5 (symlinks) → rebasecall (Dorado) → escpod_align (dorado tags carried through, writes MD/NM) →
+classify_charging (escpod) → add_adapter_tags → finalize_bam → Summary tables
 ```
 
 On an LDX run the first two steps are replaced (there is no per-sample POD5 to
-stage or basecall), and the flow rejoins at `bwa_align`:
+stage or basecall), and the flow rejoins at `escpod_align`:
 ```
 raw POD5 → escapepod_demux (--annotate, writes .p5s) → rebasecall_ldx_run (whole run, one dorado pass)
          → ldx_split_parent_map + extract_ldx_sample_reads → split_ldx_ubam → (as above)
 ```
 
-For EDX samples (dual barcoding), 3' adapter detection happens on the uBAM before alignment, and the resulting read-id list is the whole filter: `bwa_align` aligns only those reads (`samtools view -N`), and `classify_charging` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written:
+For EDX samples (dual barcoding), 3' adapter detection happens on the uBAM before alignment, and the resulting read-id list is the whole filter: `escpod_align` aligns only those reads (`--read-ids`), and `classify_charging` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written:
 ```
-rebasecall → detect_edx_adapters → extract_edx_read_ids → bwa_align → calmd → classify_charging → ...
+rebasecall → detect_edx_adapters → extract_edx_read_ids → escpod_align → classify_charging → ...
 ```
 
 ### Core Processing Pipeline (aatrnaseq-process.smk)
 
 1. **stage_pod5**: Lay a directory of symlinks over the sample's raw POD5 files (`pod5/{sample}/<run>/<pod5_pass|pod5_fail|pod5>/`). Nothing copies the signal: dorado and `escpod classify` both take a directory. Replaced `merge_pods`, which wrote a full second copy of every run per sample
 2. **rebasecall**: Use dorado (`--recursive` over the staged directory) to rebasecall with move tables (required by the charging model). Runs through `workflow/scripts/dorado_basecall_resume.sh`, as does `rebasecall_ldx_run`: the partial BAM of a killed attempt is kept beside the output (where Snakemake will not reap it) and fed back as dorado's `--resume-from`, so an overrun costs the tail of a basecall rather than the whole flowcell. `escapepod_demux` has no equivalent and does not resume
-3. **bwa_align**: Stream the uBAM through `samtools fastq -T '*'` into `bwa mem -C`, so dorado's tags (the `mv`/`ns`/`ts` move table, MM/ML modbase calls, RG) ride the FASTQ comment onto the aligned records. `-H` inserts the uBAM's own @RG lines with SM/LB/BC stamped (`stamp_read_groups.py`), and on demux runs a constant `BC` tag goes onto every read. No FASTQ is written and there is no tag-injection step (`inject_ubam_tags` is retired). `-K 100000000` pins bwa's batch so the tag payload (~13x the read) costs a few GB, not the OOM PR #86 saw with the default per-thread batch. Output is primary forward alignments (`-F 2324`)
-4. **calmd**: `samtools calmd` recomputes `MD`/`NM` against the reference. `bwa mem` does not emit `MD` on its own, and the vendored-but-not-wired-up `charging_tcn_sup6_rna004` bundle (see `resources/models/charging/README.md`) requires it — it reconstructs its per-read reference from `MD`, and refuses to be scored correctly without it
-5. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score. It is handed the sample's whole signal store (staged directory, WarpDemuX split POD5, or the raw LDX run) and looks reads up by the BAM's ids, so no EDX-filtered POD5 exists
-6. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
-7. **finalize_bam**: Hardlink adapter-tagged BAM as final output
+3. **escpod_align**: `escpod align` scores every read against every reference (no seed index, so nothing to build) and writes a coordinate-sorted BAM with `MD`/`NM` matching `samtools calmd` -- the vendored-but-not-wired-up `charging_tcn_sup6_rna004` bundle reconstructs its per-read reference from `MD`, so this is load-bearing, not cosmetic. Dorado's tags (`mv`/`ns`/`ts` move table, MM/ML modbase calls) are copied through byte for byte, no FASTQ or `bwa mem` pipe involved. `stamp_read_groups.py` stamps SM/LB/BC onto the uBAM's @RG (and a constant `BC` tag on every record for barcoded samples) into a transient stamped uBAM first, since escpod cannot add a header line or tag itself and cannot read a pipe; the stamped copy is deleted once alignment finishes. Scoring/threshold come from `opts.escpod_align` (defaulted to bwa's own `-A1 -B1 -O1 -E1 -T 20`); references tied at the best score are listed in `XA` (bwa's format) with MAPQ 0. `-F 2324` after filters to primary forward alignments
+4. **classify_charging**: Run `escpod classify` to classify charged vs uncharged reads. Writes a `cl` tag onto the records it scored and passes every other record through unchanged, so dorado's MM/ML modbase tags survive and no tag round-trip is needed. Also emits a per-read calls TSV with a `reason` for every read it did not score. It is handed the sample's whole signal store (staged directory, WarpDemuX split POD5, or the raw LDX run) and looks reads up by the BAM's ids, so no EDX-filtered POD5 exists
+5. **add_adapter_tags**: Detect adapter positions and add pt tags with 5'/3' boundaries
+6. **finalize_bam**: Hardlink adapter-tagged BAM as final output
 
 ### Summary Generation
 
@@ -167,7 +166,7 @@ ask first are in `.claude/skills/new-run-config/SKILL.md`; the logic is
   - Reference fasta
   - Charging model bundle and operating point (`charging`)
   - Dorado and escpod versions for download
-  - Command-line options for tools (dorado, bwa, filters)
+  - Command-line options for tools (dorado, escpod align, filters)
 
 - `config/samples.tsv`: Two-column TSV (no header)
   - Column 1: Unique sample ID
@@ -179,7 +178,7 @@ ask first are in `.claude/skills/new-run-config/SKILL.md`; the logic is
 
 - **opts.bam_filter**: Controls full-length read filtering (`-5 24 -3 23 -s` requires 24bp 5' adapter, 23bp 3' adapter, positive strand)
 - **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
-- **opts.bwa**: RNA-optimized alignment parameters (`-W 13 -k 6 -T 20 -x ont2d`)
+- **opts.escpod_align**: `escpod align` scoring and threshold, defaulted to bwa's own scoring (`--scoring 1,-1,-2,-1 --min-score 20`)
 - **charging.ml_threshold**: 200 (200-255 = charged, <200 = uncharged). Config, not hardcoded. It is the bundle's declared operating point, measured against ligation chemistry at FPR 1.74% / TPR 0.939; its precision depends on the sample's own charged fraction, so low-charging samples need a higher value (see `docs/troubleshooting/faq.md`)
 - **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`; the retired `fastq` and `merged_pod5` tiers are accepted and ignored (nothing writes a FASTQ or a merged POD5 any more), and an unknown name is an error. `bam/final` is always kept. `split_pod5` deletes the WarpDemuX split POD5 once classification and the session file are done; it is that path's classification input, so re-running classification afterwards means re-splitting from the raw run. Unbarcoded and LDX samples have no `demux/pod5` (their store is the raw run, via symlinks for unbarcoded samples), so the tier is inert there. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
@@ -258,8 +257,8 @@ its consumers are up to date.
 
 `config/config-demux-test.yml` (WarpDemuX) **cannot complete a run** and is a
 dry-run target only: it points at unbarcoded sacCer3 data relabelled as
-barcoded, so adapter detection finds nothing and bwa maps none of the reads
-WarpDemuX routes to those barcodes. See issue #120 and that file's header.
+barcoded, so adapter detection finds nothing and escpod align maps none of the
+reads WarpDemuX routes to those barcodes. See issue #120 and that file's header.
 
 The rest of this section describes the WarpDemuX backend.
 

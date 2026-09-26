@@ -171,21 +171,6 @@ set-resources:
 
 ## Alignment Errors
 
-### BWA Index Missing
-
-**Error:**
-```
-[bwa_idx_load_from_disk] fail to locate the index
-```
-
-**Solution:**
-
-The index should be built automatically. If it fails, build manually:
-
-```bash
-bwa index resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa
-```
-
 ### No Reads Aligned
 
 **Error:**

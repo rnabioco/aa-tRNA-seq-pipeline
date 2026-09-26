@@ -61,7 +61,6 @@ This creates a `.pixi` directory with all required packages including:
 - pandas
 - pod5
 - samtools
-- bwa
 - deeptools
 
 ## Install External Tools

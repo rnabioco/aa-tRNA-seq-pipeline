@@ -1564,7 +1564,7 @@ manifest_tbl <- tribble(
   "Configuration", "Reference Mode",         ref_mode,
   "Configuration", "Base Calling Model",    manifest$config$dorado_model %||% "N/A",
   "Configuration", "Dorado Options",        trimws(manifest$config$opts$dorado %||% "N/A"),
-  "Configuration", "BWA Options",           trimws(manifest$config$opts$bwa %||% "N/A"),
+  "Configuration", "Alignment Options",     trimws(manifest$config$opts$escpod_align %||% manifest$config$opts$bwa %||% "N/A"),
   "Configuration", "BAM Filter",            trimws(manifest$config$opts$bam_filter %||% "N/A"),
   "Configuration", "5' Adapter",            manifest$config$adapters$five_prime %||% "N/A",
   "Configuration", "3' Adapter",            three_prime_adapter,

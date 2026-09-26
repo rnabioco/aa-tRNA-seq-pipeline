@@ -4,8 +4,8 @@
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
 base_calling_model: "resources/models/rna004_sup@v6.0.0"
 
-# path to fasta file to use for bwa alignment.
-# a BWA index will be built if it does not exist for this fasta file
+# path to the tRNA + adapter reference FASTA that `escpod align` aligns to.
+# It reads the FASTA directly: there is no index to build.
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
 # Adapter sequences for tRNA reference building/validation
@@ -70,8 +70,8 @@ charging:
 
   # Minimum mapping quality for a read to be classified. 0, not escpod's
   # default of 1, and deliberately: tRNA references are highly redundant, so a
-  # read that maps equally well to two isodecoders gets mapq 0 from bwa and is
-  # a perfectly good read. On the test data `--min-mapq 1` drops 118 of 209
+  # read that maps equally well to two isodecoders gets mapq 0 (escpod align
+  # lists the tie in XA) and is a perfectly good read. On the test data `--min-mapq 1` drops 118 of 209
   # records (56%); 0 classifies exactly the 187 reads Remora did.
   min_mapq: 0
 
@@ -213,6 +213,18 @@ charging:
   # closing the gate again. Nothing here has been measured on THIS pipeline's
   # own data yet either. Flip it after that measurement, the way `ldx.gpu`
   # was, not before.
+  gpu: false
+
+# Read alignment, via `escpod align` (the escpod_align rule). Scoring and
+# thresholds are in `opts.escpod_align`; this block holds device placement.
+alignment:
+  # Score the panel on the GPU (`escpod align --device gpu`) instead of the CPU.
+  # Same GPU artifact and classify-gpu CUDA 12 runtime as `charging.gpu` (see
+  # get_alignment_escpod_gpu_prefix in common.smk). Measured 7.1-9.4x faster
+  # than bwa on an A30 against 3.2-4.6x on CPU (issue #200), but default false:
+  # GPU capacity on this cluster is shared with rebasecall and
+  # classify_charging, and the CPU path already beats bwa. Output does not
+  # depend on the device.
   gpu: false
 
 # software tools (modkit managed by pixi)
@@ -438,10 +450,14 @@ opts:
   # XXX add `-v` for verbose logging
   dorado: " --modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves "
 
-  # additional options for bwa alignment
-  # based on Novoa lab optimising bwa for tRNA alignment
-  # the -h 20 option is used to increase the number of secondary alignments reported in the XA tag
-  bwa: " -W 13 -k 6 -T 20 -x ont2d"
+  # Scoring for `escpod align`. `1,-1,-2,-1` is bwa's own `-A1 -B1 -O1 -E1`
+  # and `--min-score 20` its `-T 20`, which is what the bwa-era
+  # `-W 13 -k 6 -T 20 -x ont2d` scored with. Measured against bwa on
+  # adat2ko-pool1 (13.9M reads, issue #200): 3.4% of reads reassigned, every
+  # one to a strictly higher score under this same scoring. escpod's own
+  # default (`2,-1,-10,-1`) is NOT equivalent -- it reassigns 19.5% of reads on
+  # this panel -- and changing this is a re-validation project, not a tweak.
+  escpod_align: " --scoring 1,-1,-2,-1 --min-score 20"
 
   # requires positive strand alignment
   # requires at least 1 5' adapter base
