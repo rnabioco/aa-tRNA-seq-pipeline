@@ -118,7 +118,7 @@ Typical times per sample (GPU):
 |------|------|
 | Stage POD5 (symlinks) | seconds |
 | Rebasecall | 30-60 min |
-| Alignment + calmd | 5-10 min |
+| Alignment (`escpod align`) | 5-10 min |
 | Classification | 10-30 min |
 | Summaries | 5-10 min |
 | **Total** | **1-2 hours** |

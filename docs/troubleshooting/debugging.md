@@ -111,12 +111,9 @@ pixi shell
 Then run commands manually:
 
 ```bash
-# Example: test bwa alignment
-bwa mem -C -t 4 -W 13 -k 6 -T 20 -x ont2d \
-    resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa \
-    results/fq/sample1.fq.gz \
-    | samtools view -Sb - \
-    > test.bam
+# Example: test escpod alignment
+escpod align reads.ubam -r ref.fa -o out.bam --sort coordinate \
+    --scoring 1,-1,-2,-1 --min-score 20 -t 4
 ```
 
 ### Test Python Scripts

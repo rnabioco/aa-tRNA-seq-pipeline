@@ -62,10 +62,10 @@ set-resources:
     mem_mb: 24000
     cpus_per_task: 4
 
-  bwa_align:
+  escpod_align:
     runtime: 240
-    mem_mb: 24000
-    cpus_per_task: 8
+    mem_mb: 12000
+    # cpus_per_task, partition and gres are set by the rule (alignment.gpu)
 
   modkit_extract_calls:
     runtime: 360
@@ -127,7 +127,7 @@ These rules are automatically submitted to the GPU partition:
 |------|--------|---------|
 | `modkit_extract_calls` | 96 GB | 6 hours |
 | `warpdemux` | 32 GB | 6 hours |
-| `bwa_align` | 24 GB | 4 hours |
+| `escpod_align` | 12 GB | 4 hours |
 
 ## Customization
 

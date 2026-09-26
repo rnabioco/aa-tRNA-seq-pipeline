@@ -43,8 +43,7 @@ flowchart TB
     subgraph Processing[aatrnaseq-process.smk]
         B[stage_pod5<br/>Symlink raw POD5s]
         C[rebasecall<br/>Dorado basecalling]
-        E[bwa_align<br/>Align, dorado tags carried through]
-        CM[calmd<br/>MD/NM tags for the ref]
+        E[escpod_align<br/>Align, dorado tags + MD/NM carried through]
         F[classify_charging<br/>escpod classify]
         G2[add_adapter_tags<br/>PT tags]
         G3[finalize_bam<br/>Hardlink final BAM]
@@ -76,7 +75,7 @@ flowchart TB
         R[render_combined_qc_report<br/>QC report]
     end
 
-    A --> B --> C --> E --> CM --> F --> G2 --> G3
+    A --> B --> C --> E --> F --> G2 --> G3
 
     G3 --> H --> I
     G3 --> J
@@ -115,11 +114,11 @@ flowchart TB
 
     subgraph EDX[EDX Early Splitting]
         G[detect_edx_adapters<br/>3' adapter ID per read]
-        H[extract_edx_read_ids<br/>the read list bwa_align aligns]
+        H[extract_edx_read_ids<br/>the read list escpod_align aligns]
     end
 
     subgraph Downstream[Downstream Processing]
-        K[bwa_align → classify_charging → ...]
+        K[escpod_align → classify_charging → ...]
     end
 
     A --> B --> C --> D --> E --> F --> G --> H
@@ -131,7 +130,7 @@ flowchart TB
 The escapepod backend writes no split POD5: a per-read `.p5s` sidecar records
 each read's barcode call, the run is basecalled once as a whole, and the
 per-sample uBAM is cut from that afterwards — rejoining the standard pipeline
-at `bwa_align`.
+at `escpod_align`.
 
 ```mermaid
 flowchart TB
@@ -150,7 +149,7 @@ flowchart TB
     end
 
     subgraph Downstream[Downstream Processing]
-        I[bwa_align → calmd → classify_charging → ...]
+        I[escpod_align → classify_charging → ...]
     end
 
     A --> B
@@ -173,9 +172,7 @@ Core data processing from raw signal to classified reads:
 | `stage_pod5` | Symlink a sample's raw POD5 files into one directory | No |
 | `download_mod_models` | Pre-download dorado modification models (local rule) | No |
 | `rebasecall` | Basecall with Dorado | Yes |
-| `bwa_idx` | Build BWA index | No |
-| `bwa_align` | Align reads to reference, carrying dorado's tags through | No |
-| `calmd` | Recompute `MD`/`NM` tags against the reference | No |
+| `escpod_align` | Align reads to reference with `escpod align`, carrying dorado's tags through and writing `MD`/`NM` | Opt-in (`alignment.gpu`) |
 | `classify_charging` | ML charging classification (`escpod classify`) | Opt-in (`charging.gpu`) |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Hardlink adapter-tagged BAM as the final BAM | No |
@@ -274,7 +271,7 @@ they share. See [Demultiplexing](demultiplexing.md) for the full flow.
 | Rule | Purpose |
 |------|---------|
 | `detect_edx_adapters` | Detect 3' adapter identity per read |
-| `extract_edx_read_ids` | Extract matching read IDs for EDX (`bwa_align` aligns only these) |
+| `extract_edx_read_ids` | Extract matching read IDs for EDX (`escpod_align` aligns only these) |
 | `edx_concordance` | WDX/LDX vs EDX concordance table |
 
 ### Maintenance Rules
@@ -312,22 +309,23 @@ Dorado re-basecalls with:
 
 ### 3. Alignment
 
-`samtools fastq -T '*'` streams the uBAM into `bwa mem -C` so dorado's tags
-(move table, MM/ML modbase calls, RG) ride the FASTQ comment onto the aligned
-records — no FASTQ file is written. BWA MEM runs with RNA-optimized parameters:
+`escpod align` aligns the uBAM directly against the reference FASTA — no seed
+index to build, no FASTQ file, no `bwa mem` pipe — and copies dorado's tags
+(move table, MM/ML modbase calls) through byte for byte while writing `MD`/`NM`
+against the reference in the same pass (matching `samtools calmd`, with no
+separate recomputation step):
 
-- `-x ont2d` preset for ONT reads
-- `-K 100000000` pins the input batch regardless of thread count, since the
-  tag-bearing comment is ~13x the read
-- `-F 2324`: unmapped, reverse-strand, secondary and supplementary records
-  removed, leaving primary forward alignments only
+- `opts.escpod_align` carries scoring and threshold, defaulted to bwa's own
+  (`--scoring 1,-1,-2,-1 --min-score 20`)
+- `--sort coordinate` writes a coordinate-sorted BAM directly
+- References tied at the best score are listed in `XA` (bwa's format) with
+  MAPQ 0; escpod breaks the tie for the primary alignment deterministically
+  (the lowest-indexed reference)
+- `-F 2324`: unmapped (reads scoring below `--min-score`), reverse-strand,
+  secondary and supplementary records removed, leaving primary forward
+  alignments only
 
-### 4. MD/NM Recomputation
-
-`calmd` recomputes `MD`/`NM` against the reference (`bwa mem` does not emit
-`MD` on its own). This runs as its own pass right after alignment.
-
-### 5. Charging Classification
+### 4. Charging Classification
 
 `escpod classify` analyzes signal at the CCA 3' end:
 
@@ -351,7 +349,7 @@ records — no FASTQ file is written. BWA MEM runs with RNA-optimized parameters
 
     2. The current approach does not rely on differences in adapter sequences attached to charged vs. uncharged tRNA molecules (though these sequences are retained as separate entries in the alignment reference). The pipeline relies exclusively on signal data over a **6-nucleotide modification kmer** spanning the universal CCA 3' end of tRNA and the first three nucleotides of the 3' adapter (**CCAGGC**) to distinguish charged and uncharged reads.
 
-### 6. Adapter Position Tagging
+### 5. Adapter Position Tagging
 
 The `add_adapter_tags` rule adds PT tags with adapter boundaries:
 
@@ -377,7 +375,7 @@ These rules always request a GPU; `classify_charging` optionally does (see
 
 | Rule | Threads | Memory |
 |------|---------|--------|
-| `bwa_align` | 16 | 160 GB (see `cluster/slurm/config.yaml`) |
+| `escpod_align` | 8 (16 with `alignment.gpu`) | 12 GB (see `cluster/slurm/config.yaml`) |
 | `classify_charging` | 4 | 24 GB |
 | `modkit_extract_full` | 12 | 48 GB |
 
@@ -395,7 +393,7 @@ Key parameters that affect pipeline behavior:
 | Parameter | Affects |
 |-----------|---------|
 | `opts.dorado` | Basecalling modifications |
-| `opts.bwa` | Alignment sensitivity |
+| `opts.escpod_align` | Alignment scoring/threshold |
 | `opts.bam_filter` | Full-length read filtering |
 | `modkit.mod_thresholds` | Modification calling stringency |
 | `warpdemux.barcode_kit` | WDX demultiplexing model |

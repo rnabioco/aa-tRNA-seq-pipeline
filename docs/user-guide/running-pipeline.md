@@ -45,7 +45,7 @@ job                      count
 all                          1
 stage_pod5                   2
 rebasecall                   2
-bwa_align                    2
+escpod_align                 2
 classify_charging            2
 get_cca_trna                 2
 get_cca_trna_cpm             2
@@ -67,7 +67,7 @@ Run only specific rules:
 
 ```bash
 # Run up to alignment
-pixi run snakemake bwa_align --cores 12 --configfile=config/config.yml
+pixi run snakemake escpod_align --cores 12 --configfile=config/config.yml
 
 # Run a single sample's outputs
 pixi run snakemake results/myproject/bam/final/sample1.bam --cores 12 --configfile=config/config.yml

@@ -438,7 +438,7 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   - `false` (or omitted): nothing is auto-deleted (all intermediates retained).
   - `true`: all tiers enabled.
   - a list: only the named tiers are deleted. Tiers:
-    - `cascade` — `bam/aln`, `bam/calmd`, `bam/charging`, `bam/adapter_tagged`
+    - `cascade` — `bam/aln`, `bam/charging`, `bam/adapter_tagged`
       (redundant near-copies; `bam/final` hardlinks the last one)
     - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
@@ -458,7 +458,7 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   and `logs/`. The on-demand `clean` rule remains the catch-all for reclaiming
   space on runs that completed with intermediates retained.
 
-- `fasta`: Path to the reference FASTA file for BWA alignment. A BWA index will be built automatically if it doesn't exist.
+- `fasta`: Path to the reference FASTA file for alignment (`escpod align`). There is no seed index to build; escpod aligns directly against the FASTA.
 
 - `trna_table`: Path to a table with tRNA isodecoder + sequencing adapter annotation from the FASTA reference file.
 
@@ -489,8 +489,8 @@ complete a run; its header explains why, and there is no committed WDX fixture.
   - `min_mapq`: Minimum MAPQ for a read to be classified. **0**, deliberately,
     rather than escpod's own default of 1: tRNA references are highly
     redundant, so a read mapping equally well to two isodecoders gets MAPQ 0
-    from bwa and is still a perfectly good read. On the test data `--min-mapq
-    1` drops 118 of 209 records (56%).
+    from `escpod align` and is still a perfectly good read. On the test data
+    `--min-mapq 1` drops 118 of 209 records (56%).
 
   - `ml_threshold`: `cl` at or above this is called charged. Must match the
     bundle's declared `operating_point.cl` (200, i.e. P(charged) >= 0.7824)
