@@ -102,46 +102,33 @@ set-resources:
     runtime: "8h"
 
   # CPU-intensive rules
-  bwa_align:
-    runtime: "12h"
-    # 160 GB. Unlike rebasecall_ldx_run below, this number IS a requirement:
-    # bwa does not expand to the cgroup limit. MUT_rep1 used 78.6 of the
-    # 93.75 GiB available and stopped there, so MaxRSS here is a real
-    # measurement rather than a reflection of the budget.
-    #
-    # What drives it is `bwa mem -k 6` on a small, dense reference: a 6-mer
-    # recurs ~55 times in the 1246-record danRer11 build, so seed chaining
-    # dominates. `samtools sort -m 2G -@ 4` is only 8 GB of the total.
-    # Measured 2026-08-29 on the Watt pus4 flowcell, and note the ORDER:
-    #
-    #     633,582 reads   78.6 GiB   completed
-    #   1,429,498 reads   90.1 GiB   OOM-KILLED at 96000
-    #   1,937,960 reads   87.2 GiB   completed
-    #
-    # The DEEPEST sample used less than the one that died, so this does not
-    # scale with read count and cannot be sized from it. The usage sits in a
-    # 78-90 GiB band whose position within it is not explained by depth --
-    # most likely a few reads with pathological seed fan-out, which is a
-    # property of the sequences, not of how many there are. Treat 96000 as
-    # inside the noise rather than as a limit that was merely a little too low.
-    #
-    # 160000 is roughly 1.8x the top of the observed band. It is chosen for
-    # margin against variance, not against a trend, and still co-schedules on
-    # a 251 GB node.
-    #
-    # Memory also scales with `-t`, so cutting cpus_per_task is the other lever
-    # if a future reference is denser still. Raising max_mismatch in the project
-    # config is a third: it shrinks the reference and with it the 6-mer hit
-    # density that causes this.
-    #
-    # Since v0.7 this rule also carries dorado's tags through `bwa mem -C`
-    # (retiring inject_ubam_tags and its 48 GB). The FASTQ comment is ~13x the
-    # read, and bwa holds one batch of input plus output in memory; the rule
-    # pins the batch with `-K 100000000`, which bounds that at a few GB and is
-    # inside the margin above. Re-measure MaxRSS on the first full flowcell
-    # through this path before trusting the number further.
-    mem_mb: 160000
-    cpus_per_task: 16
+  #
+  # escpod_align replaced bwa_align + calmd (issue #200). bwa_align was this
+  # profile's largest ask, 160 GB, set by `bwa mem -k 6` seed fan-out on a
+  # dense reference (78-90 GiB MaxRSS on the Watt pus4 flowcell). escpod align
+  # has no seed index: memory is one batch of reads (`--batch-size`, 50k)
+  # plus the coordinate sort's in-memory buffer (`--sort-memory`, 4G default,
+  # spilling to the output directory past that), so it does not grow with
+  # depth the way bwa's did. cpus_per_task, partition and gres are set by the
+  # rule itself, conditional on `alignment.gpu`.
+  #
+  # Measured 2026-09-26 on adat2ko-pool1 (hg38 panel, 260 references, EDX
+  # read-id bounded, 8 threads, CPU, escpod 0.30.0), MaxRSS of the whole
+  # stamp + align + filter step:
+  #
+  #     209,256 reads    7m25s   1.0 GiB
+  #     661,247 reads   10m56s   2.5 GiB
+  #   1,338,584 reads   11m38s   3.9 GiB
+  #   2,948,961 reads   17m02s   4.4 GiB
+  #   3,017,001 reads   18m51s   4.5 GiB   (~4,750 reads/s aligning)
+  #
+  # The rise flattens toward `--sort-memory` (4G) plus one batch, which is
+  # the design: past the sort buffer, records spill to disk instead of
+  # growing RSS. 12000 is ~2.5x the top of that; runtime keeps >10x margin
+  # over the deepest sample for flowcells several times this depth.
+  escpod_align:
+    runtime: "4h"
+    mem_mb: 12000
 
   # No mem_mb for either modkit_extract rule: it scales with the input BAM
   # (34-39 GB per GB, measured 2026-09-14) and a static number here would

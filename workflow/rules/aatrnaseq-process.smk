@@ -108,70 +108,51 @@ rule rebasecall:
         """
 
 
-rule bwa_idx:
+rule escpod_align:
     """
-    Build BWA index for the validated/built reference.
-    Depends on reference validation/building completing first.
-    """
-    input:
-        get_validated_reference(),
-    output:
-        multiext(get_validated_reference(), ".amb", ".ann", ".bwt", ".pac", ".sa"),
-    log:
-        os.path.join(outdir, "logs", "bwa_idx", "log"),
-    shell:
-        """
-        bwa index {input}
-        """
+    Align reads to the tRNA + adapter reference with `escpod align`, carrying
+    dorado's tags through, and write a coordinate-sorted BAM with MD/NM.
 
+    `escpod align` scores every read against every reference (there is no seed
+    index, so nothing to build), copies every input tag through byte for byte
+    -- the move table (`mv`, `ns`, `ts`) the charging model reads and the MM/ML
+    modbase calls modkit reads -- and writes MD/NM matching `samtools calmd`.
+    That is what retired bwa_idx, calmd, and the
+    `samtools fastq -T '*' | bwa mem -C | samtools sort` pipe (issue #200).
+    The `charging_tcn_sup6_rna004` bundle reconstructs its per-read reference
+    from MD, so MD on the aligned records is load-bearing, not cosmetic.
 
-rule bwa_align:
-    """
-    Align reads to the tRNA + adapter reference with bwa mem, carrying dorado's
-    tags through.
+    Scoring comes from `opts.escpod_align`, defaulted to bwa's own scoring and
+    threshold (`--scoring 1,-1,-2,-1 --min-score 20`). References tied with the
+    best score are listed in `XA` (bwa's format) with MAPQ 0 rather than hidden;
+    get_charging_table.py splits a tied read's count across that tie set.
 
-    `samtools fastq -T '*'` writes every uBAM tag into the FASTQ comment, and
-    `bwa mem -C` appends that comment to each aligned record. So the move table
-    (`mv`, `ns`, `ts`) the charging model reads and the MM/ML modbase calls
-    modkit reads arrive on the aligned BAM directly, in one streaming pass with
-    no FASTQ on disk. This retired `inject_ubam_tags`, which re-read the uBAM in
-    Python to put the same tags back after alignment had dropped them: a 48 GB,
-    hours-long job per sample and a fourth full copy of the BAM.
+    Sample identity: escpod align copies the input's @RG/@CO through and cannot
+    add a header line or a tag, so stamp_read_groups.py writes them onto the
+    uBAM first, in one pass -- SM/LB/BC on dorado's own @RG (its ID untouched,
+    so every per-read RG:Z: still resolves: the dangling-@RG bug #121 fixed) and
+    on a demux run a constant `BC:Z:` on every record. This is where a sample's
+    identity goes INTO the BAM, because it is the first place both demux
+    backends have converged (see the note at the top of demux.smk); unbarcoded
+    samples get no BC at all. escpod sniffs its input's format and then reopens
+    the path, so it cannot read a pipe: the stamped uBAM is a transient file
+    beside the output, deleted as soon as alignment finishes.
 
-    bwa builds its header from the reference and declares no read groups, while
-    `-C` copies dorado's per-read `RG:Z:` through -- so `-H` inserts the uBAM's
-    own @RG lines, with SM/LB/BC stamped by stamp_read_groups.py, and every read
-    still resolves to a declared read group (the dangling-@RG bug #121 fixed).
-    This is also where the sample's identity is written INTO the BAM, because it
-    is the first place both demux backends have converged (see the note at the
-    top of demux.smk): on a demux run a constant `BC:Z:` goes onto every read
-    via the comment, so a read stays attributable to its barcode after it leaves
-    this directory, and an @CO records upstream's barcode name whenever it
-    differs from ours. Unbarcoded samples get neither.
+    For EDX samples only the reads carrying the sample's 3' adapter are aligned
+    (`--read-ids`, like `samtools view -N`); the classifier only ever touches
+    reads the BAM names, so no filtered FASTQ or POD5 exists.
 
-    Memory: the comment is ~13x the read (4.8 kB against 370 B on the fixture;
-    the move table dominates), and bwa holds a whole input batch plus its
-    formatted output in memory. `-K` pins the batch at 100 Mbases regardless of
-    thread count -- ~600k reads, so a few GB of comment text either side --
-    where bwa's default is 10 Mbases PER THREAD. That payload is what PR #86
-    measured as an OOM at 48 GB and answered by dropping `-C`; the footprint
-    this rule is budgeted for today (160 GB, see cluster/slurm/config.yaml) is
-    set by `-k 6` on a dense reference and dwarfs it. `-K` also makes the
-    output independent of the thread count.
-
-    For EDX samples only the reads carrying the sample's 3' adapter are aligned:
-    `-N` on the uBAM replaces the filtered FASTQ that used to be written for
-    them, and the EDX-filtered POD5 that went with it is gone too, since the
-    classifier only ever touches reads the BAM names.
-
-    -F 2324 drops unmapped (4), reverse-strand (16), secondary (256) and
-    supplementary (2048) records, so the output is primary forward alignments --
-    which is what the tagged BAM this replaces contained.
+    A read scoring below `--min-score` is written unmapped rather than dropped.
+    `-F 2324` removes those (and would remove reverse, secondary and
+    supplementary records, which the default `--strand forward` without
+    `--secondary` never writes), so the output is primary forward alignments --
+    what align_stats' `aligned` row, anchor_coverage and read_attrition have
+    always counted.
     """
     input:
         ubam=rules.rebasecall.output,
         read_ids=get_alignment_read_ids,
-        idx=rules.bwa_idx.output,
+        reference=get_validated_reference(),
     output:
         bam=maybe_temp(
             os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam"),
@@ -181,89 +162,55 @@ rule bwa_align:
             os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.aln.bam.bai"),
             tier="cascade",
         ),
-        # The @RG/@CO lines handed to bwa -H. Kept beside the BAM: it is tiny,
-        # and it is the record of what identity was stamped on this sample.
-        header=os.path.join(outdir, "bam", "aln", "{sample}", "{sample}.rg.sam"),
     log:
-        os.path.join(outdir, "logs", "bwa_align", "{sample}"),
-    threads: 16
-    params:
-        index=get_validated_reference(),
-        bwa_opts=config["opts"]["bwa"],
-        src=SCRIPT_DIR,
-        batch_bases=100000000,
-        rg_args=get_read_group_args,
-        bc_tag=lambda wildcards: (
-            f"BC:Z:{get_sample_barcode_label(wildcards.sample)}"
-            if get_sample_barcode_label(wildcards.sample)
+        os.path.join(outdir, "logs", "escpod_align", "{sample}"),
+    threads: lambda wildcards: 16 if is_alignment_gpu() else 8
+    resources:
+        # GPU-conditional for the same reason as classify_charging: the static
+        # per-executor profiles cannot see `alignment.gpu`, so the partition,
+        # account, gres and GPU queue are resolved here. mem_mb is not
+        # device-dependent and lives in cluster/slurm/config.yaml.
+        slurm_partition=lambda wildcards: "gpu" if is_alignment_gpu() else "rna",
+        slurm_account=lambda wildcards: "gpu_rbi" if is_alignment_gpu() else "rbi",
+        gres=lambda wildcards: "gpu:1" if is_alignment_gpu() else "",
+        cpus_per_task=lambda wildcards: 16 if is_alignment_gpu() else 8,
+        lsf_queue=lambda wildcards: "gpu" if is_alignment_gpu() else "rna",
+        lsf_extra=lambda wildcards: (
+            "-gpu num=1:j_exclusive=yes:mode=exclusive_process"
+            if is_alignment_gpu()
             else ""
         ),
+        ngpu=lambda wildcards: 1 if is_alignment_gpu() else 0,
+    params:
+        src=SCRIPT_DIR,
+        align_opts=config["opts"]["escpod_align"],
+        rg_args=get_read_group_args,
+        stamped=lambda wildcards, output: output.bam[: -len(".aln.bam")]
+        + ".stamped.ubam",
+        tmp_dir=lambda wildcards, output: os.path.dirname(output.bam),
         read_filter=lambda wildcards, input: (
-            f"-N {input.read_ids[0]}" if input.read_ids else ""
+            f"--read-ids {input.read_ids[0]}" if input.read_ids else ""
         ),
+        gpu_prefix=get_alignment_escpod_gpu_prefix(),
+        device=get_alignment_device_arg(),
     shell:
         """
-        python {params.src}/stamp_read_groups.py {input.ubam} {params.rg_args} \
-            >{output.header}
+        trap 'rm -f {params.stamped}' EXIT
 
-        samtools view -u {params.read_filter} {input.ubam} \
-            | samtools fastq -T '*' - \
-            | awk -v bc="{params.bc_tag}" \
-                'NR % 4 == 1 && bc != "" {{ $0 = $0 "\\t" bc }} {{ print }}' \
-            | bwa mem -C -K {params.batch_bases} -t {threads} -H {output.header} \
-                {params.bwa_opts} {params.index} - \
-            | samtools view -u -F 2324 - \
-            | samtools sort -m 2G -@ 4 -o {output.bam}
+        python {params.src}/stamp_read_groups.py {input.ubam} {params.rg_args} \
+            --compress --output {params.stamped} 2>{log}
+
+        ({params.gpu_prefix}escpod align {params.stamped} \
+            --reference {input.reference} \
+            --output - \
+            --sort coordinate --tmp-dir {params.tmp_dir} \
+            {params.align_opts} \
+            {params.read_filter} \
+            {params.device} \
+            --threads {threads}) 2>>{log} \
+            | samtools view -b -F 2324 -@ 2 -o {output.bam} -
 
         samtools index {output.bam}
-        """
-
-
-rule calmd:
-    """
-    Recompute MD/NM against the reference so the aligned BAM carries an `MD`
-    tag.
-
-    `bwa mem` does not emit `MD` on its own. The `charging_tcn_sup6_rna004`
-    bundle (vendored, not yet wired to any config -- see
-    resources/models/charging/README.md) reconstructs its per-read reference
-    from `MD` rather than by slicing the reference FASTA by coordinate, and its
-    own release notes say a runtime that does the latter must refuse to score
-    it: every reference in this panel carries ambiguity codes, and a single
-    unresolved one blanks nine consecutive k-mers under the FASTA path.
-
-    `samtools calmd` reads each record against its own reference span, so it
-    needs no particular sort order and can run as its own pass right after
-    alignment -- `-Q` keeps its per-read debug lines out of the log.
-
-    The per-record MD computation itself is single-threaded (htslib does not
-    parallelise it); `--threads` only adds workers for BGZF (de)compression on
-    a whole-BAM pass, so this is worth a modest, not a large, thread count.
-    """
-    input:
-        bam=rules.bwa_align.output.bam,
-        bai=rules.bwa_align.output.bai,
-        fai=get_validated_reference() + ".fai",
-    output:
-        bam=maybe_temp(
-            os.path.join(outdir, "bam", "calmd", "{sample}", "{sample}.calmd.bam"),
-            tier="cascade",
-        ),
-        bai=maybe_temp(
-            os.path.join(outdir, "bam", "calmd", "{sample}", "{sample}.calmd.bam.bai"),
-            tier="cascade",
-        ),
-    log:
-        os.path.join(outdir, "logs", "calmd", "{sample}"),
-    threads: 2
-    params:
-        index=get_validated_reference(),
-    shell:
-        """
-        samtools calmd -Qb --threads {threads} {input.bam} {params.index} \
-            >{output.bam} 2>{log}
-
-        samtools index -@ {threads} {output.bam}
         """
 
 
@@ -304,8 +251,8 @@ rule classify_charging:
     """
     input:
         pod5=get_sample_pod5,
-        bam=rules.calmd.output.bam,
-        bai=rules.calmd.output.bai,
+        bam=rules.escpod_align.output.bam,
+        bai=rules.escpod_align.output.bai,
         reference=get_validated_reference(),
     output:
         charging_bam=maybe_temp(
@@ -571,8 +518,8 @@ rule finalize_bam:
 
     Hardlinks the adapter-tagged BAM as the final output so that temp() cleanup
     of the upstream BAMs (the `cascade` tier) does not break downstream
-    consumers. EDX filtering happens before alignment (bwa_align aligns only the
-    sample's own reads), so this is a plain passthrough.
+    consumers. EDX filtering happens before alignment (escpod_align aligns only
+    the sample's own reads), so this is a plain passthrough.
     """
     input:
         bam=rules.add_adapter_tags.output.bam,

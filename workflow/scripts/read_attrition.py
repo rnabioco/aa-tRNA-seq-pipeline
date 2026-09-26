@@ -32,7 +32,7 @@ skips unreadable reads without erroring and this figure goes sharply negative
 **The charge-calling gate says why, and it is not all one thing.** Reads the
 model declines are split between ones it never saw (no signal, or an alignment
 that never reaches the junction) and ones it saw and deliberately abstained on
-(`no_aligned_arm` — bwa placed no base of the common arm, where the model scores
+(`no_aligned_arm` — the aligner placed no base of the common arm, where the model scores
 balanced accuracy 0.4993 and calls everything charged). Only the second kind is
 charging-correlated, and it is the one that biases a charging fraction low, so
 the two are reported apart rather than as a single unexplained difference.

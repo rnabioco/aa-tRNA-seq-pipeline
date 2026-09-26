@@ -69,7 +69,7 @@ def get_3p_offset():
 def get_validated_reference():
     """
     Return path to validated/built reference based on mode.
-    This is used by downstream rules (bwa_idx, bwa_align, etc.).
+    This is used by downstream rules (escpod_align, classify_charging, etc.).
     """
     mode = get_reference_mode()
     if mode == "build":

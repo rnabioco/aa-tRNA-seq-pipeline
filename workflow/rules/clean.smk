@@ -41,8 +41,8 @@ CLEAN_TARGETS = [
     "fq",  # retired ubam_to_fastq output (pre-v0.7 runs; alignment streams from the uBAM now)
     "bam/rebasecall",  # rebasecalled uBAM (dorado) — very large
     "bam/rebasecall_run",  # LDX run-level uBAM (dorado), split into the above
-    "bam/aln",  # bwa_align output (carries dorado's tags since v0.7)
-    "bam/calmd",  # calmd output (MD/NM added for the TCN charging bundle)
+    "bam/aln",  # escpod_align output (bwa_align before #200; carries dorado's tags)
+    "bam/calmd",  # retired calmd output (runs before #200; escpod align writes MD/NM)
     "bam/tagged",  # retired inject_ubam_tags output (pre-v0.7 runs)
     "bam/charging",  # classify_charging output
     "bam/classified",  # retired transfer_bam_tags output (pre-v0.4.0 runs)

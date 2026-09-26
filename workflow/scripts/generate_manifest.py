@@ -119,7 +119,6 @@ def get_tool_versions(pipeline_dir, config):
     # From pixi.lock (conda packages)
     conda_tools = {
         "samtools": "samtools",
-        "bwa": "bwa",
         "modkit": "ont-modkit",
         "snakemake": "snakemake",
         "bedtools": "bedtools",

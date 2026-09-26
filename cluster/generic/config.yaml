@@ -29,7 +29,7 @@ set-resources:
   - rebasecall:ngpu=1
   - rebasecall:mem_mb=24
   - classify_charging:mem_mb=24
-  - bwa_align:mem_mb=24
+  - escpod_align:mem_mb=12
   - modkit_extract_calls:mem_mb=96
   - modkit_extract_full:mem_mb=48
   - warpdemux:mem_mb=32
