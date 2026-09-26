@@ -4,6 +4,19 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **GPU `classify_charging` (`charging.gpu: true`) could return wrong charging
+  calls, silently, on some GPU nodes.** The `classify-gpu` env shipped only the
+  versioned `libcublas.so.12`, so escpod's lookup of the unversioned
+  `libcublas.so` fell through to the node's ldconfig cache. On compgpu03 that
+  paired the host's CUDA 12.8 cuBLAS with the env's 12.9 cuBLASLt, which scored
+  reads as noise: correlation 0.009 with the CPU, 13% charged against 1.5%.
+  The env now carries `libcublas-dev`, whose unversioned symlinks keep both
+  libraries in the env, and the same reads then match the CPU exactly. Re-run
+  `pixi run install-classify-gpu`, and re-classify any GPU-classified sample
+  whose job may have landed on compgpu03 (rnabioco/escapepod-rs#416).
+
 ## [v0.9.4] - 2026-09-18
 
 ### Fixed

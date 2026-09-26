@@ -139,6 +139,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcblas-3.11.0-10_h0358290_openblas.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcrc32c-1.1.2-h9c3ff4c_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-12.9.2.10-h676940d_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-dev-12.9.2.10-h676940d_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-9.10.2.21-hf7e9902_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-dev-9.10.2.21-h58dd1b1_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libcups-2.3.3-h7a8fb5f_6.conda
@@ -288,6 +289,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/configargparse-1.7.7-pyh5ded981_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/connection_pool-0.0.3-pyhd3deb0d_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-cccl_linux-64-12.9.27-ha770c72_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-crt-dev_linux-64-12.9.86-ha770c72_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-cudart-dev_linux-64-12.9.79-h3f2d84a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-cudart-static_linux-64-12.9.79-h3f2d84a_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-cudart_linux-64-12.9.79-h3f2d84a_0.conda
@@ -6244,6 +6246,25 @@ packages:
   run_exports: {}
   size: 384624985
   timestamp: 1782782999955
+- conda: https://conda.anaconda.org/conda-forge/linux-64/libcublas-dev-12.9.2.10-h676940d_0.conda
+  sha256: 3a68ef147c0a7fdd59286e49c4dd1a03be9ea6180b12ee5324ecd555c17419bb
+  md5: 7f35376e196eecc81ffe97f63b2b7e3a
+  depends:
+  - __glibc >=2.28,<3.0.a0
+  - cuda-crt-dev_linux-64
+  - cuda-cudart-dev_linux-64
+  - cuda-version >=12.9,<12.10.0a0
+  - libcublas 12.9.2.10 h676940d_0
+  - libgcc >=14
+  - libstdcxx >=14
+  constrains:
+  - libcublas-static >=12.9.2.10
+  license: LicenseRef-NVIDIA-End-User-License-Agreement
+  run_exports:
+    weak:
+    - libcublas >=12.9.2.10,<13.0a0
+  size: 94143
+  timestamp: 1778772159259
 - conda: https://conda.anaconda.org/conda-forge/linux-64/libcudnn-9.10.2.21-hf7e9902_0.conda
   sha256: dc6b89e874867b2cdf08224059bd1543cbb72ed646da177c1454596469c9a4bb
   md5: a178a1f3642521f104ecceeefa138d01
@@ -11907,6 +11928,15 @@ packages:
   run_exports: {}
   size: 1150650
   timestamp: 1746189825236
+- conda: https://conda.anaconda.org/conda-forge/noarch/cuda-crt-dev_linux-64-12.9.86-ha770c72_2.conda
+  sha256: e6257534c4b4b6b8a1192f84191c34906ab9968c92680fa09f639e7846a87304
+  md5: 79d280de61e18010df5997daea4743df
+  depends:
+  - cuda-version >=12.9,<12.10.0a0
+  license: LicenseRef-NVIDIA-End-User-License-Agreement
+  run_exports: {}
+  size: 94239
+  timestamp: 1753975242354
 - conda: https://conda.anaconda.org/conda-forge/noarch/cuda-cudart-dev_linux-64-12.9.79-h3f2d84a_0.conda
   sha256: ffe86ed0144315b276f18020d836c8ef05bf971054cf7c3eb167af92494080d5
   md5: 86e40eb67d83f1a58bdafdd44e5a77c6
