@@ -6,6 +6,53 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **Alignment is `escpod align`; `bwa_idx`, `bwa_align` and `calmd` are gone
+  (#200).** One rule, `escpod_align`, aligns the uBAM straight to the
+  reference FASTA with `--sort coordinate`, copies dorado's tags through byte
+  for byte and writes `MD`/`NM` matching `samtools calmd` — so there is no
+  index, no `samtools fastq | bwa mem -C | samtools sort` pipe, no calmd pass
+  and no `bwa` pixi dependency. Output path is unchanged
+  (`bam/aln/{sample}/{sample}.aln.bam`); `bam/calmd/` and `{sample}.rg.sam`
+  are no longer written. `opts.bwa` is replaced by `opts.escpod_align`,
+  defaulted to bwa's own scoring (`--scoring 1,-1,-2,-1 --min-score 20`, i.e.
+  `-A1 -B1 -O1 -E1 -T 20`) — escpod's own default (`2,-1,-10,-1`) reassigns
+  19.5% of reads on the hg38 panel and is not a drop-in. `alignment.gpu`
+  (default false) mirrors `charging.gpu`; CPU and GPU output are
+  byte-identical. Reads below `--min-score` come back as unmapped records and
+  are filtered out (`-F 2324`), so `align_stats`, `anchor_coverage` and
+  `read_attrition` keep their meaning.
+  - Sample identity (SM/LB/BC on dorado's `@RG`, a constant `BC:Z:` per record
+    on barcoded samples) can no longer ride `bwa mem -H` and the FASTQ
+    comment: `stamp_read_groups.py` now rewrites the uBAM in one pass into a
+    transient file that escpod aligns and the rule deletes (escpod reopens its
+    input path, so it cannot read a pipe).
+  - **Per-isodecoder counts shift.** Measured on adat2ko-pool1 (10 samples,
+    13.9M reads, hg38 260-reference panel), same uBAMs and escpod 0.30.0
+    classify on both sides: 63.3% of alignments byte-identical to bwa, 16.6%
+    same reference with a different CIGAR, 16.7% a different primary that was
+    inside escpod's reported tie set, and **3.4% truly reassigned** to a
+    strictly higher-scoring reference (0.62% same anticodon, 0.48% same amino
+    acid, 2.26% different amino acid); 0.08% map only under escpod. escpod
+    reports 29.9% of reads as tied (`XA`, MAPQ 0) where bwa gave 77% MAPQ 0
+    with no alternatives.
+  - **Tied reads are split across their tie set in the count tables.**
+    `charging_prob.tsv.gz` gains a `tie_refs` column and
+    `get_trna_charging_cpm.py` credits each of a read's n+1 tied references
+    1/(n+1), so `charging.cpm.tsv.gz` counts are fractional (totals still
+    equal scored reads). Counting escpod's primary alone moves per-reference
+    counts 12-15% total variation distance against bwa; the split brings that
+    to 1.3-3.9% (0.8-2.7% by anticodon). The largest per-anticodon
+    charged-fraction shift drops from ~4 pp (Ile-GAT, primary-only) to 1.8 pp;
+    5 of 482 sample x anticodon cells (n >= 500) move more than 1 pp, median
+    0.03 pp.
+  - Charging calls: 0.14% of reads scored in both runs flip at `cl >= 200`
+    (0.39% of the reads whose alignment changed; mean |Δcl| 3.4-6.8 on those),
+    and sample charged fractions move +0.01 to +0.05 pp. The shifts are
+    compositional (which reference wins), not a charging-model effect.
+  - Resources: 4-19 min and 1.0-4.5 GiB MaxRSS per sample at 8 CPU threads on
+    that run (up to 3.0M reads), against bwa_align's 16 threads and 160 GB
+    Slurm budget (measured 78-90 GiB). The profile asks 12 GB.
+
 - **`escpod_version` bumped 0.27.1 → 0.30.0** (checksums in
   `scripts/setup-tools.sh` updated to match; `pixi run check-currency` had
   reported the pin BEHIND). What matters here:
@@ -18,9 +65,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   - The windowed (TCN) GPU classifier now checks itself against the CPU on
     real reads (first batch, then 1-in-64) and refuses/falls back on
     disagreement, rather than trusting the device silently.
-  - `escpod align` (unused by any rule yet) gains `--sort coordinate`,
-    `--max-read-len` and a long-read scoring fix; none of this pipeline's
-    rules call it, so no rule behavior changes.
+  - `escpod align` gains `--sort coordinate`, `--max-read-len` and a
+    long-read scoring fix (adopted by `escpod_align`, above).
   - `dorado`, the vendored model bundles and every rule's flags are
     unchanged. Dorado stays at 2.1.1 (recorded hold in
     `resources/models/pins.yml`).
