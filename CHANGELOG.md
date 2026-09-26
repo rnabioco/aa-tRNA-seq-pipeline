@@ -6,6 +6,30 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`escpod_version` bumped 0.27.1 → 0.30.0** (checksums in
+  `scripts/setup-tools.sh` updated to match; `pixi run check-currency` had
+  reported the pin BEHIND). What matters here:
+  - 0.30.0 fixes the mismatched-cuBLAS bug this pipeline worked around in
+    #197 (`libcublas-dev` in the `classify-gpu` pixi env): `escpod classify
+    --device gpu` now checks which release each loaded cuBLAS/cuBLASLt file
+    belongs to and reloads or refuses rather than silently mixing them
+    (rnabioco/escapepod-rs#416). The env's own fix stays — defense in depth,
+    and it is what makes 0.27.1 safe on this cluster today.
+  - The windowed (TCN) GPU classifier now checks itself against the CPU on
+    real reads (first batch, then 1-in-64) and refuses/falls back on
+    disagreement, rather than trusting the device silently.
+  - `escpod align` gains `--sort coordinate`, `--max-read-len` and a
+    long-read scoring fix, all now in use by `escpod_align` (below).
+  - `dorado`, the vendored model bundles and every rule's flags are
+    unchanged. Dorado stays at 2.1.1 (recorded hold in
+    `resources/models/pins.yml`).
+  - Verified: `dry-run`/`dry-run-ldx`/`dry-run-fdx` build; `pixi run test` and
+    `pixi run test-ldx` complete end-to-end on a GPU node with sensible
+    charging/attrition numbers; `pytest tests/` passes apart from three
+    pre-existing failures confirmed unrelated to this bump (identical on
+    0.27.1, or an artifact of running the full suite outside CI's own
+    pre-computed-fixture scope — none of the three run in CI, which has no
+    GPU).
 - **Alignment is `escpod align`; `bwa_idx`, `bwa_align` and `calmd` are gone
   (#200).** One rule, `escpod_align`, aligns the uBAM straight to the
   reference FASTA with `--sort coordinate`, copies dorado's tags through byte
@@ -52,31 +76,6 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
   - Resources: 4-19 min and 1.0-4.5 GiB MaxRSS per sample at 8 CPU threads on
     that run (up to 3.0M reads), against bwa_align's 16 threads and 160 GB
     Slurm budget (measured 78-90 GiB). The profile asks 12 GB.
-
-- **`escpod_version` bumped 0.27.1 → 0.30.0** (checksums in
-  `scripts/setup-tools.sh` updated to match; `pixi run check-currency` had
-  reported the pin BEHIND). What matters here:
-  - 0.30.0 fixes the mismatched-cuBLAS bug this pipeline worked around in
-    #197 (`libcublas-dev` in the `classify-gpu` pixi env): `escpod classify
-    --device gpu` now checks which release each loaded cuBLAS/cuBLASLt file
-    belongs to and reloads or refuses rather than silently mixing them
-    (rnabioco/escapepod-rs#416). The env's own fix stays — defense in depth,
-    and it is what makes 0.27.1 safe on this cluster today.
-  - The windowed (TCN) GPU classifier now checks itself against the CPU on
-    real reads (first batch, then 1-in-64) and refuses/falls back on
-    disagreement, rather than trusting the device silently.
-  - `escpod align` gains `--sort coordinate`, `--max-read-len` and a
-    long-read scoring fix (adopted by `escpod_align`, above).
-  - `dorado`, the vendored model bundles and every rule's flags are
-    unchanged. Dorado stays at 2.1.1 (recorded hold in
-    `resources/models/pins.yml`).
-  - Verified: `dry-run`/`dry-run-ldx`/`dry-run-fdx` build; `pixi run test` and
-    `pixi run test-ldx` complete end-to-end on a GPU node with sensible
-    charging/attrition numbers; `pytest tests/` passes apart from three
-    pre-existing failures confirmed unrelated to this bump (identical on
-    0.27.1, or an artifact of running the full suite outside CI's own
-    pre-computed-fixture scope — none of the three run in CI, which has no
-    GPU).
 
 ### Fixed
 
