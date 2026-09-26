@@ -1,7 +1,17 @@
 #! /usr/bin/env python
 
 """
-Generate table of read id, ref, value of charging tag
+Generate table of read id, ref, value of charging tag, and the read's tie set.
+
+`tRNA` is the read's primary reference -- the one the classifier scored it
+against -- so the table stays one row per scored read. `tie_refs` lists the
+OTHER references `escpod align` found tied with it at the best score (its `XA`
+tag), `;`-separated, empty for a uniquely placed read. escpod's primary is just
+the lowest-indexed reference of a tie, so counting reads by `tRNA` alone moves
+13.0% total variation distance in per-reference counts against bwa on
+adat2ko-pool1, where splitting each tied read evenly across its tie set brings
+it to 1.8% (issue #200). get_trna_charging_cpm.py does that split, using
+reference_weights() below.
 """
 
 import argparse
@@ -42,6 +52,35 @@ def charging_tag_value(read, tag):
     return tag_raw
 
 
+def tie_references(read):
+    """The references tied with `read`'s primary, from its `XA` tag.
+
+    `XA` is bwa's format, `ref,+pos,CIGAR,NM;` per entry, which is what
+    `escpod align` writes -- one entry per tied reference besides the
+    primary. Returned in `XA` order, de-duplicated, and without the primary
+    reference itself even if an entry names it (bwa's own `XA` can list a
+    second position on the same reference, which is not a second reference).
+    """
+    if not read.has_tag("XA"):
+        return []
+    primary = read.reference_name
+    refs = []
+    for entry in str(read.get_tag("XA")).split(";"):
+        ref = entry.split(",", 1)[0].strip()
+        if ref and ref != primary and ref not in refs:
+            refs.append(ref)
+    return refs
+
+
+def reference_weights(reference, tie_refs=()):
+    """{reference: weight} for one read: 1/(n+1) to each of the primary and its
+    `n` tied references, so every read contributes exactly 1 in total."""
+    refs = [reference] + [r for r in tie_refs if r != reference]
+    refs = list(dict.fromkeys(refs))
+    weight = 1.0 / len(refs)
+    return dict.fromkeys(refs, weight)
+
+
 def extract_tag(bam_file, output_tsv, tag):
     open_func = gzip.open if output_tsv.endswith(".gz") else open
     mode = "wt" if output_tsv.endswith(".gz") else "w"
@@ -54,7 +93,7 @@ def extract_tag(bam_file, output_tsv, tag):
         open_func(output_tsv, mode) as tsvfile,
     ):
         writer = csv.writer(tsvfile, delimiter="\t")
-        writer.writerow(["read_id", "tRNA", "charging_likelihood"])
+        writer.writerow(["read_id", "tRNA", "charging_likelihood", "tie_refs"])
 
         for read in bam.fetch():
             read_id = read.query_name
@@ -79,7 +118,9 @@ def extract_tag(bam_file, output_tsv, tag):
             # ML==0 reads, biasing charging fraction upward and shrinking the
             # CPM denominator downstream.
             if tag_value is not None and reference != "*":
-                writer.writerow([read_id, reference, tag_value])
+                writer.writerow(
+                    [read_id, reference, tag_value, ";".join(tie_references(read))]
+                )
                 n_written += 1
 
     if n_multi_skipped:
