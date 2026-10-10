@@ -6,6 +6,13 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`escpod_version` bumped 0.30.0 → 0.31.2** (checksums in
+  `scripts/setup-tools.sh` updated to match). 0.31.x removes `escpod align`,
+  which is why this follows the move to eschalign. `escpod demux` output on the
+  LDX fixture is byte-identical to 0.30.0.
+- The LDX routing test's per-barcode floor is 0.80 (was 0.85). #155 sheds the
+  reads the old window settings mis-assigned, so `ldx02` is 106 of 125 on the
+  fixture; nothing regressed.
 - **Alignment is `eschalign`, no longer `escpod align`.** The aligner was carved
   out of escapepod-rs 0.31.0 into [rnabioco/eschalign](https://github.com/rnabioco/eschalign);
   flags and behaviour are unchanged, only the binary name (no `align`
