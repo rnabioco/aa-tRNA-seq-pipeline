@@ -108,12 +108,12 @@ rule rebasecall:
         """
 
 
-rule escpod_align:
+rule eschalign:
     """
-    Align reads to the tRNA + adapter reference with `escpod align`, carrying
+    Align reads to the tRNA + adapter reference with `eschalign`, carrying
     dorado's tags through, and write a coordinate-sorted BAM with MD/NM.
 
-    `escpod align` scores every read against every reference (there is no seed
+    `eschalign` scores every read against every reference (there is no seed
     index, so nothing to build), copies every input tag through byte for byte
     -- the move table (`mv`, `ns`, `ts`) the charging model reads and the MM/ML
     modbase calls modkit reads -- and writes MD/NM matching `samtools calmd`.
@@ -122,12 +122,12 @@ rule escpod_align:
     The `charging_tcn_sup6_rna004` bundle reconstructs its per-read reference
     from MD, so MD on the aligned records is load-bearing, not cosmetic.
 
-    Scoring comes from `opts.escpod_align`, defaulted to bwa's own scoring and
+    Scoring comes from `opts.eschalign`, defaulted to bwa's own scoring and
     threshold (`--scoring 1,-1,-2,-1 --min-score 20`). References tied with the
     best score are listed in `XA` (bwa's format) with MAPQ 0 rather than hidden;
     get_charging_table.py splits a tied read's count across that tie set.
 
-    Sample identity: escpod align copies the input's @RG/@CO through and cannot
+    Sample identity: eschalign copies the input's @RG/@CO through and cannot
     add a header line or a tag, so stamp_read_groups.py writes them onto the
     uBAM first, in one pass -- SM/LB/BC on dorado's own @RG (its ID untouched,
     so every per-read RG:Z: still resolves: the dangling-@RG bug #121 fixed) and
@@ -163,7 +163,7 @@ rule escpod_align:
             tier="cascade",
         ),
     log:
-        os.path.join(outdir, "logs", "escpod_align", "{sample}"),
+        os.path.join(outdir, "logs", "eschalign", "{sample}"),
     threads: lambda wildcards: 16 if is_alignment_gpu() else 8
     resources:
         # GPU-conditional for the same reason as classify_charging: the static
@@ -183,7 +183,7 @@ rule escpod_align:
         ngpu=lambda wildcards: 1 if is_alignment_gpu() else 0,
     params:
         src=SCRIPT_DIR,
-        align_opts=config["opts"]["escpod_align"],
+        align_opts=config["opts"]["eschalign"],
         rg_args=get_read_group_args,
         stamped=lambda wildcards, output: output.bam[: -len(".aln.bam")]
         + ".stamped.ubam",
@@ -191,7 +191,7 @@ rule escpod_align:
         read_filter=lambda wildcards, input: (
             f"--read-ids {input.read_ids[0]}" if input.read_ids else ""
         ),
-        gpu_prefix=get_alignment_escpod_gpu_prefix(),
+        gpu_prefix=get_alignment_gpu_prefix(),
         device=get_alignment_device_arg(),
     shell:
         """
@@ -200,7 +200,7 @@ rule escpod_align:
         python {params.src}/stamp_read_groups.py {input.ubam} {params.rg_args} \
             --compress --output {params.stamped} 2>{log}
 
-        ({params.gpu_prefix}escpod align {params.stamped} \
+        ({params.gpu_prefix}eschalign {params.stamped} \
             --reference {input.reference} \
             --output - \
             --sort coordinate --tmp-dir {params.tmp_dir} \
@@ -251,8 +251,8 @@ rule classify_charging:
     """
     input:
         pod5=get_sample_pod5,
-        bam=rules.escpod_align.output.bam,
-        bai=rules.escpod_align.output.bai,
+        bam=rules.eschalign.output.bam,
+        bai=rules.eschalign.output.bai,
         reference=get_validated_reference(),
     output:
         charging_bam=maybe_temp(
@@ -518,7 +518,7 @@ rule finalize_bam:
 
     Hardlinks the adapter-tagged BAM as the final output so that temp() cleanup
     of the upstream BAMs (the `cascade` tier) does not break downstream
-    consumers. EDX filtering happens before alignment (escpod_align aligns only
+    consumers. EDX filtering happens before alignment (eschalign aligns only
     the sample's own reads), so this is a plain passthrough.
     """
     input:

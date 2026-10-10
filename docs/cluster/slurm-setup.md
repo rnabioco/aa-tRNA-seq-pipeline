@@ -62,7 +62,7 @@ set-resources:
     mem_mb: 24000
     cpus_per_task: 4
 
-  escpod_align:
+  eschalign:
     runtime: 240
     mem_mb: 12000
     # cpus_per_task, partition and gres are set by the rule (alignment.gpu)
@@ -127,7 +127,7 @@ These rules are automatically submitted to the GPU partition:
 |------|--------|---------|
 | `modkit_extract_calls` | 96 GB | 6 hours |
 | `warpdemux` | 32 GB | 6 hours |
-| `escpod_align` | 12 GB | 4 hours |
+| `eschalign` | 12 GB | 4 hours |
 
 ## Customization
 

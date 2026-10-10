@@ -28,7 +28,7 @@ Job stats:
 job                      count
 ---------------------  -------
 all                          1
-escpod_align                 2
+eschalign                 2
 classify_charging            2
 get_cca_trna                 2
 get_cca_trna_cpm             2

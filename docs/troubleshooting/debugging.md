@@ -111,8 +111,8 @@ pixi shell
 Then run commands manually:
 
 ```bash
-# Example: test escpod alignment
-escpod align reads.ubam -r ref.fa -o out.bam --sort coordinate \
+# Example: test eschalign
+eschalign reads.ubam -r ref.fa -o out.bam --sort coordinate \
     --scoring 1,-1,-2,-1 --min-score 20 -t 4
 ```
 

@@ -15,7 +15,7 @@ TODO: we should compute this directly from the final BAM file, which
 tRNA-AA-anticodon-family-species-ref are all preserved from the alignment,
 and can be further collapsed as desired in downstream analysis.
 
-A read tied between several references (`tie_refs`, from escpod align's `XA`)
+A read tied between several references (`tie_refs`, from eschalign's `XA`)
 counts 1/(n+1) toward each of its n+1 references rather than 1 toward the
 primary alone, so counts are fractional; each read still contributes exactly 1
 in total, so a sample's counts sum to its scored read count. A table without a

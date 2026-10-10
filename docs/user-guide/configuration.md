@@ -47,11 +47,11 @@ The model is downloaded automatically if using a model name.
 ### Reference FASTA
 
 ```yaml
-# tRNA reference with adapters, aligned against directly with `escpod align`
+# tRNA reference with adapters, aligned against directly with `eschalign`
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 ```
 
-There is no seed index to build; `escpod align` aligns directly against the FASTA.
+There is no seed index to build; `eschalign` aligns directly against the FASTA.
 
 ### Adapter Sequences
 
@@ -236,7 +236,7 @@ opts:
 
 ```yaml
 opts:
-    escpod_align: " --scoring 1,-1,-2,-1 --min-score 20"
+    eschalign: " --scoring 1,-1,-2,-1 --min-score 20"
 ```
 
 | Option | Description |

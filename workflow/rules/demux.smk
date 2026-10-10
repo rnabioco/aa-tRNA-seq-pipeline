@@ -1244,7 +1244,7 @@ rule extract_edx_read_ids:
     """
     Extract read IDs matching this sample's EDX adapter assignment.
 
-    This list is the whole EDX filter: escpod_align aligns only the reads it
+    This list is the whole EDX filter: eschalign aligns only the reads it
     names (`--read-ids`), and the classifier only ever touches reads the BAM
     names, so neither a filtered FASTQ nor a filtered POD5 is written any more.
     """

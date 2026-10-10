@@ -26,7 +26,7 @@ flowchart TD
 
     subgraph Processing
         A[stage_pod5<br/>symlinks to raw POD5] --> B[rebasecall<br/>Dorado + move tables]
-        B --> D[escpod_align<br/>tRNA + adapter reference<br/>dorado tags + MD/NM carried through]
+        B --> D[eschalign<br/>tRNA + adapter reference<br/>dorado tags + MD/NM carried through]
     end
 
     subgraph Classification
@@ -63,7 +63,7 @@ Given a directory of POD5 files, this pipeline:
 1. **(Optional) Demultiplexes** pooled runs — by signal (WarpDemuX / WDX) or by basecalling (escapepod / LDX, with an optional 5′ FDX index)
 2. **Stages** each sample's raw POD5 files as a directory of symlinks (LDX hands dorado the raw run directly)
 3. **Rebasecalls** with Dorado to generate unmapped BAM with move tables (required by the charging model)
-4. **Aligns** to tRNA + adapter reference with `escpod align`, carrying dorado's tags through and writing `MD`/`NM` directly — no index, no FASTQ file, no separate calmd pass
+4. **Aligns** to tRNA + adapter reference with `eschalign`, carrying dorado's tags through and writing `MD`/`NM` directly — no index, no FASTQ file, no separate calmd pass
 5. **Classifies** charged vs. uncharged reads with `escpod classify`, against an ONNX model trained on nanopore signal over the CCA 3' end
 
 The classification writes a `cl` tag (0-255) onto each scored read, `round(P(charged) * 255)`. By default `cl` ≥ 200 is charged and < 200 uncharged. Reads the model abstains on get no `cl` tag; their rate is charging-correlated and is reported in `read_attrition.tsv.gz`.

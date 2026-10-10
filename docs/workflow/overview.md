@@ -43,7 +43,7 @@ flowchart TB
     subgraph Processing[aatrnaseq-process.smk]
         B[stage_pod5<br/>Symlink raw POD5s]
         C[rebasecall<br/>Dorado basecalling]
-        E[escpod_align<br/>Align, dorado tags + MD/NM carried through]
+        E[eschalign<br/>Align, dorado tags + MD/NM carried through]
         F[classify_charging<br/>escpod classify]
         G2[add_adapter_tags<br/>PT tags]
         G3[finalize_bam<br/>Hardlink final BAM]
@@ -114,11 +114,11 @@ flowchart TB
 
     subgraph EDX[EDX Early Splitting]
         G[detect_edx_adapters<br/>3' adapter ID per read]
-        H[extract_edx_read_ids<br/>the read list escpod_align aligns]
+        H[extract_edx_read_ids<br/>the read list eschalign aligns]
     end
 
     subgraph Downstream[Downstream Processing]
-        K[escpod_align → classify_charging → ...]
+        K[eschalign → classify_charging → ...]
     end
 
     A --> B --> C --> D --> E --> F --> G --> H
@@ -130,7 +130,7 @@ flowchart TB
 The escapepod backend writes no split POD5: a per-read `.p5s` sidecar records
 each read's barcode call, the run is basecalled once as a whole, and the
 per-sample uBAM is cut from that afterwards — rejoining the standard pipeline
-at `escpod_align`.
+at `eschalign`.
 
 ```mermaid
 flowchart TB
@@ -149,7 +149,7 @@ flowchart TB
     end
 
     subgraph Downstream[Downstream Processing]
-        I[escpod_align → classify_charging → ...]
+        I[eschalign → classify_charging → ...]
     end
 
     A --> B
@@ -172,7 +172,7 @@ Core data processing from raw signal to classified reads:
 | `stage_pod5` | Symlink a sample's raw POD5 files into one directory | No |
 | `download_mod_models` | Pre-download dorado modification models (local rule) | No |
 | `rebasecall` | Basecall with Dorado | Yes |
-| `escpod_align` | Align reads to reference with `escpod align`, carrying dorado's tags through and writing `MD`/`NM` | Opt-in (`alignment.gpu`) |
+| `eschalign` | Align reads to reference with `eschalign`, carrying dorado's tags through and writing `MD`/`NM` | Opt-in (`alignment.gpu`) |
 | `classify_charging` | ML charging classification (`escpod classify`) | Opt-in (`charging.gpu`) |
 | `add_adapter_tags` | Add PT tags for adapter positions | No |
 | `finalize_bam` | Hardlink adapter-tagged BAM as the final BAM | No |
@@ -271,7 +271,7 @@ they share. See [Demultiplexing](demultiplexing.md) for the full flow.
 | Rule | Purpose |
 |------|---------|
 | `detect_edx_adapters` | Detect 3' adapter identity per read |
-| `extract_edx_read_ids` | Extract matching read IDs for EDX (`escpod_align` aligns only these) |
+| `extract_edx_read_ids` | Extract matching read IDs for EDX (`eschalign` aligns only these) |
 | `edx_concordance` | WDX/LDX vs EDX concordance table |
 
 ### Maintenance Rules
@@ -309,13 +309,13 @@ Dorado re-basecalls with:
 
 ### 3. Alignment
 
-`escpod align` aligns the uBAM directly against the reference FASTA — no seed
+`eschalign` aligns the uBAM directly against the reference FASTA — no seed
 index to build, no FASTQ file, no `bwa mem` pipe — and copies dorado's tags
 (move table, MM/ML modbase calls) through byte for byte while writing `MD`/`NM`
 against the reference in the same pass (matching `samtools calmd`, with no
 separate recomputation step):
 
-- `opts.escpod_align` carries scoring and threshold, defaulted to bwa's own
+- `opts.eschalign` carries scoring and threshold, defaulted to bwa's own
   (`--scoring 1,-1,-2,-1 --min-score 20`)
 - `--sort coordinate` writes a coordinate-sorted BAM directly
 - References tied at the best score are listed in `XA` (bwa's format) with
@@ -375,7 +375,7 @@ These rules always request a GPU; `classify_charging` optionally does (see
 
 | Rule | Threads | Memory |
 |------|---------|--------|
-| `escpod_align` | 8 (16 with `alignment.gpu`) | 12 GB (see `cluster/slurm/config.yaml`) |
+| `eschalign` | 8 (16 with `alignment.gpu`) | 12 GB (see `cluster/slurm/config.yaml`) |
 | `classify_charging` | 4 | 24 GB |
 | `modkit_extract_full` | 12 | 48 GB |
 
@@ -393,7 +393,7 @@ Key parameters that affect pipeline behavior:
 | Parameter | Affects |
 |-----------|---------|
 | `opts.dorado` | Basecalling modifications |
-| `opts.escpod_align` | Alignment scoring/threshold |
+| `opts.eschalign` | Alignment scoring/threshold |
 | `opts.bam_filter` | Full-length read filtering |
 | `modkit.mod_thresholds` | Modification calling stringency |
 | `warpdemux.barcode_kit` | WDX demultiplexing model |

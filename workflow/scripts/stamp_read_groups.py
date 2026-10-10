@@ -4,7 +4,7 @@ Rewrite a uBAM with the pipeline's identity stamped on, in one pass: the @RG
 lines get SM/LB/BC, and on a barcoded sample every record gets a constant
 `BC:Z:` tag.
 
-`escpod align` copies the input BAM's @RG/@PG/@CO lines through unchanged and
+`eschalign` copies the input BAM's @RG/@PG/@CO lines through unchanged and
 every record's tags through byte for byte, but it has no way to add a header
 line or a tag that was not already on the input. So the sample's identity has
 to be on the uBAM before it is aligned, and this is where it is put. It is the
@@ -21,8 +21,8 @@ absence means "no demultiplexing", not "unknown barcode".
 
 The header and the tags are rewritten in the same pass, reader to writer,
 because the full-uBAM rewrite is the expensive part. It cannot be streamed
-into `escpod align`, which sniffs its input's format and then reopens the path
-(a pipe, `-` or `/dev/stdin` all fail on 0.30.0), so escpod_align writes it to a
+into `eschalign`, which sniffs its input's format and then reopens the path
+(a pipe, `-` or `/dev/stdin` all fail on 0.30.0), so eschalign writes it to a
 transient file beside the aligned BAM and deletes it afterwards.
 """
 
@@ -92,7 +92,7 @@ def stamp_bam(
 
     `out_path` may be "-" for stdout. Output is uncompressed BAM unless
     `compress` is set, which writes ordinary BGZF. The file is transient
-    (escpod_align deletes it once aligned); compressing it is only to cut the
+    (eschalign deletes it once aligned); compressing it is only to cut the
     bytes written to and read back from shared storage, ~4x on dorado uBAM.
     """
     mode = "wb" if compress else "wbu"

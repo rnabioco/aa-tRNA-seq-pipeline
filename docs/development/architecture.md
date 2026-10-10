@@ -175,7 +175,7 @@ flowchart TD
     subgraph Per Sample
         A[POD5 files] --> B[stage_pod5]
         B --> C[rebasecall]
-        C --> E[escpod_align<br/>tags + MD/NM carried through]
+        C --> E[eschalign<br/>tags + MD/NM carried through]
         E --> F[classify_charging]
         F --> G2[add_adapter_tags]
         G2 --> G[finalize_bam]
@@ -190,7 +190,7 @@ flowchart TD
 
 On the LDX/FDX path, `stage_pod5` and `rebasecall` are replaced by
 `escapepod_demux` (+ `escapepod_demux_fdx`) → `rebasecall_ldx_run` →
-`split_ldx_ubam`, rejoining at `escpod_align`. See
+`split_ldx_ubam`, rejoining at `eschalign`. See
 [Demultiplexing](../workflow/demultiplexing.md).
 
 ## Global Variables
@@ -235,7 +235,7 @@ charging:
 # Command options
 opts:
     dorado: "..."
-    escpod_align: "..."
+    eschalign: "..."
     bam_filter: "..."
 
 # Modkit thresholds
@@ -292,7 +292,7 @@ A sample, not exhaustive, of `workflow/scripts/`:
 
 | Script | Called By | Purpose |
 |--------|-----------|---------|
-| `stamp_read_groups.py` | `escpod_align` | Stamp SM/LB/BC onto the uBAM before alignment |
+| `stamp_read_groups.py` | `eschalign` | Stamp SM/LB/BC onto the uBAM before alignment |
 | `add_adapter_tags.py` | `add_adapter_tags` | Parasail-based adapter position tagging |
 | `build_trna_reference.py` | `validate_reference`, `build_reference` | Reference validation/build |
 | `select_demux_reads.py` | `ldx_run_read_ids`, `extract_ldx_sample_reads` | Join LDX/FDX axis calls per read |
