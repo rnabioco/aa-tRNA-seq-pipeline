@@ -178,12 +178,12 @@ runs:
 
 ### EDX Early Splitting
 
-When a sample has an `edx` assignment, the pipeline detects 3' adapter identity on the unaligned BAM right after basecalling and aligns only the matching reads. The read-id list is the whole filter: `escpod_align` restricts alignment to it via `--read-ids` (like `samtools view -N`), and `escpod classify` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written. This avoids redundant processing when two samples share a WDX barcode but have different EDX adapters.
+When a sample has an `edx` assignment, the pipeline detects 3' adapter identity on the unaligned BAM right after basecalling and aligns only the matching reads. The read-id list is the whole filter: `eschalign` restricts alignment to it via `--read-ids` (like `samtools view -N`), and `escpod classify` only ever touches reads the BAM names, so no filtered FASTQ or POD5 is written. This avoids redundant processing when two samples share a WDX barcode but have different EDX adapters.
 
 The EDX splitting flow:
 
 ```
-rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → escpod_align → classify_charging → ...
+rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → eschalign → classify_charging → ...
 ```
 
 Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. For samples without an `edx` assignment, the pipeline flow is unchanged.
@@ -257,7 +257,7 @@ flowchart TB
 
     subgraph Standard[Standard Pipeline]
         F[rebasecall]
-        G[escpod_align]
+        G[eschalign]
         H[classify_charging]
         I[...]
     end
@@ -267,7 +267,7 @@ flowchart TB
 
 With escapepod (LDX/FDX) demultiplexing enabled instead, no POD5 is split —
 the run is basecalled whole and the per-sample uBAM is cut out afterwards,
-rejoining the standard pipeline at `escpod_align`:
+rejoining the standard pipeline at `eschalign`:
 
 ```mermaid
 flowchart TB
@@ -285,7 +285,7 @@ flowchart TB
     end
 
     subgraph Standard2[Standard Pipeline]
-        H2[escpod_align]
+        H2[eschalign]
         I2[classify_charging]
         J2[...]
     end
@@ -423,7 +423,7 @@ With demultiplexing, outputs include:
 ```
 
 EDX filtering writes no FASTQ or POD5 of its own: `extract_edx_read_ids`'
-read-id list is the whole filter, applied to `escpod_align` via `--read-ids`
+read-id list is the whole filter, applied to `eschalign` via `--read-ids`
 on the uBAM, and `classify_charging` reads the same store every other sample
 uses, bounded by what the BAM names.
 

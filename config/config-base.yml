@@ -4,7 +4,7 @@
 # either a path to a basecalling model to use with dorado or a model selection name to specify model to download and use
 base_calling_model: "resources/models/rna004_sup@v6.0.0"
 
-# path to the tRNA + adapter reference FASTA that `escpod align` aligns to.
+# path to the tRNA + adapter reference FASTA that `eschalign` aligns to.
 # It reads the FASTA directly: there is no index to build.
 fasta: "resources/ref/sacCer3-mature-tRNAs-dual-adapt-v2.fa"
 
@@ -70,9 +70,10 @@ charging:
 
   # Minimum mapping quality for a read to be classified. 0, not escpod's
   # default of 1, and deliberately: tRNA references are highly redundant, so a
-  # read that maps equally well to two isodecoders gets mapq 0 (escpod align
-  # lists the tie in XA) and is a perfectly good read. On the test data `--min-mapq 1` drops 118 of 209
-  # records (56%); 0 classifies exactly the 187 reads Remora did.
+  # read that maps equally well to two isodecoders gets mapq 0 (eschalign
+  # lists the tie in XA) and is a perfectly good read. On the test data
+  # `--min-mapq 1` drops 118 of 209 records (56%); 0 classifies exactly the 187
+  # reads Remora did.
   min_mapq: 0
 
   # Which way round the move table runs against the signal. `escpod classify`
@@ -215,12 +216,13 @@ charging:
   # was, not before.
   gpu: false
 
-# Read alignment, via `escpod align` (the escpod_align rule). Scoring and
-# thresholds are in `opts.escpod_align`; this block holds device placement.
+# Read alignment, via `eschalign` (the eschalign rule). Scoring and
+# thresholds are in `opts.eschalign`; this block holds device placement.
 alignment:
-  # Score the panel on the GPU (`escpod align --device gpu`) instead of the CPU.
-  # Same GPU artifact and classify-gpu CUDA 12 runtime as `charging.gpu` (see
-  # get_alignment_escpod_gpu_prefix in common.smk). Measured 7.1-9.4x faster
+  # Score the panel on the GPU (`eschalign --device gpu`) instead of the CPU.
+  # Needs the eschalign GPU build (`pixi run setup` fetches it) and a CUDA 12
+  # NVRTC on LD_LIBRARY_PATH, taken from the classify-gpu env (see
+  # get_alignment_gpu_prefix in common.smk). Measured 7.1-9.4x faster
   # than bwa on an A30 against 3.2-4.6x on CPU (issue #200), but default false:
   # GPU capacity on this cluster is shared with rebasecall and
   # classify_charging, and the CPU path already beats bwa. Output does not
@@ -237,6 +239,14 @@ alignment:
 # upstream. `pixi run check-escpod` reports the drift with that reason.
 dorado_version: 2.1.1
 dorado_model: rna004_sup@v6.0.0
+
+# eschalign, the read aligner, installed by `pixi run setup` from the pinned
+# GitHub release. It was `eschalign` until escapepod-rs 0.31.0 and is the same
+# code under its own name and version line (the 0.1.0 / 0.2.0 releases carry
+# `eschalign` 0.31.0 forward). A bump is TWO edits that have to agree, exactly
+# like escpod_version: this pin and the ESCHALIGN_SHA256 constants in
+# scripts/setup-tools.sh. `pixi run check-escpod` reports drift in both.
+eschalign_version: 0.2.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
 # GitHub release. It is on the critical path of every run, not just demux runs:
@@ -450,14 +460,14 @@ opts:
   # XXX add `-v` for verbose logging
   dorado: " --modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves "
 
-  # Scoring for `escpod align`. `1,-1,-2,-1` is bwa's own `-A1 -B1 -O1 -E1`
+  # Scoring for `eschalign`. `1,-1,-2,-1` is bwa's own `-A1 -B1 -O1 -E1`
   # and `--min-score 20` its `-T 20`, which is what the bwa-era
   # `-W 13 -k 6 -T 20 -x ont2d` scored with. Measured against bwa on
   # adat2ko-pool1 (13.9M reads, issue #200): 3.4% of reads reassigned, every
-  # one to a strictly higher score under this same scoring. escpod's own
+  # one to a strictly higher score under this same scoring. eschalign's own
   # default (`2,-1,-10,-1`) is NOT equivalent -- it reassigns 19.5% of reads on
   # this panel -- and changing this is a re-validation project, not a tweak.
-  escpod_align: " --scoring 1,-1,-2,-1 --min-score 20"
+  eschalign: " --scoring 1,-1,-2,-1 --min-score 20"
 
   # requires positive strand alignment
   # requires at least 1 5' adapter base

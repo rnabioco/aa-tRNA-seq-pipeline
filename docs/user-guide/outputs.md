@@ -19,7 +19,7 @@ This guide documents all output files produced by the pipeline.
 └── squiggy-session.json     # Squiggy session file for Positron
 ```
 
-No `fq/` directory is written: `escpod_align` aligns the uBAM directly against
+No `fq/` directory is written: `eschalign` aligns the uBAM directly against
 the reference FASTA, carrying dorado's tags through byte for byte.
 
 ## Data Flow and Outputs
@@ -379,9 +379,9 @@ Dorado output with basecalls and move tables.
 
 `bam/aln/{sample}/{sample}.aln.bam`
 
-`escpod align` output, coordinate-sorted with `MD`/`NM` already computed
+`eschalign` output, coordinate-sorted with `MD`/`NM` already computed
 against the reference. No FASTQ is written and there is no seed index:
-`escpod align` aligns the uBAM directly against the reference FASTA, copying
+`eschalign` aligns the uBAM directly against the reference FASTA, copying
 dorado's tags (move table, MM/ML modbase calls) through byte for byte, and
 no separate calmd pass is needed.
 

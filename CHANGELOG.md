@@ -4,6 +4,20 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Alignment is `eschalign`, no longer `escpod align`.** The aligner was carved
+  out of escapepod-rs 0.31.0 into [rnabioco/eschalign](https://github.com/rnabioco/eschalign);
+  flags and behaviour are unchanged, only the binary name (no `align`
+  subcommand) and the `@PG` record differ. The `escpod_align` rule is now
+  `eschalign`, `opts.escpod_align` is `opts.eschalign` (a config still setting
+  the old key is refused at parse time rather than silently ignored), and the
+  binary is pinned by `eschalign_version` and installed by `pixi run setup`
+  next to escpod. `alignment.gpu` uses eschalign's own GPU build; it needs only
+  the driver and a CUDA 12 NVRTC, no cuDNN. `pixi run check-escpod` also
+  watches the eschalign pin and its checksums. Cluster profiles keyed on
+  `escpod_align` need the rule's new name.
+
 ## [v0.10.0] - 2026-09-26
 
 ### Changed

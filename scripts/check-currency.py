@@ -81,6 +81,15 @@ TOOLS = {
             "ESCPOD_SHA256_x86_64_linux_gpu": "escpod-v{v}-x86_64-unknown-linux-gnu-gpu.tar.gz",
         },
     },
+    "eschalign": {
+        "repo": "rnabioco/eschalign",
+        "config_key": "eschalign_version",
+        "checksums": {
+            "ESCHALIGN_SHA256_x86_64_linux": "eschalign-v{v}-x86_64-unknown-linux-musl.tar.gz",
+            "ESCHALIGN_SHA256_aarch64_linux": "eschalign-v{v}-aarch64-unknown-linux-musl.tar.gz",
+            "ESCHALIGN_SHA256_x86_64_linux_gpu": "eschalign-v{v}-x86_64-unknown-linux-gnu-gpu.tar.gz",
+        },
+    },
     "dorado": {
         "repo": "nanoporetech/dorado",
         "config_key": "dorado_version",
@@ -191,7 +200,7 @@ def setup_checksums():
     """{constant name: sha256} as written in scripts/setup-tools.sh."""
     text = SETUP.read_text()
     return dict(
-        re.findall(r'^(ESCPOD_SHA256_\w+)="([0-9a-f]{64})"', text, re.MULTILINE)
+        re.findall(r'^([A-Z]+_SHA256_\w+)="([0-9a-f]{64})"', text, re.MULTILINE)
     )
 
 
@@ -309,7 +318,7 @@ def check_tools(tool_pins):
                         f"{const} in {SETUP.name} is {got or 'missing'}, but "
                         f"release v{have} publishes {want} for {artifact.format(v=have)}"
                     )
-            if not [p for p in problems if p.startswith("ESCPOD")]:
+            if not [p for p in problems if p.startswith(name.upper())]:
                 print(f"  setup-tools.sh checksums match the v{have} release")
     return drifted, problems, unreachable
 

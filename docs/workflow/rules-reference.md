@@ -55,11 +55,11 @@ dorado_basecall_resume.sh {output} --models-directory {models_dir} {opts.dorado}
 
 ---
 
-### escpod_align
+### eschalign
 
-Align reads to the tRNA + adapter reference with `escpod align`, carrying
+Align reads to the tRNA + adapter reference with `eschalign`, carrying
 dorado's tags through and writing a coordinate-sorted BAM with `MD`/`NM`.
-There is no seed index to build and no `bwa mem` pipe: `escpod align` scores
+There is no seed index to build and no `bwa mem` pipe: `eschalign` scores
 every read against every reference directly from the uBAM and copies every
 input tag through byte for byte — the move table (`mv`, `ns`, `ts`) the
 charging model reads and the MM/ML modbase calls modkit reads — and writes
@@ -75,18 +75,18 @@ the `samtools fastq -T '*' | bwa mem -C | samtools sort` pipe, and `calmd`
 | Output | `bam/aln/{sample}/{sample}.aln.bam`, `.bai` |
 | Threads | 8 (16 with `alignment.gpu`) |
 | GPU | Opt-in via `alignment.gpu` |
-| Parameters | `fasta`, `opts.escpod_align`, `alignment.gpu` |
+| Parameters | `fasta`, `opts.eschalign`, `alignment.gpu` |
 
 **Command:**
 ```bash
 python stamp_read_groups.py {ubam} --sample {sample} [--library {run_id}] [--barcode {bc}] \
     --compress --output {stamped_ubam}
 
-escpod align {stamped_ubam} \
+eschalign {stamped_ubam} \
     --reference {reference} \
     --output - \
     --sort coordinate --tmp-dir {tmp_dir} \
-    {opts.escpod_align} \
+    {opts.eschalign} \
     [--read-ids {edx_read_ids}] \
     [--device gpu] \
     --threads {threads} \
@@ -96,14 +96,14 @@ samtools index {output.bam}
 
 **Filtering:**
 
-- `-F 2324`: Remove unmapped (`0x4`), reverse-strand (`0x10`), secondary (`0x100`) and supplementary (`0x800`) records. A read scoring below `--min-score` is written unmapped rather than dropped, so this is what removes it; `escpod align`'s own defaults (`--strand forward` without `--secondary`) never produce the other three record types
+- `-F 2324`: Remove unmapped (`0x4`), reverse-strand (`0x10`), secondary (`0x100`) and supplementary (`0x800`) records. A read scoring below `--min-score` is written unmapped rather than dropped, so this is what removes it; `eschalign`'s own defaults (`--strand forward` without `--secondary`) never produce the other three record types
 
 **Notes:**
 
 - escpod copies the input's `@RG`/`@PG`/`@CO` lines through unchanged and cannot add a header line or a tag itself, so `stamp_read_groups.py` stamps `SM`/`LB`/`BC` onto the uBAM's own `@RG` (its `ID` left untouched, so every per-read `RG:Z:` still resolves) and, on a barcoded sample, a constant `BC:Z:` onto every record, before alignment. It writes a transient stamped uBAM beside the output — escpod sniffs its input's format and reopens the path, so it cannot read a pipe — which is deleted as soon as alignment finishes
 - For EDX samples, `--read-ids` (like `samtools view -N`) restricts alignment to the reads carrying the sample's 3' adapter
-- References tied at the best score are listed in `XA` (bwa's format, `ref,+pos,CIGAR,NM;`) with MAPQ 0 rather than hidden; `get_charging_table.py` splits a tied read's count evenly across its tie set, and `escpod align` breaks the tie for the primary alignment deterministically (the lowest-indexed reference)
-- Scoring and threshold default to bwa's own (`opts.escpod_align`: `--scoring 1,-1,-2,-1 --min-score 20`, i.e. `-A1 -B1 -O1 -E1 -T 20`); escpod's own default (`2,-1,-10,-1`) is not equivalent and reassigns far more reads on this reference panel
+- References tied at the best score are listed in `XA` (bwa's format, `ref,+pos,CIGAR,NM;`) with MAPQ 0 rather than hidden; `get_charging_table.py` splits a tied read's count evenly across its tie set, and `eschalign` breaks the tie for the primary alignment deterministically (the lowest-indexed reference)
+- Scoring and threshold default to bwa's own (`opts.eschalign`: `--scoring 1,-1,-2,-1 --min-score 20`, i.e. `-A1 -B1 -O1 -E1 -T 20`); escpod's own default (`2,-1,-10,-1`) is not equivalent and reassigns far more reads on this reference panel
 
 ---
 
@@ -115,7 +115,7 @@ Classify charged vs uncharged reads with `escpod classify`.
 
 | Property | Value |
 |----------|-------|
-| Input | POD5 store (staged directory, split POD5, or raw LDX run), `escpod_align` BAM (with `MD`/`NM`), reference FASTA |
+| Input | POD5 store (staged directory, split POD5, or raw LDX run), `eschalign` BAM (with `MD`/`NM`), reference FASTA |
 | Output | `bam/charging/{sample}/{sample}.charging.bam`, `.bai`, `summary/tables/{sample}/{sample}.charging_calls.tsv.gz` |
 | Threads | 4 |
 | GPU | Opt-in via `charging.gpu` (windowed/TCN bundle only; default bundles are CPU-only) |
@@ -184,7 +184,7 @@ Example: PT:Z:0;24;+;5p_adapter|118;135;+;3p_adapter
 
 ### finalize_bam
 
-Produce the final BAM for downstream analysis. Hardlinks the adapter-tagged BAM as the final output. EDX filtering happens before alignment: `detect_edx_adapters` / `extract_edx_read_ids` produce the read list `escpod_align` aligns.
+Produce the final BAM for downstream analysis. Hardlinks the adapter-tagged BAM as the final output. EDX filtering happens before alignment: `detect_edx_adapters` / `extract_edx_read_ids` produce the read list `eschalign` aligns.
 
 **File:** `workflow/rules/aatrnaseq-process.smk`
 
@@ -654,11 +654,11 @@ Build concordance table of WDX vs EDX adapter identity from adapter detection TS
 ```mermaid
 flowchart LR
     stage_pod5 --> rebasecall
-    rebasecall --> escpod_align
+    rebasecall --> eschalign
     rebasecall --> detect_edx_adapters
     detect_edx_adapters --> extract_edx_read_ids
-    extract_edx_read_ids -.-> escpod_align
-    escpod_align --> classify_charging
+    extract_edx_read_ids -.-> eschalign
+    eschalign --> classify_charging
     stage_pod5 --> classify_charging
     classify_charging --> add_adapter_tags
     add_adapter_tags --> finalize_bam
@@ -680,4 +680,4 @@ flowchart LR
     base_calling_error --> render_combined_qc_report
 ```
 
-**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `extract_edx_read_ids` bounds what `escpod_align` aligns; every other sample aligns its whole uBAM.
+**Note:** Dashed lines (-.->`) indicate conditional paths. For EDX samples, `extract_edx_read_ids` bounds what `eschalign` aligns; every other sample aligns its whole uBAM.

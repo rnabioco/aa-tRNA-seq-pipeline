@@ -5,7 +5,7 @@ Generate table of read id, ref, value of charging tag, and the read's tie set.
 
 `tRNA` is the read's primary reference -- the one the classifier scored it
 against -- so the table stays one row per scored read. `tie_refs` lists the
-OTHER references `escpod align` found tied with it at the best score (its `XA`
+OTHER references `eschalign` found tied with it at the best score (its `XA`
 tag), `;`-separated, empty for a uniquely placed read. escpod's primary is just
 the lowest-indexed reference of a tie, so counting reads by `tRNA` alone moves
 13.0% total variation distance in per-reference counts against bwa on
@@ -56,7 +56,7 @@ def tie_references(read):
     """The references tied with `read`'s primary, from its `XA` tag.
 
     `XA` is bwa's format, `ref,+pos,CIGAR,NM;` per entry, which is what
-    `escpod align` writes -- one entry per tied reference besides the
+    `eschalign` writes -- one entry per tied reference besides the
     primary. Returned in `XA` order, de-duplicated, and without the primary
     reference itself even if an entry names it (bwa's own `XA` can list a
     second position on the same reference, which is not a second reference).

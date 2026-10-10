@@ -34,6 +34,19 @@ ESCPOD_SHA256_x86_64_linux_gpu="094c956ef3b3b81732648bca80867c37146dcfb538e82218
 ESCPOD_GPU_TARGET="x86_64-unknown-linux-gnu-gpu"
 ESCPOD_GPU_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}-gpu"
 
+# eschalign, the read aligner (it was `escpod align` until escapepod-rs 0.31.0).
+# Same release layout as escpod: one static-musl tarball per target holding the
+# bare binary, plus a dynamically linked GPU build for x86_64 Linux. The
+# checksums are copied from the release's SHA256SUMS.txt; an empty one makes the
+# download fail closed rather than trust an unpinned artifact. v0.2.0 ships
+# Linux builds only (x86_64 and aarch64 musl, x86_64 GPU), no macOS.
+ESCHALIGN_VERSION="${ESCHALIGN_VERSION:-$(awk '/^eschalign_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
+ESCHALIGN_DIR="${REPO_ROOT}/resources/tools/eschalign/${ESCHALIGN_VERSION}"
+ESCHALIGN_SHA256_x86_64_linux="74f4612a4914415e31084fbe222a19a6c8637d44adb93f6b0ed161e4f809f386"
+ESCHALIGN_SHA256_aarch64_linux="0c3a96eb78b99bb5eda07199094d2d6806a691a7ef0b5f29de9bd4b17d242eb2"
+ESCHALIGN_SHA256_x86_64_linux_gpu="5b3748d37f31e59558118906a387a99aaced096014d971f424f4b6930e71c2be"
+ESCHALIGN_GPU_DIR="${REPO_ROOT}/resources/tools/eschalign/${ESCHALIGN_VERSION}-gpu"
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -187,6 +200,61 @@ download_escpod_gpu() {
     echo "  (pixi run install-ort-gpu) and cuDNN (pixi install -e gpu)."
 }
 
+download_eschalign() {
+    # $1 = target triple, $2 = expected sha256, $3 = destination directory
+    local target="$1" expected="$2" dest="$3" url tmpfile actual
+    if [ -z "${expected}" ]; then
+        echo "Error: no pinned eschalign checksum for ${target}; copy it from the" >&2
+        echo "  v${ESCHALIGN_VERSION} release's SHA256SUMS.txt into scripts/setup-tools.sh" >&2
+        return 1
+    fi
+    url="https://github.com/rnabioco/eschalign/releases/download/v${ESCHALIGN_VERSION}/eschalign-v${ESCHALIGN_VERSION}-${target}.tar.gz"
+    tmpfile="$(mktemp -t eschalign.XXXXXX.tar.gz)"
+
+    echo "Downloading eschalign ${ESCHALIGN_VERSION} for ${target}..."
+    if ! curl -fL -o "${tmpfile}" "${url}"; then
+        echo "Error: Failed to download eschalign from ${url}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    actual=$(sha256sum "${tmpfile}" | awk '{print $1}')
+    if [ "${actual}" != "${expected}" ]; then
+        echo "Error: eschalign checksum mismatch for ${target}" >&2
+        echo "  expected ${expected}" >&2
+        echo "  actual   ${actual}" >&2
+        rm -f "${tmpfile}"
+        return 1
+    fi
+
+    mkdir -p "${dest}/bin"
+    tar -xzf "${tmpfile}" -C "${dest}/bin"
+    rm -f "${tmpfile}"
+    chmod +x "${dest}/bin/eschalign"
+    echo "eschalign installed to ${dest}"
+}
+
+download_eschalign_cpu() {
+    local target expected
+    target=$(escpod_target) || return 1
+    case "${target}" in
+        x86_64-unknown-linux-musl)  expected="${ESCHALIGN_SHA256_x86_64_linux}" ;;
+        aarch64-unknown-linux-musl) expected="${ESCHALIGN_SHA256_aarch64_linux}" ;;
+        *) echo "Error: no pinned checksum for target ${target}" >&2; return 1 ;;
+    esac
+    download_eschalign "${target}" "${expected}" "${ESCHALIGN_DIR}"
+}
+
+download_eschalign_gpu() {
+    # Optional, like download_escpod_gpu: only `alignment.gpu: true` touches it.
+    if [ "$(uname -s)" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
+        echo "Skipping eschalign GPU build: published for x86_64 Linux only"
+        return 0
+    fi
+    download_eschalign "x86_64-unknown-linux-gnu-gpu" \
+        "${ESCHALIGN_SHA256_x86_64_linux_gpu}" "${ESCHALIGN_GPU_DIR}"
+}
+
 download_model() {
     local model_path="${MODEL_DIR}/${DORADO_MODEL}"
     echo "Downloading dorado model ${DORADO_MODEL}..."
@@ -279,6 +347,23 @@ if [ -x "${ESCPOD_GPU_DIR}/bin/escpod" ]; then
     echo "escpod (GPU) already installed at ${ESCPOD_GPU_DIR}"
 else
     download_escpod_gpu
+fi
+
+# ============================================================================
+# eschalign Setup
+# ============================================================================
+# The read aligner (`eschalign reads.ubam -r panel.fa -o out.bam`).
+echo "=== Checking eschalign ==="
+if [ -x "${ESCHALIGN_DIR}/bin/eschalign" ]; then
+    echo "eschalign already installed at ${ESCHALIGN_DIR}"
+else
+    download_eschalign_cpu
+fi
+
+if [ -x "${ESCHALIGN_GPU_DIR}/bin/eschalign" ]; then
+    echo "eschalign (GPU) already installed at ${ESCHALIGN_GPU_DIR}"
+else
+    download_eschalign_gpu
 fi
 
 # ============================================================================

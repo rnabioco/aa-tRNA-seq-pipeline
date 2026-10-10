@@ -224,16 +224,9 @@ def get_charging_escpod_gpu_prefix():
 def _escpod_gpu_prefix(section):
     """The PATH/LD_LIBRARY_PATH prefix behind get_charging_escpod_gpu_prefix,
     for whichever `<section>.gpu` key gates it ("" when that key is false).
-
-    `escpod classify` and `escpod align` are the same binary, so they need the
-    same GPU artifact and the same CUDA 12 runtime; only the config key that
-    asks for it differs.
     """
     if not config.get(section, {}).get("gpu", False):
         return ""
-    fallback = (
-        "run classify" if section == "charging" else "align"
-    ) + " on the CPU instead."
     version = config.get("escpod_version", ESCPOD_VERSION)
     bin_dir = os.path.join(
         PIPELINE_DIR, "resources", "tools", "escpod", f"{version}-gpu", "bin"
@@ -246,8 +239,15 @@ def _escpod_gpu_prefix(section):
             f"GPU artifact for escpod {version} (x86_64 Linux only).\n"
             "A visible CUDA device is also required at run time; unlike "
             "ldx.gpu, no separate onnxruntime or cuDNN install is needed.\n"
-            f"Set {section}.gpu: false to {fallback}"
+            f"Set {section}.gpu: false to run classify on the CPU instead."
         )
+    return _cuda12_prefix(section, bin_dir, "run classify on the CPU instead.")
+
+
+def _cuda12_prefix(section, bin_dir, fallback):
+    """`export PATH=...; export LD_LIBRARY_PATH=...;` putting a GPU build's bin
+    dir ahead on PATH and the classify-gpu CUDA 12 runtime on the library path,
+    or exit with how to install it."""
     cuda_lib_dir = os.path.join(PIPELINE_DIR, ".pixi", "envs", "classify-gpu", "lib")
     if not os.path.isfile(os.path.join(cuda_lib_dir, "libcudart.so")):
         sys.exit(
@@ -256,7 +256,7 @@ def _escpod_gpu_prefix(section):
             "Install it with `pixi run install-classify-gpu` (on a GPU node, "
             "`pixi install -e classify-gpu` works directly).\n"
             "This is a SEPARATE environment from `pixi run install-gpu` -- "
-            "escpod's tract-cuda GPU path needs a CUDA 12 runtime, "
+            "the GPU kernels need a CUDA 12 runtime, "
             "not the CUDA 13 one ldx.gpu's onnxruntime uses.\n"
             f"Set {section}.gpu: false to {fallback}"
         )
@@ -267,12 +267,12 @@ def _escpod_gpu_prefix(section):
 
 
 def is_alignment_gpu():
-    """Whether escpod_align scores the panel on the GPU (`alignment.gpu`)."""
+    """Whether the eschalign rule scores the panel on the GPU (`alignment.gpu`)."""
     return bool(config.get("alignment", {}).get("gpu", False))
 
 
 def get_alignment_device_arg():
-    """`--device cpu`/`--device gpu` for `escpod align`, passed explicitly.
+    """`--device cpu`/`--device gpu` for `eschalign`, passed explicitly.
 
     Same reasoning as get_charging_device_arg: `gpu` fails loudly when the
     feature or a device is missing instead of quietly running on the CPU, and
@@ -281,11 +281,25 @@ def get_alignment_device_arg():
     return "--device gpu" if is_alignment_gpu() else "--device cpu"
 
 
-def get_alignment_escpod_gpu_prefix():
-    """get_charging_escpod_gpu_prefix for escpod_align, gated on
-    `alignment.gpu` instead of `charging.gpu`: the same GPU artifact and the
-    same classify-gpu CUDA 12 runtime, shadowed onto PATH for one command."""
-    return _escpod_gpu_prefix("alignment")
+def get_alignment_gpu_prefix():
+    """PATH/LD_LIBRARY_PATH prefix for the eschalign rule ("" unless
+    `alignment.gpu`): the GPU build of eschalign shadowed onto PATH for one
+    command, with the classify-gpu CUDA 12 runtime for its NVRTC."""
+    if not config.get("alignment", {}).get("gpu", False):
+        return ""
+    version = config.get("eschalign_version", ESCHALIGN_VERSION)
+    bin_dir = os.path.join(
+        PIPELINE_DIR, "resources", "tools", "eschalign", f"{version}-gpu", "bin"
+    )
+    if not os.path.isfile(os.path.join(bin_dir, "eschalign")):
+        sys.exit(
+            f"alignment.gpu is true but no GPU-enabled eschalign was found at "
+            f"{bin_dir}.\n"
+            "Install it with `pixi run setup`, which downloads the published "
+            f"GPU artifact for eschalign {version} (x86_64 Linux only).\n"
+            "Set alignment.gpu: false to align on the CPU instead."
+        )
+    return _cuda12_prefix("alignment", bin_dir, "align on the CPU instead.")
 
 
 def is_warpdemux_enabled():
@@ -1185,7 +1199,7 @@ def get_alignment_read_ids(wildcards):
     An EDX sample aligns only the reads carrying its own 3' adapter, which
     detect_edx_adapters / extract_edx_read_ids identify on the uBAM before
     alignment. Every other sample aligns its whole uBAM. Returned as a list so
-    escpod_align's input is empty rather than absent in the second case.
+    eschalign's input is empty rather than absent in the second case.
     """
     if sample_has_edx(wildcards.sample):
         return [
@@ -1203,7 +1217,7 @@ def get_alignment_read_ids(wildcards):
 def get_read_group_args(wildcards):
     """Arguments to stamp_read_groups.py: the identity written into the BAM.
 
-    escpod_align is where the sample's identity is written INTO the BAM, because it
+    eschalign is where the sample's identity is written INTO the BAM, because it
     is the first place both demux backends have converged (see the note at the
     top of demux.smk). The @RG gets SM (sample), LB (run id, when the sample has
     one) and BC (barcode). Until this point the barcode lives only in the output

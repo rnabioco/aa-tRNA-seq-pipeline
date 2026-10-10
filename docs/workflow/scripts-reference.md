@@ -27,11 +27,11 @@ Documentation for Python scripts in `workflow/scripts/`.
 Rewrite a uBAM with the pipeline's identity stamped on, in one pass: SM/LB/BC
 on dorado's own `@RG` (its `ID` left untouched, so every per-read `RG:Z:` still
 resolves) and, on a barcoded sample, a constant `BC:Z:` tag on every record.
-`escpod align` copies the input's `@RG`/`@PG`/`@CO` lines and every record's
+`eschalign` copies the input's `@RG`/`@PG`/`@CO` lines and every record's
 tags through unchanged but has no way to add a header line or a tag itself, so
 the sample's identity has to be on the uBAM before it is aligned. It has to be
 a file, not a pipe: escpod sniffs its input's format and then reopens the
-path, so `escpod_align` writes this to a transient file beside its output and
+path, so `eschalign` writes this to a transient file beside its output and
 deletes it once alignment finishes.
 
 ### Usage

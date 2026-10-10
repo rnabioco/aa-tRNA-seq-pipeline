@@ -1,7 +1,7 @@
 """
 Unit tests for stamp_read_groups.py
 
-The uBAM rewrite escpod_align runs before `escpod align`: SM/LB/BC stamped on
+The uBAM rewrite eschalign runs before `eschalign`: SM/LB/BC stamped on
 dorado's @RG (so the per-read RG:Z: escpod copies through still resolves to a
 declared read group) and, on a barcoded sample, a constant BC:Z: on every
 record -- both in one pass.
@@ -117,7 +117,7 @@ class TestReadGroupsFromBam:
 
 def _write_ubam(path, read_groups=(DORADO_RG,), n_reads=3, extra_tags=()):
     """A small dorado-shaped uBAM: unmapped records with RG, a move table and
-    MM/ML, the tags escpod align must see unchanged."""
+    MM/ML, the tags eschalign must see unchanged."""
     header = {"HD": {"VN": "1.6", "SO": "unknown"}, "PG": [{"ID": "basecaller"}]}
     if read_groups:
         header["RG"] = [dict(rg) for rg in read_groups]
@@ -145,7 +145,7 @@ def _read_all(path):
 
 
 class TestStampBam:
-    """The combined reheader + tag-stamp pass escpod_align runs."""
+    """The combined reheader + tag-stamp pass eschalign runs."""
 
     @pytest.mark.parametrize("compress", [False, True])
     def test_barcoded_sample_gets_rg_fields_and_bc_on_every_record(
