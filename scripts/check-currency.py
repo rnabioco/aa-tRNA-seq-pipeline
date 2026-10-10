@@ -87,8 +87,6 @@ TOOLS = {
         "checksums": {
             "ESCHALIGN_SHA256_x86_64_linux": "eschalign-v{v}-x86_64-unknown-linux-musl.tar.gz",
             "ESCHALIGN_SHA256_aarch64_linux": "eschalign-v{v}-aarch64-unknown-linux-musl.tar.gz",
-            "ESCHALIGN_SHA256_x86_64_darwin": "eschalign-v{v}-x86_64-apple-darwin.tar.gz",
-            "ESCHALIGN_SHA256_aarch64_darwin": "eschalign-v{v}-aarch64-apple-darwin.tar.gz",
             "ESCHALIGN_SHA256_x86_64_linux_gpu": "eschalign-v{v}-x86_64-unknown-linux-gnu-gpu.tar.gz",
         },
     },
