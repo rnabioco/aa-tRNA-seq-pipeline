@@ -214,9 +214,12 @@ class TestDemuxRouting:
         total = sum(expected.values())
         assert sum(observed.values()) == total, "reads went missing entirely"
 
-        # every population still dominated by its selected barcode
+        # every population still dominated by its selected barcode. 0.80, not
+        # 0.85: #155 turned the CRF window clamp off and restored the boundary
+        # margin on purpose, which sheds the mis-assigned reads those settings
+        # admitted -- ldx02 went 112 -> 106 of 125 (0.848) on this fixture.
         for barcode, n in expected.items():
-            assert observed.get(barcode, 0) >= 0.85 * n, (
+            assert observed.get(barcode, 0) >= 0.80 * n, (
                 f"{barcode}: {observed.get(barcode, 0)} of {n} selected reads"
             )
         # and the leakage into unrepresented barcodes stays bounded
