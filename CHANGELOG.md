@@ -4,6 +4,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.12.0] - 2026-10-11
+
+### Changed
+
+- **`escpod_version` bumped 0.31.2 → 0.32.0** (checksums in
+  `scripts/setup-tools.sh` updated to match). Upstream's `escpod classify`
+  holds about a third less memory and the CRF encoder is faster; calls are
+  documented as byte-identical.
+
 ## [v0.11.0] - 2026-10-10
 
 ### Changed
