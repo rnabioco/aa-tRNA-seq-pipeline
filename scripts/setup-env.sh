@@ -4,8 +4,8 @@
 # For initial setup, run: pixi run setup
 
 # Get the directory where this script is located, then go to repo root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." >/dev/null && pwd)"
 
 # ============================================================================
 # Environment Variables
