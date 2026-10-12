@@ -4,6 +4,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`escpod_version` bumped 0.32.0 → 0.33.0** (checksums in
+  `scripts/setup-tools.sh` updated to match). `escpod annotate` now ships in
+  the default build with `--from-table`, which can label a run's `.p5s` sidecar
+  from a read-to-barcode table (escapepod-rs#486); nothing here uses it yet.
+  `escpod index`/`annotate` moved under `escpod sidecar`, with the old
+  spellings kept as deprecated forwarders; the pipeline calls neither.
+
 ## [v0.12.0] - 2026-10-11
 
 ### Changed
