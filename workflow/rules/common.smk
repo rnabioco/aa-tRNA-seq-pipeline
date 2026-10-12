@@ -29,16 +29,16 @@ _CLEANUP_TIERS = {
     "cascade",  # bam/aln, charging, adapter_tagged (redundant near-copies; bam/final hardlinks the last)
     "basecall",  # bam/rebasecall, bam/rebasecall_run (GPU-hours to regenerate)
     "demux_scratch",  # demux/warpdemux_output, demux/read_ids, edx read_ids
-    "split_pod5",  # demux/pod5 (WDX split POD5: that path's signal store and classification input)
 }
 
 # Tiers that existed before v0.7 and no longer name anything. `fastq` went when
 # alignment started streaming straight from the uBAM (no fq/ is written);
 # `merged_pod5` went when stage_pod5 replaced merge_pods (pod5/ now holds
-# symlinks, not a copy of the run). Accepted and ignored so an existing config
+# symlinks, not a copy of the run); `split_pod5` went when WarpDemuX joined the
+# LDX raw-run path (no per-sample POD5 is cut any more). Accepted and ignored so an existing config
 # keeps working, but named, so the reader learns why the space it expected to
 # reclaim is no longer being spent.
-_RETIRED_CLEANUP_TIERS = {"fastq", "merged_pod5"}
+_RETIRED_CLEANUP_TIERS = {"fastq", "merged_pod5", "split_pod5"}
 
 
 def _enabled_cleanup_tiers():
@@ -765,14 +765,14 @@ def get_demux_summaries(wildcards=None):
 def get_assigned_summaries(wildcards=None):
     """Per-run `assigned_summary.tsv` from the escpod join, or nothing.
 
-    Written by ldx_run_read_ids, so only the LDX path has one. read_attrition
+    Written by ldx_run_read_ids, so only a demultiplexed run has one. read_attrition
     uses it to split the barcode-assigned -> basecalled gate into "no sample
     claims this read" (unclaimed code, or a dual-index pair the axes did not
     agree on) and "the basecaller could not read it", which that row otherwise
     conflates -- on the LDX fixture the 40 decoy reads looked like basecaller
     loss.
     """
-    if not config.get("ldx", {}).get("enabled", False):
+    if not is_demux_enabled():
         return []
     run_ids = {
         info["run_id"]
@@ -1126,9 +1126,8 @@ def get_sample_pod5(wildcards):
     """
     The sample's signal store, as handed to dorado and to `escpod classify`.
 
-    LDX samples have no POD5 of their own: they resolve to the raw run.
-    A WarpDemuX sample resolves to the split POD5 `escpod filter` wrote for it.
-    Every other sample resolves to the directory of symlinks stage_pod5 laid
+    Barcoded samples (either demux backend) have no POD5 of their own: they
+    resolve to the raw run. Every other sample resolves to the directory of symlinks stage_pod5 laid
     over its raw files -- both tools take a directory, so nothing is copied.
 
     This is the whole store, never a subset: classification is driven by the
@@ -1137,7 +1136,7 @@ def get_sample_pod5(wildcards):
     EDX-filtered POD5 per sample for this, a copy kept forever; it went with
     merge_pods.)
     """
-    if sample_is_ldx(wildcards.sample):
+    if sample_needs_demux(wildcards.sample):
         source = get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
         # A directory would make this input's mtime move whenever demux writes
         # a sidecar beside the POD5s, re-triggering classification for nothing.
@@ -1145,12 +1144,7 @@ def get_sample_pod5(wildcards):
         return (
             samples[wildcards.sample]["raw_files"] if os.path.isdir(source) else source
         )
-    if sample_needs_demux(wildcards.sample):
-        return os.path.join(
-            outdir, "demux", "pod5", wildcards.sample, f"{wildcards.sample}.pod5"
-        )
-    else:
-        return os.path.join(outdir, "pod5", wildcards.sample)
+    return os.path.join(outdir, "pod5", wildcards.sample)
 
 
 def stage_pod5_links(raw_files, dest_dir, log_path):
@@ -1255,7 +1249,7 @@ def get_classification_pod5_arg(wildcards, input):
     the raw run's POD5 files (for dependency tracking) but the tool must be
     given the single directory holding them.
     """
-    if sample_is_ldx(wildcards.sample):
+    if sample_needs_demux(wildcards.sample):
         return get_ldx_pod5_source(samples[wildcards.sample]["run_id"])
     return input.pod5
 
@@ -1272,12 +1266,9 @@ def get_sample_pod5_files(sample):
     """The POD5 FILES holding a sample's signal, for the Squiggy session.
 
     Squiggy opens files, not directories, so this is the file-level view of
-    what get_sample_pod5 hands the tools: the split POD5 for a WarpDemuX
-    sample, and the raw run's own files for everyone else -- a staged
-    directory is only symlinks to those, and an LDX sample has nothing else.
+    what get_sample_pod5 hands the tools: the raw run's own files -- a staged
+    directory is only symlinks to those, and a barcoded sample has nothing else.
     """
-    if sample_needs_demux(sample) and not sample_is_ldx(sample):
-        return [os.path.join(outdir, "demux", "pod5", sample, f"{sample}.pod5")]
     return list(samples[sample]["raw_files"])
 
 

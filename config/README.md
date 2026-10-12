@@ -442,12 +442,10 @@ complete a run; its header explains why, and there is no committed WDX fixture.
       (redundant near-copies; `bam/final` hardlinks the last one)
     - `basecall` — `bam/rebasecall`, `bam/rebasecall_run` (GPU-hours to regenerate)
     - `demux_scratch` — `demux/warpdemux_output`, `demux/read_ids`, EDX read-id lists
-    - `split_pod5` — `demux/pod5` (the WarpDemuX split POD5: that path's signal
-      store and classification input). Deleted once classification and the
-      session file are done, so re-running classification afterwards means
-      re-splitting from the raw run. Unbarcoded samples (`pod5/` holds only
-      symlinks to the raw run) and LDX samples (handed the raw run directly)
-      have no `demux/pod5`, so the tier is inert there.
+
+  Three tiers from earlier versions are accepted and ignored: `split_pod5`
+  (WarpDemuX no longer cuts a POD5 per sample; like LDX it is handed the raw run
+  and split on the uBAM), and the two below.
 
   Two tiers from before v0.7 are accepted and ignored: `fastq` (alignment now
   streams straight from the uBAM; no `fq/` is written) and `merged_pod5`

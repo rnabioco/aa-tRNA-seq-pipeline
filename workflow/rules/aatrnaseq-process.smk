@@ -67,9 +67,9 @@ rule rebasecall:
     rebasecall using different accuracy model
 
     The POD5 input is the sample's signal store: the staged directory of its raw
-    run's files (scanned with --recursive), or on the WarpDemuX path the split
-    POD5 `escpod filter` wrote for it. LDX samples never reach this rule -- the
-    run is basecalled whole by rebasecall_ldx_run and cut per sample afterwards.
+    run's files (scanned with --recursive). Barcoded samples never reach this
+    rule -- the run is basecalled whole by rebasecall_ldx_run and cut per sample
+    afterwards, whichever demux backend assigned the reads.
     """
     input:
         pod5=get_sample_pod5,

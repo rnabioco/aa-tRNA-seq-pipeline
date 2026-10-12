@@ -6,6 +6,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **WarpDemuX runs no longer write a POD5 per sample** (#207). They take the LDX
+  route: the raw run is the only signal store, basecalled once and split on the
+  uBAM. `split_pod5` and its cleanup tier are gone (the tier name is still
+  accepted and ignored). `parse_warpdemux` also writes `classifications.csv`,
+  and the new `warpdemux_sidecar` rule moves it into the run's `.p5s` sidecar
+  with `escpod sidecar annotate --from-table` (needs escpod 0.33.0), reads the
+  sidecar back, and only then lets Snakemake delete the CSV (`temp()`).
+  `barcode_mapping.tsv.gz` is kept for `demux_concordance`.
+
 - **`escpod_version` bumped 0.32.0 → 0.33.0** (checksums in
   `scripts/setup-tools.sh` updated to match). `escpod annotate` now ships in
   the default build with `--from-table`, which can label a run's `.p5s` sidecar
