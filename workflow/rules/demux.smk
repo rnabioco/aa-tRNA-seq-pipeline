@@ -341,9 +341,11 @@ rule parse_warpdemux:
             ),
             tier="demux_scratch",
         ),
-        classifications=maybe_temp(
-            os.path.join(outdir, "demux", "read_ids", "{run_id}", "classifications.csv"),
-            tier="demux_scratch",
+        # temp(), not maybe_temp(): this table is deleted as soon as every
+        # consumer has run, and warpdemux_sidecar is one of them -- it moves the
+        # calls into the run's `.p5s` sidecar, which is the durable record.
+        classifications=temp(
+            os.path.join(outdir, "demux", "read_ids", "{run_id}", "classifications.csv")
         ),
     log:
         os.path.join(outdir, "logs", "parse_warpdemux", "{run_id}"),
@@ -393,6 +395,62 @@ rule parse_warpdemux:
         summary_data.to_csv(
             output.summary, sep="\t", index=False, compression="gzip"
         )
+
+
+rule warpdemux_sidecar:
+    """
+    Move the WarpDemuX calls into the run's `.p5s` sidecar, and prove it.
+
+    `escpod sidecar annotate --from-table` writes the read -> barcode table into
+    one collection sidecar per POD5 directory (`<run>/pod5.p5s`), the same record
+    `escpod demux --annotate` leaves on the LDX path, so `escpod filter
+    --annotation barcode=barcode04` cuts a POD5 on demand without a second copy.
+
+    The marker is only written after verify_wdx_sidecar.py has read the sidecar
+    back and found every label the table assigns. That ordering is what makes
+    `classifications.csv` safe to delete: it is temp(), this rule consumes it, and
+    Snakemake removes it when the last consumer has finished -- so the table
+    disappears only after a verified migration, and a failed write or a failed
+    check leaves it in place (the job fails, and nothing downstream runs).
+
+    The sidecar sits beside the raw POD5, outside `output_directory`, and is
+    bound to the POD5s' footer UUIDs and sizes (see escapepod_demux). Re-running
+    replaces the `barcode` column in place. WarpDemuX and LDX are exclusive, so
+    nothing else writes that column on a WarpDemuX run. Needs escpod >= 0.33.0.
+    """
+    input:
+        classifications=os.path.join(
+            outdir, "demux", "read_ids", "{run_id}", "classifications.csv"
+        ),
+        pod5=get_run_raw_inputs,
+    output:
+        done=os.path.join(outdir, "demux", "read_ids", "{run_id}", "wdx_sidecar.done"),
+    log:
+        os.path.join(outdir, "logs", "warpdemux_sidecar", "{run_id}"),
+    threads: 4
+    params:
+        src=SCRIPT_DIR,
+        pod5_dirs=lambda wildcards: " ".join(get_run_pod5_dirs(wildcards.run_id)),
+    shell:
+        """
+        escpod sidecar annotate {params.pod5_dirs} \
+            --from-table {input.classifications} --column barcode=barcode \
+            -j {threads} 2>&1 | tee {log}
+        python {params.src}/verify_wdx_sidecar.py --table {input.classifications} \
+            {params.pod5_dirs} 2>&1 | tee -a {log}
+        touch {output.done}
+        """
+
+
+def get_wdx_sidecar_done(run_id):
+    """The migration marker of a WarpDemuX run, or nothing on any other path.
+
+    Listed as an input of ldx_run_read_ids so every WarpDemuX run is migrated
+    before its calls are used, rather than the rule being reachable by name only.
+    """
+    if not is_warpdemux_enabled():
+        return []
+    return os.path.join(outdir, "demux", "read_ids", run_id, "wdx_sidecar.done")
 
 
 # --- escapepod CTC-CRF (LDX) demultiplexing ---
@@ -919,6 +977,7 @@ rule ldx_run_read_ids:
     """
     input:
         csvs=lambda wildcards: sorted(set(get_run_axis_csvs(wildcards.run_id).values())),
+        sidecar=lambda wildcards: get_wdx_sidecar_done(wildcards.run_id),
     output:
         read_ids=maybe_temp(
             os.path.join(

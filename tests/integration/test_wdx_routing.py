@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 SCRIPT = REPO_ROOT / "workflow" / "scripts" / "select_demux_reads.py"
 
@@ -57,3 +59,59 @@ def test_split_children_inherit_the_parent_barcode(tmp_path):
     parents.write_text("r2a\tr2\nr2b\tr2\nr1a\tr1\n")
     ids = _select(tmp_path, "s4:wdx=barcode04", parents=parents)
     assert ids == {"r2", "r3", "r2a", "r2b"}
+
+
+# --- sidecar migration: the table may only be deleted once this passes ---
+
+VERIFY = REPO_ROOT / "workflow" / "scripts" / "verify_wdx_sidecar.py"
+
+
+def _run_verify(tmp_path, sidecar_labels):
+    pa = pytest.importorskip("pyarrow")
+    pod5_dir = tmp_path / "run" / "pod5"
+    pod5_dir.mkdir(parents=True)
+    table = pa.table(
+        {
+            "read_id": [f"s{i}" for i in range(len(sidecar_labels))],
+            "barcode": sidecar_labels,
+        }
+    )
+    with (
+        pa.OSFile(str(tmp_path / "run" / "pod5.p5s"), "wb") as sink,
+        pa.ipc.new_file(sink, table.schema) as writer,
+    ):
+        writer.write_table(table)
+    csv_path = tmp_path / "classifications.csv"
+    csv_path.write_text("read_id,barcode\n" + "".join(f"{r},{b}\n" for r, b in CALLS))
+    return subprocess.run(
+        [sys.executable, str(VERIFY), "--table", str(csv_path), str(pod5_dir)],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_verify_accepts_a_sidecar_that_carries_the_table(tmp_path):
+    # the sidecar also labels reads the table never named: extra `unclassified`
+    labels = [b for _, b in CALLS] + ["unclassified"] * 3
+    assert _run_verify(tmp_path, labels).returncode == 0
+
+
+def test_verify_refuses_a_sidecar_missing_a_read(tmp_path):
+    labels = [b for _, b in CALLS][:-1]  # barcode07 never landed
+    result = _run_verify(tmp_path, labels)
+    assert result.returncode == 1
+    assert "barcode07" in result.stderr
+
+
+def test_verify_refuses_a_missing_sidecar(tmp_path):
+    pod5_dir = tmp_path / "run" / "pod5"
+    pod5_dir.mkdir(parents=True)
+    csv_path = tmp_path / "classifications.csv"
+    csv_path.write_text("read_id,barcode\nr1,barcode03\n")
+    result = subprocess.run(
+        [sys.executable, str(VERIFY), "--table", str(csv_path), str(pod5_dir)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "no sidecar" in result.stderr

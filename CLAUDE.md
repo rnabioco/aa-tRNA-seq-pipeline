@@ -189,7 +189,7 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 
 | Backend | Config key | Barcodes | Tool | Shape |
 |---|---|---|---|---|
-| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to `classifications.csv` (`read_id,barcode`) → the LDX tail: basecall the raw run once, split the uBAM per sample |
+| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to `classifications.csv` (`read_id,barcode`) → the LDX tail: basecall the raw run once, split the uBAM per sample. `warpdemux_sidecar` also writes the calls into the run's `.p5s` (`escpod sidecar annotate --from-table`), verifies by reading it back, and only then is `classifications.csv` (`temp()`) deleted |
 | escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux --annotate` | One fused pass records each read's barcode in a `.p5s` sidecar beside the raw POD5 → basecall the run once → split the uBAM per sample |
 | escapepod, second axis | `fdx.enabled` (needs `ldx.enabled`) | FDX (`fdx01`), the 5' index | `escpod demux --model fdx=…` | A dual-index sample is `{ldx: ldx01, fdx: fdx01}` and owns the reads on which BOTH calls agree; `select_demux_reads.py` joins the axes per read |
 
