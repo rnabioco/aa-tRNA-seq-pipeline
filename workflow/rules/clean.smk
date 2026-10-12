@@ -24,9 +24,9 @@ Note: this is a superset of the auto-`temp()` cleanup controlled by
 runs completed with intermediates retained (e.g. `cleanup_intermediates: false`,
 or a partial tier list), or for reclaiming space on an older output directory.
 
-Unlike the tiered auto-cleanup, this rule also removes `demux/pod5` and (via the
-`demux` target) the split/EDX POD5 that the tiers may intentionally keep — so run
-it only when you no longer need to re-run classification from the EDX POD5.
+Unlike the tiered auto-cleanup, this rule also removes `demux/pod5` (only on
+output directories from before WarpDemuX joined the raw-run path) and (via the
+`demux` target) any split/EDX POD5 the tiers may intentionally keep.
 
 Nothing here touches the `.p5s` demux sidecars: those live beside the raw POD5,
 outside `output_directory` entirely, and they are the record of which reads

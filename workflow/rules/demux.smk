@@ -6,8 +6,10 @@ The two backends split the run at different points:
 
   warpdemux : WarpDemuX DTW/fingerprint classifier, WDX barcodes ("barcode04").
               Classifies into a table, which is then parsed into a read->barcode
-              mapping and applied with `escpod filter` to cut the POD5 per
-              sample. Each split POD5 is then basecalled on its own.
+              classifications.csv. From there it takes the same route as ldx:
+              the raw run is the only signal store, basecalled once and split
+              on the uBAM. (It used to cut a POD5 per sample with `escpod
+              filter`, a second full copy of every assigned read.)
   ldx       : escapepod CTC-CRF barcode basecaller, LDX barcodes ("nbc01").
               One fused pass detects, basecalls and matches each read, recording
               the assignment in a `.p5s` sidecar beside the raw POD5. No POD5 is
@@ -96,6 +98,10 @@ def get_sample_axis_codes(sample):
     the run's accounting is keyed on and the one every sample must name.
     """
     info = samples[sample]
+    if is_warpdemux_enabled():
+        # WarpDemuX's vocabulary is the configured one already (`barcode04`, as
+        # parse_warpdemux writes it), so there is no bundle to resolve against.
+        return {"wdx": info["barcode"]}
     codes = {"ldx": resolve_to_bundle(info["barcode"], get_ldx_model())}
     if info.get("fdx"):
         codes["fdx"] = resolve_to_bundle(info["fdx"], get_fdx_model())
@@ -140,6 +146,8 @@ def get_run_axis_csvs(run_id):
     and then both axes point at it. select_demux_reads.py reads either shape.
     """
     base = os.path.join(outdir, "demux", "read_ids", run_id)
+    if is_warpdemux_enabled():
+        return {"wdx": os.path.join(base, "classifications.csv")}
     axes = {"ldx": os.path.join(base, "classifications.csv")}
     if is_fdx_fused():
         axes["fdx"] = axes["ldx"]
@@ -157,6 +165,8 @@ def get_axis_gate_args():
     already applied changes nothing, which is what lets the two-pass and fused
     shapes share this code.
     """
+    if is_warpdemux_enabled():
+        return ""  # WarpDemuX reports no lattice margin to gate on
     gates = []
     for axis in ("ldx", "fdx"):
         if axis == "fdx" and not is_fdx_enabled():
@@ -308,7 +318,10 @@ rule warpdemux:
 
 rule parse_warpdemux:
     """
-    Parse WarpDemuX predictions and create a barcode mapping file per run.
+    Parse WarpDemuX predictions into a per-run read -> barcode table.
+
+    `barcode_mapping.tsv.gz` is kept for demux_concordance; `classifications.csv`
+    is what the shared selection step (select_demux_reads.py) reads.
     """
     input:
         demux_done=os.path.join(
@@ -326,6 +339,10 @@ rule parse_warpdemux:
             os.path.join(
                 outdir, "demux", "read_ids", "{run_id}", "demux_summary.tsv.gz"
             ),
+            tier="demux_scratch",
+        ),
+        classifications=maybe_temp(
+            os.path.join(outdir, "demux", "read_ids", "{run_id}", "classifications.csv"),
             tier="demux_scratch",
         ),
     log:
@@ -362,6 +379,11 @@ rule parse_warpdemux:
         predictions[["read_id", "predicted_barcode"]].to_csv(
             output.mapping, sep="\t", index=False, compression="gzip"
         )
+        # The same calls in the shape select_demux_reads.py reads, so a WarpDemuX
+        # run joins the LDX tail (run-level basecall, uBAM split) unchanged.
+        predictions[["read_id", "predicted_barcode"]].rename(
+            columns={"predicted_barcode": "barcode"}
+        ).to_csv(output.classifications, index=False)
         # Write summary statistics
         summary_data = (
             predictions.groupby("predicted_barcode")
@@ -855,16 +877,15 @@ if is_fdx_enabled() and not is_fdx_fused():
             """
 
 
-def ldx_sample_constraint():
-    """Regex matching exactly the samples the LDX rules may claim.
+def run_split_sample_constraint():
+    """Regex matching exactly the samples the run-split rules may claim.
 
-    The rules below produce the same per-sample paths as `rebasecall` and
-    `extract_sample_reads` and win them by ruleorder, which would otherwise also
-    capture the un-barcoded samples of a mixed run — samples with no barcode to
-    split on. Constraining the wildcard leaves those to `rebasecall`, and makes
-    these rules unmatchable on a WarpDemuX run rather than merely outranked.
+    The rules below produce the same per-sample paths as `rebasecall` and win
+    them by ruleorder, which would otherwise also capture the un-barcoded
+    samples of a mixed run — samples with no barcode to split on. Constraining
+    the wildcard leaves those to `rebasecall`.
     """
-    if not is_ldx_enabled():
+    if not is_demux_enabled():
         return r"$^"
     names = [re.escape(s) for s, info in samples.items() if info.get("barcode")]
     return "|".join(names) if names else r"$^"
@@ -934,12 +955,11 @@ rule ldx_run_read_ids:
 
 rule rebasecall_ldx_run:
     """
-    Basecall a whole LDX run in one dorado pass, straight off the raw POD5.
+    Basecall a whole demultiplexed run in one dorado pass, straight off the raw POD5.
 
-    The WarpDemuX path basecalls each sample's split POD5 separately because that
-    split is what its `escpod filter` step produced. Here there is no split POD5 —
-    demux left only a sidecar — so the run is basecalled whole and cut up
-    afterwards, on the uBAM.
+    There is no per-sample POD5 on either backend — demux leaves only a read ->
+    barcode table (and, for LDX, a sidecar) — so the run is basecalled whole and
+    cut up afterwards, on the uBAM.
 
     `-l` restricts the pass to reads that demux actually assigned to one of this
     run's samples (ldx_run_read_ids). That is the same read universe the
@@ -1042,7 +1062,7 @@ rule extract_ldx_sample_reads:
     log:
         os.path.join(outdir, "logs", "extract_ldx_sample_reads", "{sample}"),
     wildcard_constraints:
-        sample=ldx_sample_constraint(),
+        sample=run_split_sample_constraint(),
     params:
         src=SCRIPT_DIR,
         axes=get_sample_axis_csv_args,
@@ -1081,7 +1101,7 @@ rule split_ldx_ubam:
     log:
         os.path.join(outdir, "logs", "split_ldx_ubam", "{sample}"),
     wildcard_constraints:
-        sample=ldx_sample_constraint(),
+        sample=run_split_sample_constraint(),
     threads: 4
     shell:
         """
@@ -1090,18 +1110,15 @@ rule split_ldx_ubam:
         """
 
 
-# Route the two backends. They overlap on three outputs — the per-sample read-id
-# list, the per-sample uBAM and the per-run demux summary — so each needs an
-# explicit winner. is_demux_enabled() has already rejected a config that turns
-# on both backends.
-#
-# The LDX rules are additionally constrained to barcoded samples of an LDX run
-# (ldx_sample_constraint), so on the WarpDemuX path they cannot match at all and
-# these orderings are belt and braces.
+# Route the two backends. They overlap on the per-sample uBAM and the per-run
+# demux outputs, so each needs an explicit winner. is_demux_enabled() has already
+# rejected a config that turns on both backends. The split rules are constrained
+# to barcoded samples (run_split_sample_constraint), which leaves unbarcoded
+# samples of a mixed run to `rebasecall`.
+ruleorder: split_ldx_ubam > rebasecall
+
 if is_ldx_enabled():
 
-    ruleorder: extract_ldx_sample_reads > extract_sample_reads
-    ruleorder: split_ldx_ubam > rebasecall
     ruleorder: escapepod_demux > parse_warpdemux
 
     # Every configured code against the bundle that has to emit it, now rather
@@ -1110,81 +1127,7 @@ if is_ldx_enabled():
 
 else:
 
-    ruleorder: extract_sample_reads > extract_ldx_sample_reads
-    ruleorder: rebasecall > split_ldx_ubam
     ruleorder: parse_warpdemux > escapepod_demux
-
-
-def get_sample_barcode_mapping(wildcards):
-    """Get the barcode mapping file for a sample's run."""
-    run_id = samples[wildcards.sample]["run_id"]
-    return os.path.join(outdir, "demux", "read_ids", run_id, "barcode_mapping.tsv.gz")
-
-
-rule extract_sample_reads:
-    """
-    Extract read IDs for a specific sample based on its barcode assignment.
-    """
-    input:
-        mapping=get_sample_barcode_mapping,
-    output:
-        read_ids=maybe_temp(
-            os.path.join(outdir, "demux", "read_ids", "{sample}", "{sample}.txt"),
-            tier="demux_scratch",
-        ),
-    log:
-        os.path.join(outdir, "logs", "extract_sample_reads", "{sample}"),
-    params:
-        barcode=lambda wildcards: samples[wildcards.sample]["barcode"],
-    run:
-        # Read the mapping file and filter for this sample's barcode
-        mapping = pd.read_csv(input.mapping, sep="\t", compression="gzip")
-        sample_reads = mapping[mapping["predicted_barcode"] == params.barcode][
-            "read_id"
-        ]
-        with open(output.read_ids, "w") as f:
-            for read_id in sample_reads:
-                f.write(f"{read_id}\n")
-
-
-def get_sample_read_ids(wildcards):
-    """Get the read ID file for a sample."""
-    return os.path.join(
-        outdir, "demux", "read_ids", wildcards.sample, f"{wildcards.sample}.txt"
-    )
-
-
-def get_sample_pod5_dirs(wildcards):
-    """Get POD5 directories for a sample's run (for shell commands)."""
-    run_id = samples[wildcards.sample]["run_id"]
-    return " ".join(get_run_pod5_dirs(run_id))
-
-
-rule split_pod5:
-    """
-    Filter raw POD5 files by sample using read IDs from demultiplexing.
-    """
-    input:
-        pod5=get_sample_run_raw_inputs,
-        read_ids=get_sample_read_ids,
-    output:
-        maybe_temp(
-            os.path.join(outdir, "demux", "pod5", "{sample}", "{sample}.pod5"),
-            tier="split_pod5",
-        ),
-    log:
-        os.path.join(outdir, "logs", "split_pod5", "{sample}"),
-    params:
-        pod5_dirs=get_sample_pod5_dirs,
-    shell:
-        """
-        # Several run directories in one call: multi-input filter landed in
-        # escapepod-rs 0.8.1 (#196), which config-base.yml now pins. Before that
-        # escpod took a single <INPUT> and would have filtered against only the
-        # first directory — quietly, which is why this call site waited for a
-        # release rather than an unreleased commit.
-        escpod filter {params.pod5_dirs} -i {input.read_ids} -o {output} 2>&1 | tee {log}
-        """
 
 
 # --- EDX (3' adapter barcode) early demultiplexing ---

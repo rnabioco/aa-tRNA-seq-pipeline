@@ -180,7 +180,7 @@ ask first are in `.claude/skills/new-run-config/SKILL.md`; the logic is
 - **opts.dorado**: Includes `--modified-bases m5C_2OmeC inosine_m6A_2OmeA pseU_2OmeU 2OmeG --emit-moves` for modification calling and move tables
 - **opts.eschalign**: `eschalign` scoring and threshold, defaulted to bwa's own scoring (`--scoring 1,-1,-2,-1 --min-score 20`)
 - **charging.ml_threshold**: 200 (200-255 = charged, <200 = uncharged). Config, not hardcoded. It is the bundle's declared operating point, measured against ligation chemistry at FPR 1.74% / TPR 0.939; its precision depends on the sample's own charged fraction, so low-charging samples need a higher value (see `docs/troubleshooting/faq.md`)
-- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `demux_scratch`, `split_pod5`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`; the retired `fastq` and `merged_pod5` tiers are accepted and ignored (nothing writes a FASTQ or a merged POD5 any more), and an unknown name is an error. `bam/final` is always kept. `split_pod5` deletes the WarpDemuX split POD5 once classification and the session file are done; it is that path's classification input, so re-running classification afterwards means re-splitting from the raw run. Unbarcoded and LDX samples have no `demux/pod5` (their store is the raw run, via symlinks for unbarcoded samples), so the tier is inert there. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
+- **cleanup_intermediates**: Opt-in auto-deletion of large regenerable intermediates during a run, via `temp()`. Accepts a bool or a list of tier names (`cascade`, `basecall`, `demux_scratch`) resolved by `maybe_temp()` / `_enabled_cleanup_tiers()` in `common.smk`; the retired `fastq`, `merged_pod5` and `split_pod5` tiers are accepted and ignored (nothing writes a FASTQ, a merged POD5 or a per-sample split POD5 any more), and an unknown name is an error. `bam/final` is always kept. The on-demand `clean` rule (`rules/clean.smk`) remains the catch-all superset for reclaiming space on already-completed runs. See `config/README.md` for tier→directory mapping.
 
 ## Demultiplexing (Optional)
 
@@ -189,7 +189,7 @@ pooled/multiplexed runs, via one of two mutually exclusive backends:
 
 | Backend | Config key | Barcodes | Tool | Shape |
 |---|---|---|---|---|
-| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to a read→barcode mapping → `escpod filter` per sample → basecall each split POD5 |
+| WarpDemuX | `warpdemux.enabled` | WDX (`barcode04`) | `warpdemux` | Classify to a table → parse to `classifications.csv` (`read_id,barcode`) → the LDX tail: basecall the raw run once, split the uBAM per sample |
 | escapepod | `ldx.enabled` | LDX (`ldx01`) | `escpod demux --annotate` | One fused pass records each read's barcode in a `.p5s` sidecar beside the raw POD5 → basecall the run once → split the uBAM per sample |
 | escapepod, second axis | `fdx.enabled` (needs `ldx.enabled`) | FDX (`fdx01`), the 5' index | `escpod demux --model fdx=…` | A dual-index sample is `{ldx: ldx01, fdx: fdx01}` and owns the reads on which BOTH calls agree; `select_demux_reads.py` joins the axes per read |
 
