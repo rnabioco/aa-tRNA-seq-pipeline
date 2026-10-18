@@ -7,7 +7,6 @@ One pass over a run-level uBAM must give each sample exactly the reads
 
 import pysam
 import pytest
-
 from split_ubam_by_sample import load_routes, split
 
 

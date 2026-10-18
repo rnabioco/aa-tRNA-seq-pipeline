@@ -43,7 +43,7 @@ def load_routes(specs: list[str]) -> tuple[dict[str, list[str]], dict[str, Path]
 
 
 def split(bam: Path, routes, outputs, threads: int) -> dict[str, int]:
-    counts = {name: 0 for name in outputs}
+    counts = dict.fromkeys(outputs, 0)
     with pysam.AlignmentFile(str(bam), "rb", check_sq=False, threads=threads) as src:
         handles = {}
         try:

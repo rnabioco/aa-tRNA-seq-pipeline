@@ -1088,16 +1088,20 @@ rule split_ldx_run:
         ),
         read_ids=get_run_split_read_ids,
     output:
-        temp(directory(os.path.join(outdir, "bam", "rebasecall_run", "{run_id}", "split"))),
+        temp(
+            directory(
+                os.path.join(outdir, "bam", "rebasecall_run", "{run_id}", "split")
+            )
+        ),
     log:
         os.path.join(outdir, "logs", "split_ldx_run", "{run_id}"),
+    threads: 4
     params:
         src=SCRIPT_DIR,
         samples=lambda wildcards, input, output: " ".join(
             f"--sample {s}={ids}={output[0]}/{s}.rbc.bam"
             for s, ids in zip(get_ldx_run_samples(wildcards.run_id), input.read_ids)
         ),
-    threads: 4
     shell:
         """
         python {params.src}/split_ubam_by_sample.py \
@@ -1119,7 +1123,11 @@ rule split_ldx_ubam:
     """
     input:
         split=lambda wildcards: os.path.join(
-            outdir, "bam", "rebasecall_run", samples[wildcards.sample]["run_id"], "split"
+            outdir,
+            "bam",
+            "rebasecall_run",
+            samples[wildcards.sample]["run_id"],
+            "split",
         ),
     output:
         maybe_temp(
