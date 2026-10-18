@@ -4,6 +4,12 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`eschalign_version` bumped 0.2.0 → 0.3.0** (checksums in
+  `scripts/setup-tools.sh` updated to match). Faster CPU kernels and ~2× faster
+  GPU scoring upstream; output is documented as byte-identical.
+
 ## [v0.12.0] - 2026-10-11
 
 ### Changed

@@ -38,13 +38,13 @@ ESCPOD_GPU_DIR="${REPO_ROOT}/resources/tools/escpod/${ESCPOD_VERSION}-gpu"
 # Same release layout as escpod: one static-musl tarball per target holding the
 # bare binary, plus a dynamically linked GPU build for x86_64 Linux. The
 # checksums are copied from the release's SHA256SUMS.txt; an empty one makes the
-# download fail closed rather than trust an unpinned artifact. v0.2.0 ships
+# download fail closed rather than trust an unpinned artifact. v0.3.0 ships
 # Linux builds only (x86_64 and aarch64 musl, x86_64 GPU), no macOS.
 ESCHALIGN_VERSION="${ESCHALIGN_VERSION:-$(awk '/^eschalign_version:/ {print $2}' "${REPO_ROOT}/config/config-base.yml")}"
 ESCHALIGN_DIR="${REPO_ROOT}/resources/tools/eschalign/${ESCHALIGN_VERSION}"
-ESCHALIGN_SHA256_x86_64_linux="74f4612a4914415e31084fbe222a19a6c8637d44adb93f6b0ed161e4f809f386"
-ESCHALIGN_SHA256_aarch64_linux="0c3a96eb78b99bb5eda07199094d2d6806a691a7ef0b5f29de9bd4b17d242eb2"
-ESCHALIGN_SHA256_x86_64_linux_gpu="5b3748d37f31e59558118906a387a99aaced096014d971f424f4b6930e71c2be"
+ESCHALIGN_SHA256_x86_64_linux="9e767b07b0431dcba6d32cad8ff74068556ad8aa99f1f8363b772f8b854e1416"
+ESCHALIGN_SHA256_aarch64_linux="cba0ad1b23ce72661494ec2185d7ef36a55dc565b8f99e230391228745b64872"
+ESCHALIGN_SHA256_x86_64_linux_gpu="a98357fd86c5dca37417d3809764cccad4cc2cb029f43f8a6f14d23e9156dc75"
 ESCHALIGN_GPU_DIR="${REPO_ROOT}/resources/tools/eschalign/${ESCHALIGN_VERSION}-gpu"
 
 # ============================================================================
