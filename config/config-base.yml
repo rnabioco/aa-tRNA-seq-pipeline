@@ -246,7 +246,7 @@ dorado_model: rna004_sup@v6.0.0
 # `eschalign` 0.31.0 forward). A bump is TWO edits that have to agree, exactly
 # like escpod_version: this pin and the ESCHALIGN_SHA256 constants in
 # scripts/setup-tools.sh. `pixi run check-escpod` reports drift in both.
-eschalign_version: 0.2.0
+eschalign_version: 0.3.0
 
 # escapepod (`escpod`) version, installed by `pixi run setup` from the pinned
 # GitHub release. It is on the critical path of every run, not just demux runs:

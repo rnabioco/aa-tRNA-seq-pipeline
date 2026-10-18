@@ -22,7 +22,6 @@ parasail-python = "*"
 # Snakemake and workflow
 snakemake = ">=9.17"
 snakefmt = "*"
-snakemake-executor-plugin-lsf = "*"
 snakemake-executor-plugin-slurm = ">=2.5"
 snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
