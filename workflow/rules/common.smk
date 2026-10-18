@@ -68,6 +68,16 @@ def maybe_temp(path, tier="cascade"):
     return temp(path) if tier in _enabled_cleanup_tiers() else path
 
 
+def get_ml_threshold(section):
+    """The `cl` cut-off for charged reads in a table's own config section.
+
+    Follows `charging.ml_threshold` unless the section names its own, so raising
+    it for a low-charging sample moves every table, not just the CPM ones.
+    """
+    own = config.get(section, {}).get("ml_threshold")
+    return own if own is not None else config["charging"]["ml_threshold"]
+
+
 def get_charging_model():
     """Absolute path to the charging model BUNDLE directory.
 

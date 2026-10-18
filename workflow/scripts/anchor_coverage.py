@@ -53,8 +53,9 @@ def main() -> None:
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument(
         "--adapter-prefix",
-        default="GGCTTCTTCTTGCTCTTAGGAAGGC",
-        help="constant 5' part of the 3' adapter; the CCA sits immediately before it",
+        default="GGCTTCTTCTTGCTCTT",
+        help="5' part shared by every 3' adapter in the reference; the CCA sits "
+        "immediately before it",
     )
     args = ap.parse_args()
 
