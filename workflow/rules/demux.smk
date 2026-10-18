@@ -876,12 +876,6 @@ def get_sample_run_split_parents(wildcards):
     return os.path.join(outdir, "demux", "read_ids", run_id, "split_parents.tsv")
 
 
-def get_sample_run_ubam(wildcards):
-    """Locate the run-level basecall for a sample's run."""
-    run_id = samples[wildcards.sample]["run_id"]
-    return os.path.join(outdir, "bam", "rebasecall_run", run_id, f"{run_id}.rbc.bam")
-
-
 rule ldx_run_read_ids:
     """
     The reads demux assigned to ANY of this run's samples, across every axis.
@@ -1062,17 +1056,79 @@ rule extract_ldx_sample_reads:
         """
 
 
+def get_ldx_run_samples(run_id):
+    """The barcoded samples of one LDX run: the ones the run BAM is cut into."""
+    return [
+        s
+        for s, info in samples.items()
+        if info["run_id"] == run_id and info.get("barcode")
+    ]
+
+
+def get_run_split_read_ids(wildcards):
+    return [
+        os.path.join(outdir, "demux", "read_ids", s, f"{s}.txt")
+        for s in get_ldx_run_samples(wildcards.run_id)
+    ]
+
+
+rule split_ldx_run:
+    """
+    Cut every sample's unaligned BAM out of the run-level basecall, in one pass.
+
+    The run BAM is unindexed, so picking a sample's reads out of it means
+    decompressing the whole flowcell. `samtools view -N` per sample did that once
+    per sample; this reads it once and routes each record to every sample whose
+    read-id list names it. The directory is scratch: `split_ldx_ubam` links each
+    sample's file to its final path and Snakemake deletes the rest.
+    """
+    input:
+        bam=os.path.join(
+            outdir, "bam", "rebasecall_run", "{run_id}", "{run_id}.rbc.bam"
+        ),
+        read_ids=get_run_split_read_ids,
+    output:
+        temp(
+            directory(
+                os.path.join(outdir, "bam", "rebasecall_run", "{run_id}", "split")
+            )
+        ),
+    log:
+        os.path.join(outdir, "logs", "split_ldx_run", "{run_id}"),
+    threads: 4
+    params:
+        src=SCRIPT_DIR,
+        samples=lambda wildcards, input, output: " ".join(
+            f"--sample {s}={ids}={output[0]}/{s}.rbc.bam"
+            for s, ids in zip(get_ldx_run_samples(wildcards.run_id), input.read_ids)
+        ),
+    shell:
+        """
+        python {params.src}/split_ubam_by_sample.py \
+            --bam {input.bam} \
+            {params.samples} \
+            --threads {threads} 2>&1 | tee {log}
+        """
+
+
 rule split_ldx_ubam:
     """
-    Cut one sample's unaligned BAM out of the run-level basecall.
+    Put one sample's unaligned BAM, cut by split_ldx_run, where `rebasecall`
+    would have.
 
     Emits the path `rebasecall` would have, so everything downstream — EDX adapter
     detection, alignment, classification — is unchanged and cannot tell which
-    backend produced it.
+    backend produced it. A hardlink, so the scratch directory can go without
+    taking the data with it.
     """
     input:
-        bam=get_sample_run_ubam,
-        read_ids=rules.extract_ldx_sample_reads.output.read_ids,
+        split=lambda wildcards: os.path.join(
+            outdir,
+            "bam",
+            "rebasecall_run",
+            samples[wildcards.sample]["run_id"],
+            "split",
+        ),
     output:
         maybe_temp(
             os.path.join(outdir, "bam", "rebasecall", "{sample}", "{sample}.rbc.bam"),
@@ -1082,11 +1138,9 @@ rule split_ldx_ubam:
         os.path.join(outdir, "logs", "split_ldx_ubam", "{sample}"),
     wildcard_constraints:
         sample=ldx_sample_constraint(),
-    threads: 4
     shell:
         """
-        samtools view -b -@ {threads} -N {input.read_ids} {input.bam} \
-            >{output} 2>{log}
+        ln -f {input.split}/{wildcards.sample}.rbc.bam {output} 2>{log}
         """
 
 

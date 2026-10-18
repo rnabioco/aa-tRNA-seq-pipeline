@@ -264,7 +264,8 @@ they share. See [Demultiplexing](demultiplexing.md) for the full flow.
 | `rebasecall_ldx_run` | Basecall the whole run in one dorado pass |
 | `ldx_split_parent_map` | Map dorado split-read children back to their parent read |
 | `extract_ldx_sample_reads` | Per-sample read IDs where every named axis agrees |
-| `split_ldx_ubam` | Cut one sample's uBAM out of the run-level basecall |
+| `split_ldx_run` | Cut every sample's uBAM out of the run-level basecall in one pass |
+| `split_ldx_ubam` | Link one sample's uBAM from that split to where `rebasecall` would write it |
 
 **EDX (3' adapter), either backend:**
 
