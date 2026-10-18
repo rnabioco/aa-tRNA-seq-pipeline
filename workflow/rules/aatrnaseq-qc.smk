@@ -204,7 +204,7 @@ rule anchor_coverage:
         os.path.join(outdir, "logs", "stats", "{sample}.anchor_coverage"),
     params:
         src=SCRIPT_DIR,
-        adapter_prefix=lambda wildcards: get_adapter_3p()[:25],
+        adapter_prefix=lambda wildcards: get_adapter_3p_common_prefix(),
     shell:
         """
         python {params.src}/anchor_coverage.py \
