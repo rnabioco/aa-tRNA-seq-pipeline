@@ -6,10 +6,28 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ### Changed
 
+- **`eschalign_version` bumped 0.2.0 → 0.3.0** (checksums in
+  `scripts/setup-tools.sh` updated to match). Faster CPU kernels and ~2× faster
+  GPU scoring upstream; output is documented as byte-identical.
 - **LDX runs split the run uBAM once, not once per sample.** `split_ldx_run` reads the
   unindexed run-level basecall a single time (`split_ubam_by_sample.py`) and writes
   every sample's uBAM; `split_ldx_ubam` now just hardlinks each into place. It was
   `samtools view -N` per sample, i.e. N full decompressions of a flowcell.
+
+### Removed
+
+- **LSF scheduler support.** Deleted `cluster/lsf/`, the bsub-style
+  `cluster/generic/` profile, the LSF-only `scripts/run-test.sh` and
+  `scripts/run-preprint.sh`, the `test-lsf` pixi task, the `lsf_*` rule
+  resources and `docs/cluster/lsf-setup.md`. `run-preprint` now uses
+  `cluster/slurm`, and the `snakemake-executor-plugin-lsf` dependency is gone.
+
+### Fixed
+
+- `odds_ratios.ml_threshold` and `mismatch_calls.ml_threshold` follow
+  `charging.ml_threshold` unless set explicitly; they used to default to 200
+  independently, so raising the charging threshold left those tables at 200.
+- `Snakefile` no longer falls back to a stale `escpod_version` (0.21.0).
 
 ## [v0.12.0] - 2026-10-11
 

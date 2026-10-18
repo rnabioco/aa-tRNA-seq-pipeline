@@ -315,18 +315,6 @@ set-resources:
     runtime: 720  # 12 hours
 ```
 
-## Comparison with LSF
-
-| Feature | LSF | SLURM |
-|---------|-----|-------|
-| Executor | `lsf` | `slurm` |
-| Queue/Partition | `lsf_queue` | `slurm_partition` |
-| Account | `lsf_project` | `slurm_account` |
-| Memory units | GB (e.g., `24`) | MB (e.g., `24000`) |
-| GPU request | `lsf_extra="-gpu num=1"` | `gres: "gpu:1"` |
-| Runtime | Not specified | `runtime` (minutes) |
-
 ## Next Steps
 
-- [LSF Setup](lsf-setup.md) - For LSF clusters
 - [GPU Configuration](gpu-configuration.md) - GPU-specific settings

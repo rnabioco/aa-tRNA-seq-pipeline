@@ -25,9 +25,7 @@ aa-tRNA-seq-pipeline/
 │   ├── config-test.yml        # Test configuration
 │   └── samples-*.tsv/yml      # Sample definitions
 ├── cluster/
-│   ├── lsf/                   # LSF cluster profile
-│   ├── slurm/                 # SLURM cluster profile
-│   └── generic/               # Generic cluster profile
+│   └── slurm/                 # SLURM cluster profile
 ├── resources/
 │   ├── ref/                   # Reference sequences
 │   ├── models/                # Charging + demux model bundles

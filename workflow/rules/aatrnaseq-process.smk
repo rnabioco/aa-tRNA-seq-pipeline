@@ -168,18 +168,12 @@ rule eschalign:
     resources:
         # GPU-conditional for the same reason as classify_charging: the static
         # per-executor profiles cannot see `alignment.gpu`, so the partition,
-        # account, gres and GPU queue are resolved here. mem_mb is not
+        # account and gres are resolved here. mem_mb is not
         # device-dependent and lives in cluster/slurm/config.yaml.
         slurm_partition=lambda wildcards: "gpu" if is_alignment_gpu() else "rna",
         slurm_account=lambda wildcards: "gpu_rbi" if is_alignment_gpu() else "rbi",
         gres=lambda wildcards: "gpu:1" if is_alignment_gpu() else "",
         cpus_per_task=lambda wildcards: 16 if is_alignment_gpu() else 8,
-        lsf_queue=lambda wildcards: "gpu" if is_alignment_gpu() else "rna",
-        lsf_extra=lambda wildcards: (
-            "-gpu num=1:j_exclusive=yes:mode=exclusive_process"
-            if is_alignment_gpu()
-            else ""
-        ),
         ngpu=lambda wildcards: 1 if is_alignment_gpu() else 0,
     params:
         src=SCRIPT_DIR,
@@ -362,12 +356,12 @@ rule classify_charging:
         # letting more of them fit at once.
         pod5_readers=1,
         # Conditional on charging.gpu, unlike rebasecall/escapepod_demux's
-        # static GPU queue assignment in cluster/{slurm,lsf}/config.yaml: those
+        # static GPU partition assignment in cluster/slurm/config.yaml: those
         # rules are UNCONDITIONALLY GPU work (dorado basecalls inside
         # escapepod_demux regardless of ldx.gpu), where this rule's GPU-ness is
-        # a runtime config toggle the static per-executor profile YAML cannot
-        # see. Neither profile declares slurm_partition/gres or
-        # lsf_queue/lsf_extra/ngpu for classify_charging, so these win.
+        # a runtime config toggle the static profile YAML cannot
+        # see. The profile declares no slurm_partition/gres/ngpu for
+        # classify_charging, so these win.
         # `cpus_per_task` joined them 2026-09-08, tracking `threads` above for
         # the same reason (GPU-conditional); `cluster/slurm/config.yaml` no
         # longer sets it for this rule. `mem_mb` joined 2026-09-11: measured
@@ -382,10 +376,7 @@ rule classify_charging:
         # over the observed peak; `cluster/slurm/config.yaml` no longer sets
         # mem_mb for this rule either. `runtime` stays on the profile's
         # 8h CPU-sized ceiling -- GPU wall time here is under 3 minutes, so
-        # it is nowhere near binding. LSF's static `mem_mb=40` (GB, see the
-        # N.B. in cluster/lsf/config.yaml) is UNCHANGED: this measurement is
-        # Slurm-side only and LSF's unit handling for a rule-level override
-        # here hasn't been checked, so it stays the safe unmeasured ceiling.
+        # it is nowhere near binding.
         slurm_partition=lambda wildcards: (
             "gpu" if config["charging"].get("gpu", False) else "rna"
         ),
@@ -398,14 +389,6 @@ rule classify_charging:
         ),
         cpus_per_task=lambda wildcards: (
             16 if config["charging"].get("gpu", False) else 4
-        ),
-        lsf_queue=lambda wildcards: (
-            "gpu" if config["charging"].get("gpu", False) else "rna"
-        ),
-        lsf_extra=lambda wildcards: (
-            "-gpu num=1:j_exclusive=yes:mode=exclusive_process"
-            if config["charging"].get("gpu", False)
-            else ""
         ),
         ngpu=lambda wildcards: 1 if config["charging"].get("gpu", False) else 0,
     params:

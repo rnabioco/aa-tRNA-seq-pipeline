@@ -95,26 +95,18 @@ Adjust `--cores` based on your system.
 
 For production runs, use cluster execution:
 
-=== "LSF"
+```bash
+pixi run snakemake --profile cluster/slurm --configfile=config/config-myproject.yml
+```
 
-    ```bash
-    pixi run snakemake --profile cluster/lsf --configfile=config/config-myproject.yml
-    ```
-
-=== "SLURM"
-
-    ```bash
-    pixi run snakemake --profile cluster/slurm --configfile=config/config-myproject.yml
-    ```
-
-See [Cluster Setup](../cluster/lsf-setup.md) for detailed cluster configuration.
+See [Cluster Setup](../cluster/slurm-setup.md) for detailed cluster configuration.
 
 ### Background Execution
 
 For long-running jobs, run in background:
 
 ```bash
-nohup pixi run snakemake --profile cluster/lsf \
+nohup pixi run snakemake --profile cluster/slurm \
     --configfile=config/config-myproject.yml \
     > pipeline.log 2>&1 &
 ```
@@ -130,10 +122,6 @@ tail -f pipeline.log
 ### Check Job Status
 
 ```bash
-# For LSF
-bjobs -u $USER
-
-# For SLURM
 squeue -u $USER
 ```
 
@@ -141,7 +129,7 @@ squeue -u $USER
 
 ```bash
 # Show running jobs
-pixi run snakemake --profile cluster/lsf \
+pixi run snakemake --profile cluster/slurm \
     --configfile=config/config-myproject.yml \
     --summary
 ```

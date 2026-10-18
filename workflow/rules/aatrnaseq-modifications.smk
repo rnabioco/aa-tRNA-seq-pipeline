@@ -130,8 +130,6 @@ rule modkit_extract_calls:
         # measured slope; the floor covers startup on a thin sample. Whether
         # `--threads` (intervals in flight) trades speed for memory here is
         # untested -- the jobs are 2-16 min, so it would be a cheap lever.
-        # LSF's static GB values (cluster/lsf, cluster/generic) override this
-        # and are UNCHANGED, same as classify_charging: unmeasured there.
         mem_mb=lambda wildcards, input: max(8000, int(50 * input.size_mb)),
     params:
         fa=get_validated_reference(),

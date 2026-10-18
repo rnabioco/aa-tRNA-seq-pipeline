@@ -158,7 +158,7 @@ pipeline goes (see `config/README.md`).
 Yes! Snakemake automatically resumes:
 
 ```bash
-pixi run snakemake --profile cluster/lsf --configfile=config/config.yml
+pixi run snakemake --profile cluster/slurm --configfile=config/config.yml
 ```
 
 Only incomplete rules will re-run.
@@ -316,8 +316,8 @@ runs:
 
 2. Check cluster job output:
    ```bash
-   # LSF
-   bjobs -l <job_id>
+   scontrol show job <job_id>
+   sacct -j <job_id>
    ```
 
 ### How do I force re-run a rule?
