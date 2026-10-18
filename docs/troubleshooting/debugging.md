@@ -40,19 +40,6 @@ grep -i error results/logs/*/*.log
 
 ### Cluster Job Logs
 
-=== "LSF"
-
-    ```bash
-    # Find job output files
-    ls -la *.out *.err
-
-    # View job output
-    cat <job_id>.out
-
-    # Get job history
-    bhist -l <job_id>
-    ```
-
 === "SLURM"
 
     ```bash
@@ -336,7 +323,7 @@ Include:
 ## Environment
 - OS: [e.g., CentOS 7]
 - Snakemake version: [pixi run snakemake --version]
-- Execution mode: [local/LSF/SLURM]
+- Execution mode: [local/SLURM]
 
 ## Error
 [Error message]

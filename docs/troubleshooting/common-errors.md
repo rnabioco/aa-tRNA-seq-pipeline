@@ -70,7 +70,7 @@ RuntimeError: CUDA out of memory
 1. Ensure exclusive GPU access in cluster profile:
    ```yaml
    set-resources:
-     - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
+     - rebasecall:gres="gpu:1"
    ```
 
 2. Reduce concurrent GPU jobs:

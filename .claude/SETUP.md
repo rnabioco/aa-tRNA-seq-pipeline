@@ -175,8 +175,8 @@ snakemake stage_pod5 --cores 2 --configfile=config/config-test.yml
 # Run complete pipeline with test data
 snakemake --cores 12 --configfile=config/config-test.yml
 
-# Or submit to LSF cluster
-bsub < run-test.sh
+# Or run on a SLURM cluster
+pixi run test-slurm
 ```
 
 ## 🔍 Continuous Integration Details
@@ -202,7 +202,7 @@ All of the above, plus:
 Due to GitHub Actions limitations:
 - GPU-intensive rules (rebasecall, classify_charging)
 - Full end-to-end pipeline
-- LSF cluster execution
+- SLURM cluster execution
 
 These should be tested locally or on your cluster before merging.
 
