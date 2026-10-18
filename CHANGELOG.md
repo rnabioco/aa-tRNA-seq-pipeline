@@ -4,6 +4,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Config schema.** `workflow/schemas/config.schema.yaml` closes every config
+  section, and the Snakefile validates the merged config against it before building
+  the DAG (`workflow/scripts/config_schema.py`). A misspelt or retired key such as
+  `charging.ml_treshold` is now an error that names the nearest valid key, where it
+  used to take the default silently. All problems are listed at once. A new config
+  key must be added to the schema in the same change.
+
 ### Changed
 
 - **`eschalign_version` bumped 0.2.0 → 0.3.0** (checksums in

@@ -159,6 +159,7 @@ ask first are in `.claude/skills/new-run-config/SKILL.md`; the logic is
   - Dorado and escpod versions for download
   - Command-line options for tools (dorado, eschalign, filters)
 
+- `workflow/schemas/config.schema.yaml`: closed schema for the merged config, checked by the Snakefile (`config_schema.py`). **Adding a config key means adding it here too**, or the run refuses it as unknown
 - `config/samples.tsv`: Two-column TSV (no header)
   - Column 1: Unique sample ID
   - Column 2: Path to sequencing run folder containing pod5_pass/pod5_fail/pod5 subdirectories
