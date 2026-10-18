@@ -23,7 +23,6 @@ parasail-python = "*"
 snakemake = ">=9.17"
 snakefmt = "*"
 snakemake-executor-plugin-slurm = ">=2.5"
-snakemake-executor-plugin-lsf = "*"
 snakemake-executor-plugin-cluster-generic = "*"
 # ONT tools
 libstdcxx-ng = ">=12"
@@ -280,11 +279,10 @@ libcublas-dev = "*"
 default = []
 test = ["test"]
 report = ["report"]
-# Standalone, not in the default solve-group: that group would carry the docs
-# feature's PyPI dependency, which makes pixi fetch a conda-pypi mapping (a host
-# compute nodes cannot reach, and which 404s at the moment), so no other
-# environment could be re-locked.
-docs = { features = ["docs"] }
+docs = { features = ["docs"], solve-group = "default" }
+# Standalone solve-group: the "default" group carries the docs feature's PyPI
+# dependency, which makes pixi fetch a conda-pypi mapping from a host the
+# compute nodes cannot reach.
 gpu = ["gpu"]
 # Separate from `gpu` above — see `[feature.classify-gpu]`'s doc comment for
 # why the two cannot share an environment.
