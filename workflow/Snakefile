@@ -1,5 +1,6 @@
 # Main entrypoint of the workflow.
 
+import os
 import sys
 
 from snakemake.utils import min_version
@@ -10,17 +11,19 @@ min_version("8.0")
 configfile: "config/config-base.yml"
 
 
+# Fail on a misspelt or retired key now, not after it has silently taken a default
+sys.path.insert(0, os.path.join(workflow.basedir, "scripts"))
+from config_schema import validate_config
+
+validate_config(config)
+
+
 # Dorado path setup (modkit is managed by pixi)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
 ESCPOD_VERSION = config["escpod_version"]
 ESCPOD_DIR = f"resources/tools/escpod/{ESCPOD_VERSION}"
 ESCHALIGN_VERSION = config["eschalign_version"]
-if "escpod_align" in config.get("opts", {}):
-    sys.exit(
-        "opts.escpod_align was renamed opts.eschalign when alignment moved out "
-        "of escpod. Rename the key in your config; the value is unchanged."
-    )
 ESCHALIGN_DIR = f"resources/tools/eschalign/{ESCHALIGN_VERSION}"
 
 

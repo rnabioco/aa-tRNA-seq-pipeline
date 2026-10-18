@@ -1,0 +1,202 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: aa-tRNA-seq pipeline configuration
+description: >
+  The merged config (config-base.yml, then the run's --configfile, then --config).
+  Every section is closed (additionalProperties: false) so a misspelt or retired
+  key stops the run at DAG construction instead of silently falling back to a
+  default. A key the code reads belongs here; adding one to a rule without adding
+  it here is the failure this file exists to catch.
+
+definitions:
+  nullable_number:
+    type: [number, "null"]
+  threshold_cl:
+    description: A `cl` tag cut-off, 0-255.
+    type: integer
+    minimum: 0
+    maximum: 255
+  adapter_list:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [name, seq]
+      additionalProperties: false
+      properties:
+        name: {type: string, pattern: "^[A-Za-z0-9_.-]+$"}
+        seq: {type: string, pattern: "^[ACGTacgt]+$"}
+
+type: object
+additionalProperties: false
+required: [samples, output_directory]
+properties:
+  # --- the run ------------------------------------------------------------
+  samples:
+    description: Path to the samples file (TSV, or YAML for demux runs).
+    type: string
+  output_directory:
+    type: string
+  reuse_outputs_from:
+    description: Another run's output directory whose basecalls are reused.
+    type: [string, "null"]
+  cleanup_intermediates:
+    description: A bool, or a list of tier names (checked against the tiers in common.smk).
+    oneOf:
+      - type: boolean
+      - type: array
+        items: {type: string}
+  base_calling_model: {type: string}
+  fasta: {type: string}
+
+  # --- tool pins ----------------------------------------------------------
+  dorado_version: {type: string}
+  dorado_model: {type: string}
+  eschalign_version: {type: string}
+  escpod_version: {type: string}
+
+  # --- reference and adapters --------------------------------------------
+  adapters:
+    type: object
+    additionalProperties: false
+    properties:
+      five_prime: {type: string, pattern: "^[ACGTacgt]+$"}
+      three_prime:
+        description: One adapter sequence, or a list of named adapters (EDX).
+        oneOf:
+          - type: string
+            pattern: "^[ACGTacgt]+$"
+          - $ref: "#/definitions/adapter_list"
+      min_score_5p: {type: integer, minimum: 0}
+      min_score_3p: {type: integer, minimum: 0}
+      infer_5p_from_alignment: {type: boolean}
+      max_ref_start_for_5p: {type: integer, minimum: 0}
+  reference:
+    type: object
+    additionalProperties: false
+    properties:
+      mode: {enum: [validate, build, skip]}
+      raw_fasta: {type: [string, "null"]}
+      cca_spacer: {type: string, pattern: "^[ACGTacgt]*$"}
+      max_mismatch: {type: integer, minimum: 0}
+
+  # --- alignment and charging --------------------------------------------
+  alignment:
+    type: object
+    additionalProperties: false
+    properties:
+      gpu: {type: boolean}
+  charging:
+    type: object
+    additionalProperties: false
+    properties:
+      model: {type: string}
+      min_mapq: {type: integer, minimum: 0}
+      orientation: {enum: [auto, time, reversed]}
+      orientation_fallback: {type: string}
+      ml_threshold: {$ref: "#/definitions/threshold_cl"}
+      basecaller_check: {enum: [error, warn, "off"]}
+      gpu: {type: boolean}
+
+  # --- command-line options handed to tools --------------------------------
+  opts:
+    type: object
+    additionalProperties: false
+    properties:
+      dorado: {type: string}
+      eschalign: {type: string}
+      bam_filter: {type: string}
+      coverage: {type: string}
+
+  # --- modifications -------------------------------------------------------
+  modkit:
+    type: object
+    additionalProperties: false
+    properties:
+      filter_threshold: {type: number, minimum: 0, maximum: 1}
+      mod_thresholds:
+        description: Per-modification-code pass threshold, keyed by the code modkit uses.
+        type: object
+        propertyNames: {pattern: "^[A-Za-z0-9]+$"}
+        additionalProperties: {type: number, minimum: 0, maximum: 1}
+      extract_calls: {type: boolean}
+      extract_full: {type: boolean}
+
+  # --- optional tables -----------------------------------------------------
+  odds_ratios:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      ml_threshold:
+        description: null follows charging.ml_threshold.
+        oneOf:
+          - {$ref: "#/definitions/threshold_cl"}
+          - {type: "null"}
+      min_coverage: {type: integer, minimum: 0}
+      min_obs_filter: {type: integer, minimum: 0}
+      max_p_filter: {type: number, minimum: 0, maximum: 1}
+  mismatch_calls:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      ml_threshold:
+        description: null follows charging.ml_threshold.
+        oneOf:
+          - {$ref: "#/definitions/threshold_cl"}
+          - {type: "null"}
+      min_error: {type: number, minimum: 0, maximum: 1}
+      min_coverage: {type: integer, minimum: 0}
+      min_samples: {type: integer, minimum: 1}
+  report:
+    type: object
+    additionalProperties: false
+    properties:
+      custom_include: {type: string}
+  qc:
+    type: object
+    additionalProperties: false
+    properties:
+      reference_similarity: {type: boolean}
+      reference_similarity_max_seqs: {type: integer, minimum: 1}
+      reference_similarity_max_mismatch: {type: integer, minimum: 0}
+
+  # --- demultiplexing ------------------------------------------------------
+  warpdemux:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      barcode_kit: {type: string}
+      save_boundaries: {type: boolean}
+      threads: {type: integer, minimum: 1}
+  ldx:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      model: {type: string}
+      boundary_margin: {type: integer, minimum: 0}
+      clamp_max_shift: {type: integer, minimum: 0}
+      gpu: {type: boolean}
+      min_margin: {type: integer, minimum: 0}
+      ref_scores: {type: boolean}
+      min_crf_margin: {type: number, minimum: 0}
+      min_crf_prob: {$ref: "#/definitions/nullable_number"}
+      threads: {type: integer, minimum: 1}
+  fdx:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      model: {type: string}
+      fused: {type: boolean}
+      min_crf_margin: {type: number, minimum: 0}
+      min_crf_prob: {$ref: "#/definitions/nullable_number"}
+  edx:
+    type: object
+    additionalProperties: false
+    properties:
+      enabled: {type: boolean}
+      detect_all: {type: boolean}
+      min_margin: {type: integer, minimum: 0}
