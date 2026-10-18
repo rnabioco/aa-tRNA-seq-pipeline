@@ -4,6 +4,13 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **LDX runs split the run uBAM once, not once per sample.** `split_ldx_run` reads the
+  unindexed run-level basecall a single time (`split_ubam_by_sample.py`) and writes
+  every sample's uBAM; `split_ldx_ubam` now just hardlinks each into place. It was
+  `samtools view -N` per sample, i.e. N full decompressions of a flowcell.
+
 ## [v0.12.0] - 2026-10-11
 
 ### Changed
