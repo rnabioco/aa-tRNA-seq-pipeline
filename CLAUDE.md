@@ -33,9 +33,6 @@ pixi run dry-run
 # Run locally with test data (4 cores)
 pixi run test
 
-# Run on LSF cluster
-pixi run test-lsf
-
 # Run on SLURM cluster
 pixi run test-slurm
 
@@ -51,14 +48,8 @@ pixi run snakemake --configfile=config/config-test.yml --cores 8
 
 ### Cluster Execution
 
-The pipeline supports both LSF and SLURM schedulers. Key files:
+The pipeline runs on SLURM. Key file:
 
-**LSF:**
-- `run-test.sh`: Test data execution on LSF
-- `run-preprint.sh`: Full preprint data execution on LSF
-- `cluster/lsf/config.yaml`: LSF-specific resource configurations
-
-**SLURM:**
 - `cluster/slurm/config.yaml`: SLURM-specific resource configurations (customize partition/account for your cluster)
 
 GPU-intensive rules (rebasecall) automatically request GPU resources via queue/partition configuration. `classify_charging` defaults to CPU; `charging.gpu: true` scores the windowed (TCN) charging bundle on the GPU instead (escpod >= 0.23.0) — the shipped default bundles have no GPU path and are unaffected. Unlike `rebasecall`, its GPU resources are resolved from that config key inside the rule itself, not the cluster profile files, since a static per-executor profile can't see `config.yml`.
@@ -392,18 +383,7 @@ exists from a real run.
 
 ### Cluster Resource Configuration
 
-**LSF** - Modify `cluster/lsf/config.yaml` to adjust:
-- Memory requirements per rule (mem_mb)
-- GPU queue assignments (lsf_queue)
-- LSF project tags (lsf_project)
-- Maximum concurrent jobs
-
-Rules requiring GPU (rebasecall) must set:
-- lsf_queue: "gpu"
-- lsf_extra: "-gpu num=1:j_exclusive=yes"
-- ngpu: 1
-
-**SLURM** - Modify `cluster/slurm/config.yaml` to adjust:
+Modify `cluster/slurm/config.yaml` to adjust:
 - Memory requirements per rule (mem_mb)
 - GPU partition (slurm_partition)
 - Account/allocation (slurm_account)

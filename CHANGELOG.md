@@ -4,6 +4,15 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **LSF scheduler support.** Deleted `cluster/lsf/`, the bsub-style
+  `cluster/generic/` profile, the LSF-only `scripts/run-test.sh` and
+  `scripts/run-preprint.sh`, the `test-lsf` pixi task, the `lsf_*` rule
+  resources and `docs/cluster/lsf-setup.md`. `run-preprint` now uses
+  `cluster/slurm`. The `snakemake-executor-plugin-lsf` dependency is left for a
+  separate lockfile change.
+
 ### Fixed
 
 - `odds_ratios.ml_threshold` and `mismatch_calls.ml_threshold` follow

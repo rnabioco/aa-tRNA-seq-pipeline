@@ -387,7 +387,7 @@ pixi run snakemake -n --configfile=config/config-demux.yml
 pixi run snakemake --cores 12 --configfile=config/config-demux.yml
 
 # Cluster
-pixi run snakemake --profile cluster/lsf --configfile=config/config-demux.yml
+pixi run snakemake --profile cluster/slurm --configfile=config/config-demux.yml
 ```
 
 ## Output Structure
