@@ -135,7 +135,7 @@ rule mismatch_calls:
         fa=get_validated_reference(),
         offset_5p=get_5p_offset(),
         offset_3p=get_3p_offset(),
-        ml_thresh=config.get("mismatch_calls", {}).get("ml_threshold", 200),
+        ml_thresh=get_ml_threshold("mismatch_calls"),
     shell:
         """
         python {params.src}/get_mismatch_calls.py \
