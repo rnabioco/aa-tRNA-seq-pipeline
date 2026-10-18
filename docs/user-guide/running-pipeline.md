@@ -10,13 +10,10 @@ flowchart TB
         A[pixi run snakemake<br/>--cores N]
     end
     subgraph Cluster
-        B[pixi run snakemake<br/>--profile cluster/lsf]
         C[pixi run snakemake<br/>--profile cluster/slurm]
-        F[pixi run snakemake<br/>--profile cluster/generic]
     end
     subgraph Shortcuts
         D[pixi run test]
-        E[pixi run test-lsf]
         G[pixi run test-slurm]
     end
 ```
@@ -84,18 +81,6 @@ pixi run snakemake --cores 8 --resources mem_mb=32000 gpu=1 \
 
 ## Cluster Execution
 
-### LSF Clusters
-
-```bash
-pixi run snakemake --profile cluster/lsf --configfile=config/config.yml
-```
-
-Or use the shortcut:
-
-```bash
-pixi run test-lsf  # Uses config-test.yml with LSF profile
-```
-
 ### SLURM Clusters
 
 ```bash
@@ -108,14 +93,6 @@ Or use the shortcut:
 pixi run test-slurm  # Uses config-test.yml with the SLURM profile
 ```
 
-### Generic Clusters
-
-For a scheduler without a dedicated profile:
-
-```bash
-pixi run snakemake --profile cluster/generic --configfile=config/config.yml
-```
-
 ### Submit Script
 
 For long-running jobs, use a submit script:
@@ -124,21 +101,21 @@ For long-running jobs, use a submit script:
 
     ```bash
     #!/bin/bash
-    #BSUB -J aa-tRNA-seq
-    #BSUB -o logs/pipeline.%J.out
-    #BSUB -e logs/pipeline.%J.err
-    #BSUB -q rna
-    #BSUB -n 1
-    #BSUB -R "rusage[mem=4000]"
+    #SBATCH --job-name=aa-tRNA-seq
+    #SBATCH --output=logs/pipeline.%j.out
+    #SBATCH --error=logs/pipeline.%j.err
+    #SBATCH --cpus-per-task=1
+    #SBATCH --mem=4G
+    #SBATCH --time=24:00:00
 
-    pixi run snakemake --profile cluster/lsf \
+    pixi run snakemake --profile cluster/slurm \
         --configfile=config/config-myproject.yml
     ```
 
 Submit:
 
 ```bash
-bsub < run-myproject.sh
+sbatch run-myproject.sh
 ```
 
 ## Monitoring Progress
@@ -150,13 +127,6 @@ pixi run snakemake --summary --configfile=config/config.yml
 ```
 
 ### Job Status
-
-=== "LSF"
-
-    ```bash
-    bjobs -u $USER
-    bjobs -l <job_id>  # Detailed status
-    ```
 
 === "SLURM"
 
@@ -196,7 +166,7 @@ tail -f logs/pipeline.*.out
 Snakemake automatically reruns failed jobs. Just rerun the same command:
 
 ```bash
-pixi run snakemake --profile cluster/lsf --configfile=config/config.yml
+pixi run snakemake --profile cluster/slurm --configfile=config/config.yml
 ```
 
 ### Force Rerun
@@ -206,18 +176,18 @@ Force rerun of specific rules:
 ```bash
 # Rerun a specific rule for all samples
 pixi run snakemake --forcerun classify_charging \
-    --profile cluster/lsf --configfile=config/config.yml
+    --profile cluster/slurm --configfile=config/config.yml
 
 # Rerun from a specific rule onwards
 pixi run snakemake --forcerun classify_charging --forceall \
-    --profile cluster/lsf --configfile=config/config.yml
+    --profile cluster/slurm --configfile=config/config.yml
 ```
 
 ### Rerun Single Sample
 
 ```bash
 pixi run snakemake results/myproject/bam/final/sample1.bam \
-    --forcerun --profile cluster/lsf --configfile=config/config.yml
+    --forcerun --profile cluster/slurm --configfile=config/config.yml
 ```
 
 ## Advanced Options
@@ -235,14 +205,14 @@ pixi run snakemake --unlock --configfile=config/config.yml
 Continue running independent jobs if some fail:
 
 ```bash
-pixi run snakemake --keep-going --profile cluster/lsf \
+pixi run snakemake --keep-going --profile cluster/slurm \
     --configfile=config/config.yml
 ```
 
 ### Limit Concurrent Jobs
 
 ```bash
-pixi run snakemake --jobs 50 --profile cluster/lsf \
+pixi run snakemake --jobs 50 --profile cluster/slurm \
     --configfile=config/config.yml
 ```
 
@@ -263,7 +233,7 @@ For demultiplexed samples, ensure WarpDemuX is installed (`pixi run setup`), the
 pixi run snakemake -n --configfile=config/config-demux.yml
 
 # Execute
-pixi run snakemake --profile cluster/lsf \
+pixi run snakemake --profile cluster/slurm \
     --configfile=config/config-demux.yml
 ```
 
@@ -273,11 +243,10 @@ pixi run snakemake --profile cluster/lsf \
 |---------|-------------|
 | `pixi run dry-run` | Dry run with test config |
 | `pixi run test` | Local execution with test data (4 cores) |
-| `pixi run test-lsf` | LSF execution with test data |
 | `pixi run test-slurm` | SLURM execution with test data |
 | `pixi run dry-run-ldx` / `pixi run test-ldx` | LDX demux DAG / full run against the committed fixture |
 | `pixi run dry-run-fdx` / `pixi run test-fdx` | Dual-index (LDX+FDX) DAG / full run against the committed fixture |
-| `pixi run run-preprint` | Run preprint pipeline (`cluster/generic` profile) |
+| `pixi run run-preprint` | Run preprint pipeline (`cluster/slurm` profile) |
 | `pixi run dag` | Generate workflow DAG image |
 
 ## Troubleshooting
@@ -286,13 +255,13 @@ pixi run snakemake --profile cluster/lsf \
 
 If the pipeline appears stuck:
 
-1. Check cluster job status (`bjobs` or `squeue`)
+1. Check cluster job status (`squeue`)
 2. Check for lock files: `ls .snakemake/locks/`
 3. Unlock if needed: `pixi run snakemake --unlock`
 
 ### Out of Memory
 
-Increase memory for specific rules in cluster profile. See [Cluster Setup](../cluster/lsf-setup.md).
+Increase memory for specific rules in cluster profile. See [Cluster Setup](../cluster/slurm-setup.md).
 
 ### GPU Errors
 
@@ -301,5 +270,5 @@ Ensure GPU jobs are submitted to GPU queue. See [GPU Configuration](../cluster/g
 ## Next Steps
 
 - [Output Files](outputs.md) - Understand pipeline outputs
-- [Cluster Setup](../cluster/lsf-setup.md) - Configure cluster profiles
+- [Cluster Setup](../cluster/slurm-setup.md) - Configure cluster profiles
 - [Troubleshooting](../troubleshooting/common-errors.md) - Common issues

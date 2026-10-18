@@ -450,7 +450,7 @@ modkit:
 # regardless of modkit.extract_calls.
 odds_ratios:
   enabled: false
-  ml_threshold: 200     # CL tag threshold for charged classification
+  ml_threshold: null    # CL tag threshold for charged; null follows charging.ml_threshold
   min_coverage: 10      # minimum reads per tRNA/position pair
 
 # additional options for particular commands

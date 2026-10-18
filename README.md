@@ -163,12 +163,9 @@ A few notes about charged vs. uncharged tRNA read classification
 
 ## Cluster execution
 
-The pipeline includes cluster profiles for LSF and SLURM schedulers.
+The pipeline includes a cluster profile for the SLURM scheduler.
 
 ```bash
-# Run test data on LSF cluster
-pixi run test-lsf
-
 # Run test data on SLURM cluster
 pixi run test-slurm
 
@@ -176,7 +173,7 @@ pixi run test-slurm
 pixi run run-preprint
 ```
 
-For more details on configuring HPC jobs, see `cluster/lsf/config.yaml` or `cluster/slurm/config.yaml`.
+For more details on configuring HPC jobs, see `cluster/slurm/config.yaml`.
 
 ## Citation
 

@@ -22,7 +22,7 @@ rule compute_odds_ratios:
         os.path.join(outdir, "logs", "odds_ratios", "{sample}"),
     params:
         src=SCRIPT_DIR,
-        ml_thresh=config.get("odds_ratios", {}).get("ml_threshold", 200),
+        ml_thresh=get_ml_threshold("odds_ratios"),
         min_cov=config.get("odds_ratios", {}).get("min_coverage", 10),
     shell:
         """

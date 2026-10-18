@@ -13,7 +13,7 @@ configfile: "config/config-base.yml"
 # Dorado path setup (modkit is managed by pixi)
 DORADO_VERSION = config["dorado_version"]
 DORADO_DIR = f"resources/tools/dorado/{DORADO_VERSION}"
-ESCPOD_VERSION = config.get("escpod_version", "0.21.0")
+ESCPOD_VERSION = config["escpod_version"]
 ESCPOD_DIR = f"resources/tools/escpod/{ESCPOD_VERSION}"
 ESCHALIGN_VERSION = config["eschalign_version"]
 if "escpod_align" in config.get("opts", {}):

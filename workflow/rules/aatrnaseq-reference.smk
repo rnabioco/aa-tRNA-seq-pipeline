@@ -51,6 +51,16 @@ def get_adapter_3p_list():
     return [(a["name"], a["seq"]) for a in three_prime]
 
 
+def get_adapter_3p_common_prefix():
+    """Longest prefix shared by every configured 3' adapter.
+
+    The CCA sits immediately before it in each reference, whichever adapter that
+    contig carries, so it is what locates the anchor when the panel mixes
+    adapters (the first adapter's prefix alone misses every other EDX contig).
+    """
+    return os.path.commonprefix([seq for _, seq in get_adapter_3p_list()])
+
+
 def get_reference_mode():
     """Get reference processing mode (validate, build, or skip)."""
     return config.get("reference", {}).get("mode", "validate")

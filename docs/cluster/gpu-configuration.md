@@ -26,7 +26,7 @@ paths; `classify_charging` can optionally use it too:
     `resources/models/charging/README.md`.
 
     Unlike `rebasecall`, this is not something you configure per-cluster in
-    `cluster/lsf/config.yaml` / `cluster/slurm/config.yaml`: `classify_charging`
+    `cluster/slurm/config.yaml`: `classify_charging`
     resolves its own queue/partition/GPU resources from `charging.gpu` at DAG
     build time (see the rule's `resources:` block in
     `workflow/rules/aatrnaseq-process.smk`), since a static per-executor profile
@@ -84,26 +84,6 @@ flowchart LR
 ```
 
 ## Cluster Configuration
-
-### LSF GPU Settings
-
-In `cluster/lsf/config.yaml`:
-
-```yaml
-# Limit total concurrent GPU jobs
-resources:
-  - ngpu=12
-
-# GPU rule configuration
-set-resources:
-  - rebasecall:lsf_queue="gpu"
-  - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
-  - rebasecall:ngpu=1
-  - rebasecall:mem_mb=24
-```
-
-`classify_charging` is not configured here — its GPU resources are resolved
-from `charging.gpu` inside the rule itself (see the note above).
 
 ### SLURM GPU Settings
 
@@ -168,38 +148,20 @@ Available CUDA wheel tags: `cu118`, `cu121`, `cu124`, `cpu`
 
 Request exclusive GPU access to avoid memory conflicts:
 
-=== "LSF"
-
-    ```yaml
-    set-resources:
-      - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
-    ```
-
-=== "SLURM"
-
-    ```yaml
-    set-resources:
-      - rebasecall:gres="gpu:1"
-      - rebasecall:slurm_extra="--exclusive"
-    ```
+```yaml
+set-resources:
+  - rebasecall:gres="gpu:1"
+  - rebasecall:slurm_extra="--exclusive"
+```
 
 ### GPU Type Selection
 
 If your cluster has multiple GPU types:
 
-=== "LSF"
-
-    ```yaml
-    set-resources:
-      - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes:gtile='!gv100'"
-    ```
-
-=== "SLURM"
-
-    ```yaml
-    set-resources:
-      - rebasecall:gres="gpu:v100:1"
-    ```
+```yaml
+set-resources:
+  - rebasecall:gres="gpu:v100:1"
+```
 
 ## Local GPU Execution
 
@@ -261,7 +223,7 @@ RuntimeError: CUDA out of memory
 1. Ensure exclusive GPU access:
    ```yaml
    set-resources:
-     - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes"
+     - rebasecall:slurm_extra="--exclusive"
    ```
 
 2. Reduce concurrent GPU jobs:
@@ -296,10 +258,6 @@ No CUDA GPUs are available
 
 3. Verify job is on GPU node:
    ```bash
-   # LSF
-   bjobs -l <job_id> | grep -i gpu
-
-   # SLURM
    scontrol show job <job_id> | grep -i gres
    ```
 
@@ -312,19 +270,10 @@ Job runs on incompatible GPU.
 
 Specify GPU type explicitly in cluster profile:
 
-=== "LSF"
-
-    ```yaml
-    set-resources:
-      - rebasecall:lsf_extra="-gpu num=1:j_exclusive=yes:gmodel=NVIDIAA100"
-    ```
-
-=== "SLURM"
-
-    ```yaml
-    set-resources:
-      - rebasecall:gres="gpu:a100:1"
-    ```
+```yaml
+set-resources:
+  - rebasecall:gres="gpu:a100:1"
+```
 
 ### Jobs Waiting for GPU
 
@@ -335,10 +284,6 @@ GPU jobs pending indefinitely.
 
 1. Check GPU queue status:
    ```bash
-   # LSF
-   bqueues -l gpu
-
-   # SLURM
    sinfo -p gpu
    ```
 
@@ -366,17 +311,9 @@ nvidia-smi --query-gpu=timestamp,name,utilization.gpu,utilization.memory,memory.
 
 ### Check Running GPU Jobs
 
-=== "LSF"
-
-    ```bash
-    bjobs -u $USER -q gpu
-    ```
-
-=== "SLURM"
-
-    ```bash
-    squeue -u $USER -p gpu
-    ```
+```bash
+squeue -u $USER -p gpu
+```
 
 ## CPU Fallback
 
@@ -393,5 +330,4 @@ pixi run snakemake --cores 12 --configfile=config/config.yml
 
 ## Next Steps
 
-- [LSF Setup](lsf-setup.md) - LSF cluster configuration
 - [SLURM Setup](slurm-setup.md) - SLURM cluster configuration

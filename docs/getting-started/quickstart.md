@@ -132,19 +132,19 @@ samtools view .tests/outputs/bam/final/sample1/sample1.bam | head -1 | tr '\t' '
 
 ## Run on Cluster
 
-For cluster execution with LSF:
+For cluster execution with SLURM:
 
 ```bash
-pixi run test-lsf
+pixi run test-slurm
 ```
 
 Or manually with a profile:
 
 ```bash
-pixi run snakemake --profile cluster/lsf --configfile=config/config-test.yml
+pixi run snakemake --profile cluster/slurm --configfile=config/config-test.yml
 ```
 
-See [LSF Setup](../cluster/lsf-setup.md) for cluster configuration.
+See [SLURM Setup](../cluster/slurm-setup.md) for cluster configuration.
 
 ## Cleanup
 

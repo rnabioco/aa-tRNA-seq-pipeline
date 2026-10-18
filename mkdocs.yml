@@ -83,7 +83,6 @@ nav:
     - Scripts Reference: workflow/scripts-reference.md
     - Demultiplexing: workflow/demultiplexing.md
   - Cluster Setup:
-    - LSF Setup: cluster/lsf-setup.md
     - SLURM Setup: cluster/slurm-setup.md
     - GPU Configuration: cluster/gpu-configuration.md
   - Troubleshooting:

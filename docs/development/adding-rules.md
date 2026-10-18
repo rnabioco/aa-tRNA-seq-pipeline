@@ -244,10 +244,10 @@ rule gpu_rule:
 Add cluster resources:
 
 ```yaml
-# In cluster/lsf/config.yaml
+# In cluster/slurm/config.yaml
 set-resources:
-  - gpu_rule:lsf_queue="gpu"
-  - gpu_rule:lsf_extra="-gpu num=1:j_exclusive=yes"
+  - gpu_rule:slurm_partition="gpu"
+  - gpu_rule:gres="gpu:1"
   - gpu_rule:ngpu=1
   - gpu_rule:mem_mb=24
 ```

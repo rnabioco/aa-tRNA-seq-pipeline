@@ -74,7 +74,7 @@ The classification writes a `cl` tag (0-255) onto each scored read, `round(P(cha
 - **Modification Calling**: Detection of RNA modifications (pseU, m5C, m6A, inosine) via Dorado and Modkit
 - **Full-Length Filtering**: Only full-length tRNA reads with proper adapters are analyzed
 - **Barcode Demultiplexing**: Optional WarpDemuX (signal) or escapepod LDX/FDX (basecall) support for pooled/multiplexed samples
-- **Cluster Support**: Optimized profiles for LSF and SLURM schedulers
+- **Cluster Support**: Optimized profile for the SLURM scheduler
 - **Reproducibility**: Git commit tracking and locked dependencies via Pixi
 
 ## Quick Start
@@ -130,9 +130,9 @@ See [Installation](getting-started/installation.md) for detailed setup instructi
 
     ---
 
-    Configure LSF, SLURM, or other HPC schedulers
+    Configure the SLURM scheduler
 
-    [:octicons-arrow-right-24: LSF Setup](cluster/lsf-setup.md)
+    [:octicons-arrow-right-24: SLURM Setup](cluster/slurm-setup.md)
 
 </div>
 
