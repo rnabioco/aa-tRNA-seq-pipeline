@@ -4,6 +4,13 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- `odds_ratios.ml_threshold` and `mismatch_calls.ml_threshold` follow
+  `charging.ml_threshold` unless set explicitly; they used to default to 200
+  independently, so raising the charging threshold left those tables at 200.
+- `Snakefile` no longer falls back to a stale `escpod_version` (0.21.0).
+
 ## [v0.12.0] - 2026-10-11
 
 ### Changed
