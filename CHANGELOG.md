@@ -4,6 +4,8 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+## [v0.13.0] - 2026-10-18
+
 ### Added
 
 - **Config schema.** `workflow/schemas/config.schema.yaml` closes every config
