@@ -4,6 +4,14 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **`escpod_version` bumped 0.32.0 → 0.34.0** (checksums in
+  `scripts/setup-tools.sh` updated from the release's `SHA256SUMS.txt`). Checked
+  by one end-to-end run of a 50-sample LDX/EDX config (762 jobs, GPU demux,
+  eschalign 0.3.0, GPU charging) completing cleanly; the test suite was not run
+  for this bump, and no output comparison against 0.32.0 was made.
+
 ## [v0.13.0] - 2026-10-18
 
 ### Added
