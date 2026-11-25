@@ -28,6 +28,31 @@ def get_file_info(filepath):
     }
 
 
+def read_samples_file(path):
+    """Sample names, one per line (blank lines and `#` comments ignored)."""
+    with open(path) as f:
+        lines = (line.strip() for line in f)
+        return [line for line in lines if line and not line.startswith("#")]
+
+
+def read_pod5_map(path):
+    """{sample: [pod5 path, ...]} from a two-column `sample<TAB>path` file.
+
+    File order is kept, so a sample's POD5s list in the order they were written.
+    """
+    pod5_paths = {}
+    with open(path) as f:
+        for n, line in enumerate(f, 1):
+            line = line.rstrip("\n")
+            if not line.strip() or line.startswith("#"):
+                continue
+            sample, sep, pod5 = line.partition("\t")
+            if not sep or not sample or not pod5:
+                raise ValueError(f"{path}:{n}: expected SAMPLE<TAB>PATH, got {line!r}")
+            pod5_paths.setdefault(sample, []).append(pod5)
+    return pod5_paths
+
+
 def generate_squiggy_session(
     sample_names,
     output_dir,
@@ -124,8 +149,22 @@ def main():
     parser.add_argument(
         "--samples",
         nargs="+",
-        required=True,
-        help="Sample names to include in session",
+        default=[],
+        help=(
+            "Sample names to include in session. Fine for a handful; a large "
+            "run overflows the OS argument limit, so use --samples-file there."
+        ),
+    )
+    parser.add_argument(
+        "--samples-file",
+        help="File of sample names, one per line (added to any --samples)",
+    )
+    parser.add_argument(
+        "--pod5-map",
+        help=(
+            "Two-column TSV, SAMPLE<TAB>PATH, one row per POD5 file (added to "
+            "any --pod5). Use this instead of --pod5 on a large run."
+        ),
     )
     parser.add_argument(
         "--pod5",
@@ -166,7 +205,18 @@ def main():
 
     args = parser.parse_args()
 
+    sample_names = list(args.samples)
+    if args.samples_file:
+        sample_names += read_samples_file(args.samples_file)
+    if not sample_names:
+        parser.error("no samples: give --samples and/or --samples-file")
+
     pod5_paths = {}
+    if args.pod5_map:
+        try:
+            pod5_paths = read_pod5_map(args.pod5_map)
+        except ValueError as e:
+            parser.error(str(e))
     for item in args.pod5:
         sample, sep, path = item.partition("=")
         if not sep or not sample or not path:
@@ -174,7 +224,7 @@ def main():
         pod5_paths.setdefault(sample, []).append(path)
 
     session = generate_squiggy_session(
-        sample_names=args.samples,
+        sample_names=sample_names,
         output_dir=args.output_dir,
         fasta_path=args.fasta,
         session_name=args.session_name,

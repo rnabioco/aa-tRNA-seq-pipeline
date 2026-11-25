@@ -4,6 +4,17 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`generate_squiggy_session` no longer fails with `Argument list too long` on
+  large runs.** The rule put every sample and one `--pod5 SAMPLE=PATH` per POD5
+  per sample on the shell command line; at 884 libraries x 108 POD5 that is
+  megabytes in one `bash -c` argument (capped at 128 KiB), and it failed after
+  every other job had finished. A new `write_squiggy_inputs` rule writes
+  `squiggy/samples.txt` and `squiggy/pod5_map.tsv`, and the script reads them
+  via `--samples-file` / `--pod5-map`. `--samples` and `--pod5` still work. The
+  session JSON is unchanged. (#222)
+
 ## [v0.13.0] - 2026-10-18
 
 ### Added
