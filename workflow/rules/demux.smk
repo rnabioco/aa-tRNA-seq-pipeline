@@ -1261,7 +1261,10 @@ def get_edx_samples():
 rule detect_edx_adapters:
     """
     Detect 3' adapter identity per read on the unaligned BAM (before alignment).
-    Produces a TSV mapping each read_id to its best-matching 3' adapter name.
+    Produces a TSV mapping each read_id to its 3' adapter call, with the hit's
+    position, aligned length and score fraction. With the `edx` gate configured
+    a read the data cannot place is `unassigned`, which no sample's
+    extract_edx_read_ids keeps.
     """
     input:
         bam=lambda wildcards: os.path.join(
@@ -1283,12 +1286,21 @@ rule detect_edx_adapters:
             f'--adapter-3p "{name}:{seq}"' for name, seq in get_adapter_3p_list()
         ),
         min_score_3p=config["adapters"]["min_score_3p"],
+        gate_args=lambda wc: " ".join(
+            [
+                f"--min-score-frac {config.get('edx',{}).get('min_score_frac',0)}",
+                f"--min-margin-frac {config.get('edx',{}).get('min_margin_frac',0)}",
+                f"--residual-min-frac {config.get('edx',{}).get('residual_min_frac',0.8)}",
+            ]
+            + [f'--residual "{n}"' for n in config.get("edx", {}).get("residual", [])]
+        ),
     shell:
         """
         python {params.src}/detect_3p_adapters.py \
             --bam {input.bam} \
             {params.adapter_3p_args} \
             --min-score-3p {params.min_score_3p} \
+            {params.gate_args} \
             --output {output.tsv} \
             2>&1 | tee {log}
         """
