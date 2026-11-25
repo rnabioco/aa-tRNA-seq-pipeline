@@ -851,8 +851,15 @@ edx:
   # these are fractions of the best adapter's self-score instead. A read whose
   # best hit is below `min_score_frac`, or within `min_margin_frac` of the
   # runner-up, is labelled `unassigned` -- not forced onto the nearest adapter
-  # -- and `edx_concordance` reports it per pool. UNCALIBRATED: no default is
-  # claimed until measured on a real run (see issue #223).
+  # -- and `edx_concordance` reports it per pool.
+  # Measured on l4_asnrs (477 libraries, 29.4 M reads, 60-nt ndx + 45-nt edx +
+  # edx00), from the old TSVs' score_best/margin: share of reads kept at
+  # score_frac >= 0.5 (margin_frac 0 / 0.05): edx02 89/83%, edx04 80/69%,
+  # edx03 66/55%, edx00 66/43%, ndx04 63/17%, ndx05 56/1%, ndx01 28/0.3%,
+  # ndx02 4/0.2% -- all reads 44/15%. No ndx read reaches 0.8. A gate alone
+  # therefore leaves most ndx reads unassigned (#223 stays open for a signal-level
+  # 3' classifier), so the defaults stay 0 here rather than silently dropping
+  # most of a run; set them per campaign.
   min_score_frac: 0
   min_margin_frac: 0
   # Adapters that are another adapter's stem with the barcode removed, e.g. the
