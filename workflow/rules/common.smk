@@ -1303,6 +1303,28 @@ def get_all_pod5_files():
     return seen
 
 
+rule write_squiggy_inputs:
+    """
+    Write the sample list and the sample -> POD5 map as files.
+
+    The session script used to take both on its command line, one `--pod5
+    SAMPLE=PATH` per POD5 per sample. At 884 libraries x 108 POD5s that is past
+    the OS argument limit (`Argument list too long`), and the failure came after
+    every other job had finished. Files have no such limit.
+    """
+    output:
+        samples=os.path.join(outdir, "squiggy", "samples.txt"),
+        pod5_map=os.path.join(outdir, "squiggy", "pod5_map.tsv"),
+    run:
+        os.makedirs(os.path.dirname(output.samples), exist_ok=True)
+        with open(output.samples, "w") as f:
+            f.writelines(f"{s}\n" for s in samples)
+        with open(output.pod5_map, "w") as f:
+            f.writelines(
+                f"{s}\t{p}\n" for s in samples for p in get_sample_pod5_files(s)
+            )
+
+
 rule generate_squiggy_session:
     """
     Generate squiggy session JSON file for loading samples in Positron.
@@ -1314,24 +1336,20 @@ rule generate_squiggy_session:
         bams=get_all_final_bams(),
         pod5s=get_all_pod5_files(),
         fasta=config["fasta"],
+        samples=rules.write_squiggy_inputs.output.samples,
+        pod5_map=rules.write_squiggy_inputs.output.pod5_map,
     output:
         session=os.path.join(outdir, "squiggy-session.json"),
     log:
         os.path.join(outdir, "logs", "generate_squiggy_session.log"),
     params:
         src=SCRIPT_DIR,
-        samples=" ".join(samples.keys()),
         outdir=outdir,
-        pod5_args=" ".join(
-            f"--pod5 {sample}={path}"
-            for sample in samples
-            for path in get_sample_pod5_files(sample)
-        ),
     shell:
         """
         python {params.src}/generate_squiggy_session.py \
-            --samples {params.samples} \
-            {params.pod5_args} \
+            --samples-file {input.samples} \
+            --pod5-map {input.pod5_map} \
             --output-dir {params.outdir} \
             --fasta {input.fasta} \
             --output {output.session} \
