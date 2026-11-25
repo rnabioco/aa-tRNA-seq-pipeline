@@ -94,7 +94,20 @@ def get_adapter_bounds_from_cigar(cigar_decode, beg_ref):
     return start, end
 
 
-def find_adapter(
+def count_aligned_adapter_bases(cigar_decode):
+    """Adapter (query) bases that sit in a match/mismatch column of the CIGAR.
+
+    The adapter is the alignment query and must be aligned end to end, so a
+    read that ends before the adapter does shows up as trailing insertions (and
+    a penalty), not as a shorter hit. This count is what tells those apart: an
+    adapter of length L with n aligned bases lost L - n of itself to truncation
+    or to gaps.
+    """
+    ops = re.findall(r"(\d+)([MIDNSHP=X])", cigar_decode.decode())
+    return sum(int(n) for n, op in ops if op in "M=X")
+
+
+def align_adapter(
     read_seq,
     adapter_seq,
     search_start,
@@ -118,7 +131,7 @@ def find_adapter(
         min_score: Minimum alignment score to accept
 
     Returns:
-        (start, end, score) tuple with positions relative to full read,
+        (start, end, score, n_aligned) with positions relative to full read,
         or None if adapter not found
     """
     region = read_seq[search_start:search_end]
@@ -143,7 +156,13 @@ def find_adapter(
     start = search_start + ref_start
     end = search_start + ref_end
 
-    return (start, end, result.score)
+    return (start, end, result.score, count_aligned_adapter_bases(cigar.decode))
+
+
+def find_adapter(*args, **kwargs):
+    """`align_adapter` without the aligned-base count: (start, end, score) or None."""
+    hit = align_adapter(*args, **kwargs)
+    return hit[:3] if hit else None
 
 
 def find_5p_adapter(read_seq, adapter_5p, matrix, gap_open, gap_extend, min_score):
@@ -154,11 +173,18 @@ def find_5p_adapter(read_seq, adapter_5p, matrix, gap_open, gap_extend, min_scor
     )
 
 
-def find_3p_adapter(read_seq, adapter_3p, matrix, gap_open, gap_extend, min_score):
-    """Find 3' adapter in the end of the read."""
+def find_3p_adapter(
+    read_seq, adapter_3p, matrix, gap_open, gap_extend, min_score, detail=False
+):
+    """Find 3' adapter in the end of the read.
+
+    Returns (start, end, score), or with `detail=True` (start, end, score,
+    n_aligned) where n_aligned is the number of adapter bases that aligned.
+    """
     search_len = min(DEFAULT_SEARCH_3P, len(read_seq))
     search_start = max(0, len(read_seq) - search_len)
-    return find_adapter(
+    find = align_adapter if detail else find_adapter
+    return find(
         read_seq,
         adapter_3p,
         search_start,

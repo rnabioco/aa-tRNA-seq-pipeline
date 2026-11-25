@@ -186,7 +186,7 @@ The EDX splitting flow:
 rebasecall → uBAM → detect_edx_adapters → extract_edx_read_ids → eschalign → classify_charging → ...
 ```
 
-Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. For samples without an `edx` assignment, the pipeline flow is unchanged.
+Reads with no detected 3' adapter get `"none"` in the adapter detection TSV and are excluded from all samples. With the gate below enabled, reads whose best hit is too weak or too close to a runner-up get `"unassigned"` and are excluded the same way. For samples without an `edx` assignment, the pipeline flow is unchanged.
 
 ### EDX Concordance Output (QC)
 
@@ -200,12 +200,36 @@ When samples have EDX assignments and `edx.enabled: true`, the `edx_concordance`
 | `edx_adapter` | 3' adapter identity detected (e.g., `edx01`, `edx02`, `none`) |
 | `n_reads` | Number of reads with this adapter |
 | `pct` | Percentage of the sample's reads with this adapter |
+| `n_clean`, `pct_clean` | Reads whose best-vs-second score margin is at least `edx.min_margin` |
+| `n_unassigned`, `pct_unassigned` | Pool-wide count and share of reads the gate refused (`unassigned`), repeated on every row of the pool. `100 - pct_unassigned - pct(none)` is the share at or above the gate |
 
 !!! tip "Enable EDX concordance"
     EDX concordance output requires `edx.enabled: true` in the pipeline config. The rule runs automatically when enabled and at least one sample has an `edx` assignment.
 
 !!! tip "Debugging unmatched reads"
     The full adapter detection TSV at `demux/edx/{sample}/{sample}.edx_adapters.tsv.gz` records every read's adapter assignment including `"none"`, useful for debugging.
+
+### The 3' adapter gate (`edx.min_score_frac`, `edx.min_margin_frac`, `edx.residual`)
+
+By default every read goes to its nearest adapter. In a dual-barcode run with
+adapters of different lengths that is a poor call: scores scale with adapter
+length (self-score is 2 x nt), and a read cut short of the adapter's 3' end
+looks like a shorter adapter, or like the stem-only `edx00`. The gate is off
+(`0`) until it is calibrated on a real run; turned on it is length-aware:
+
+- **`min_score_frac`** -- the best hit must reach this fraction of that adapter's
+  self-score.
+- **`min_margin_frac`** -- and beat the runner-up by this fraction of it.
+- **`residual`** -- names stem-only adapters (the plain `edx00`) that do not
+  compete for the nearest-adapter call. One is assigned only when it aligns to
+  `residual_min_frac` of its self-score, poly-A tail included, and beats every
+  barcoded adapter. Otherwise the read is `unassigned`.
+
+The detection TSV also reports where the hit sits (`hit_start`, `hit_end`,
+`read_len`), how many adapter bases aligned (`n_aligned`), the `score_frac`, the
+raw `adapter_nearest` before gating, and a `reason` for every `unassigned` read
+(`low_score`, `low_margin`, `stem_only`), so truncation can be measured on real
+reads rather than inferred.
 
 ## Dual Indexing (LDX + FDX)
 
@@ -345,7 +369,7 @@ Filters raw POD5 files by sample using read ID list.
 
 ### detect_edx_adapters
 
-Detects 3' adapter identity per read on the unaligned BAM (before alignment). Produces a gzipped TSV mapping each read_id to its best-matching 3' adapter name. Only runs for samples with an `edx` assignment.
+Detects 3' adapter identity per read on the unaligned BAM (before alignment). Produces a gzipped TSV mapping each read_id to its 3' adapter call, with the hit position, aligned length and score fraction. Only runs for samples with an `edx` assignment.
 
 | Property | Value |
 |----------|-------|

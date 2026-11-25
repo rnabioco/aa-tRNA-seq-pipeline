@@ -200,3 +200,7 @@ properties:
       enabled: {type: boolean}
       detect_all: {type: boolean}
       min_margin: {type: integer, minimum: 0}
+      min_score_frac: {type: number, minimum: 0, maximum: 1}
+      min_margin_frac: {type: number, minimum: 0, maximum: 1}
+      residual: {type: array, items: {type: string}}
+      residual_min_frac: {type: number, minimum: 0, maximum: 1}

@@ -4,6 +4,21 @@ All notable changes to the aa-tRNA-seq pipeline are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Length-aware gate on 3' adapter calls (opt-in).** `detect_3p_adapters.py`
+  reports where each read's best hit sits (`hit_start`, `hit_end`, `read_len`),
+  how many adapter bases aligned (`n_aligned`), `score_frac` (score over the
+  adapter's self-score), the raw `adapter_nearest`, and a `reason` for refused
+  reads. New `edx.min_score_frac` / `edx.min_margin_frac` refuse a call that is
+  weak or near-tied *relative to that adapter's length*, labelling it
+  `unassigned` rather than forcing it onto the nearest adapter, and
+  `edx.residual` keeps stem-only adapters such as `edx00` out of the
+  nearest-adapter competition, so a truncated barcoded adapter cannot fall into
+  them. `edx_concordance` gains `n_unassigned` / `pct_unassigned`. All gate
+  settings default to off (no behaviour change) until calibrated on a real run.
+  (#223)
+
 ### Fixed
 
 - **`generate_squiggy_session` no longer fails with `Argument list too long` on

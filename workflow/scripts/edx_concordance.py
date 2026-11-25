@@ -16,12 +16,22 @@ indistinguishable from a read that matched at 66 with the runner-up at 20 —
 which inflates apparent crosstalk with reads the assay simply could not assign.
 Both are reported so the gate's effect stays visible: `n_reads` is every call,
 `n_clean` only those at or above the margin.
+
+The length-aware gate in detect_3p_adapters.py labels reads it refuses
+`unassigned`. They are reported as an adapter row of their own, and each row
+also carries the pool's `n_unassigned` / `pct_unassigned`, so the loss is on
+every line without a second lookup. `pct_unassigned` is over every read in the
+pool, `none` and `unassigned` included: it answers "what fraction of this pool
+could not be placed on a tube", and 100 - pct_unassigned - pct(none) is the
+fraction at or above the gate.
 """
 
 import argparse
 import gzip
 import sys
 from collections import Counter
+
+UNASSIGNED = "unassigned"
 
 
 def main():
@@ -81,12 +91,14 @@ def main():
                 # against (a single configured adapter, or no match at all), so
                 # the gate cannot apply and the call passes unchanged.
                 margin_str = fields[4] if len(fields) > 4 else ""
-                if adapter == "none":
+                if adapter in ("none", UNASSIGNED):
                     continue
                 if not margin_str or int(margin_str) >= args.min_margin:
                     clean_counts[adapter] += 1
 
         total = sum(counts.values())
+        n_unassigned = counts[UNASSIGNED]
+        pct_unassigned = 100.0 * n_unassigned / total if total > 0 else 0.0
         total_clean = sum(clean_counts.values())
         print(
             f"  {sample_name}: {total} reads, {len(counts)} adapter categories, "
@@ -101,13 +113,25 @@ def main():
             # 100 and samples of different depth stay comparable.
             pct_clean = 100.0 * n_clean / total_clean if total_clean > 0 else 0.0
             rows.append(
-                (sample_name, adapter, n, f"{pct:.1f}", n_clean, f"{pct_clean:.1f}")
+                (
+                    sample_name,
+                    adapter,
+                    n,
+                    f"{pct:.1f}",
+                    n_clean,
+                    f"{pct_clean:.1f}",
+                    n_unassigned,
+                    f"{pct_unassigned:.1f}",
+                )
             )
 
     with gzip.open(args.output, "wt") as f:
-        f.write("sample\tedx_adapter\tn_reads\tpct\tn_clean\tpct_clean\n")
-        for sample, adapter, n, pct, n_clean, pct_clean in rows:
-            f.write(f"{sample}\t{adapter}\t{n}\t{pct}\t{n_clean}\t{pct_clean}\n")
+        f.write(
+            "sample\tedx_adapter\tn_reads\tpct\tn_clean\tpct_clean"
+            "\tn_unassigned\tpct_unassigned\n"
+        )
+        for row in rows:
+            f.write("\t".join(str(x) for x in row) + "\n")
 
     print(f"Wrote {len(rows)} rows to {args.output}", file=sys.stderr)
 
